@@ -61,7 +61,7 @@ export function BottomNav() {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background/95 backdrop-blur md:hidden">
       <div className="mx-auto flex max-w-xl items-center justify-around px-2 py-2">
-        {items.slice(0, 2).map((i, k) => <NavItem key={i.label} {...i} active={k === 0} />)}
+        {items.slice(0, 2).map((i) => <NavItem key={i.label} {...i} />)}
         <button aria-label="Create" className="-mt-6 grid h-14 w-14 place-items-center rounded-full bg-gradient-brand text-primary-foreground glow">
           <Plus className="h-7 w-7" />
         </button>
@@ -71,10 +71,15 @@ export function BottomNav() {
   );
 }
 
-function NavItem({ to, label, icon: Icon, active }: { to: "/home"; label: string; icon: typeof Home; active?: boolean }) {
+function NavItem({ to, label, icon: Icon }: { to: "/home" | "/profile"; label: string; icon: typeof Home }) {
   return (
-    <Link to={to} className={`flex flex-col items-center gap-1 text-xs ${active ? "text-primary" : "text-muted-foreground"}`}>
-      <Icon className={`h-6 w-6 ${active ? "fill-primary" : ""}`} />
+    <Link
+      to={to}
+      activeOptions={{ exact: true }}
+      activeProps={{ className: "flex flex-col items-center gap-1 text-xs text-primary" }}
+      inactiveProps={{ className: "flex flex-col items-center gap-1 text-xs text-muted-foreground" }}
+    >
+      <Icon className="h-6 w-6" />
       {label}
     </Link>
   );
@@ -84,8 +89,14 @@ export function SideNav() {
   return (
     <aside className="sticky top-6 hidden h-fit flex-col gap-2 md:flex">
       <div className="mb-4 flex items-center gap-2 px-3"><Logo size={36} /><span className="text-xl font-bold">Ediraa</span></div>
-      {items.map((i, k) => (
-        <Link key={i.label} to={i.to} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${k === 0 ? "bg-elevated text-primary" : "text-muted-foreground hover:bg-card"}`}>
+      {items.map((i) => (
+        <Link
+          key={i.label}
+          to={i.to}
+          activeOptions={{ exact: true }}
+          activeProps={{ className: "flex items-center gap-3 rounded-xl px-3 py-2.5 bg-elevated text-primary" }}
+          inactiveProps={{ className: "flex items-center gap-3 rounded-xl px-3 py-2.5 text-muted-foreground hover:bg-card" }}
+        >
           <i.icon className="h-5 w-5" />{i.label}
         </Link>
       ))}
