@@ -37,7 +37,7 @@ function HomePage() {
           <h1 className="text-2xl font-bold">Ediraa</h1>
           <div className="flex items-center gap-4">
             <Search className="h-6 w-6" />
-            <div className="relative"><Bell className="h-6 w-6" /><span className="absolute right-0 top-0 h-2.5 w-2.5 rounded-full bg-destructive" /></div>
+            <Link to="/notifications" aria-label="Notifications" className="relative block"><Bell className="h-6 w-6" /><span className="absolute right-0 top-0 h-2.5 w-2.5 rounded-full bg-destructive" /></Link>
             <Avatar src={me} size={34} />
           </div>
         </header>
