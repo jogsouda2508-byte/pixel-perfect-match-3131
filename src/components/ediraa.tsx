@@ -71,7 +71,7 @@ export function BottomNav() {
   );
 }
 
-function NavItem({ to, label, icon: Icon }: { to: "/home" | "/profile"; label: string; icon: typeof Home }) {
+function NavItem({ to, label, icon: Icon }: { to: "/home" | "/profile" | "/discover"; label: string; icon: typeof Home }) {
   return (
     <Link
       to={to}
