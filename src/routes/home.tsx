@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Search, Bell, Plus, MapPin, Image, Video, FileText, MoreHorizontal, ThumbsUp, MessageSquare, Share2, Heart } from "lucide-react";
 import { Avatar, BottomNav, Pill, SideNav, UserRow, Verified, avatar } from "@/components/ediraa";
+import { getUserPosts, type UserPost } from "@/lib/posts";
 import city from "@/assets/city-sunset.jpg";
 
 export const Route = createFileRoute("/home")({
@@ -26,6 +27,8 @@ const stories = [
 function HomePage() {
   const [tab, setTab] = useState("For You");
   const [liked, setLiked] = useState(false);
+  const [userPosts, setUserPosts] = useState<UserPost[]>([]);
+  useEffect(() => setUserPosts(getUserPosts()), []);
   return (
     <div className="mx-auto max-w-6xl px-4 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,640px)_300px]">
       <SideNav />
@@ -56,6 +59,20 @@ function HomePage() {
             <span className="flex items-center justify-center gap-2"><FileText className="h-4 w-4 text-violet" />Post</span>
           </div>
         </section>
+        {userPosts.map((p) => (
+          <article key={p.id} className="glass-card p-3">
+            <div className="flex items-center gap-3">
+              <Avatar src={me} size={40} />
+              <div className="flex-1"><p className="text-sm font-semibold">Basava Jarkande</p><p className="text-xs text-muted-foreground">@basava_2005 • {p.time} • {p.audience}</p></div>
+            </div>
+            <p className="mt-3 text-sm leading-relaxed">{p.text}</p>
+            <div className="mt-3 grid grid-cols-3 border-t border-border pt-2 text-sm">
+              <button className="flex items-center justify-center gap-2 py-2"><ThumbsUp className="h-5 w-5" />Like</button>
+              <button className="flex items-center justify-center gap-2 py-2"><MessageSquare className="h-5 w-5" />Comment</button>
+              <button className="flex items-center justify-center gap-2 py-2"><Share2 className="h-5 w-5" />Share</button>
+            </div>
+          </article>
+        ))}
         <article className="glass-card p-3">
           <div className="flex items-center gap-3">
             <Avatar src={avatar("men", 75)} size={40} />
