@@ -21,7 +21,9 @@ export const Route = createFileRoute("/profile")({
 const me = avatar("men", 32);
 const tabs = ["Posts", "Reels", "Tagged"] as const;
 
-const quotes = [
+type Quote = { a: string; b: string; c: string; d: string };
+
+const quotes: Quote[] = [
   { a: "Better", b: "Ideas", c: "Bigger", d: "Dreams" },
   { a: "Patience", b: "Builds", c: "Success", d: "" },
   { a: "Small", b: "Steps", c: "Big", d: "Results" },
@@ -30,16 +32,16 @@ const quotes = [
 
 function ProfilePage() {
   const [tab, setTab] = useState<(typeof tabs)[number]>("Posts");
-  const tiles: ({ img: string; alt: string } | { quote: (typeof quotes)[number] })[] = [
-    { quote: quotes[0] },
+  const tiles: ({ img: string; alt: string } | { quote: Quote })[] = [
+    { quote: quotes[0]! },
     { img: city, alt: "City skyline at sunset" },
     { img: desk, alt: "Workspace with laptop and coffee" },
     { img: road, alt: "Mountain road at dusk" },
     { img: city, alt: "City skyline at sunset" },
-    { quote: quotes[2] },
+    { quote: quotes[2]! },
     { img: desk, alt: "Workspace with laptop and coffee" },
     { img: road, alt: "Mountain road at dusk" },
-    { quote: quotes[3] },
+    { quote: quotes[3]! },
   ];
   return (
     <div className="mx-auto max-w-6xl px-4 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,640px)] lg:justify-center">
