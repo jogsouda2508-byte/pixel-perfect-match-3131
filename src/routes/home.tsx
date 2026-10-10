@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Search, Bell, Plus, MapPin, Image, Video, FileText, MoreHorizontal, ThumbsUp, MessageSquare, Share2, Heart } from "lucide-react";
 import { Avatar, BottomNav, Pill, SideNav, UserRow, Verified, avatar } from "@/components/ediraa";
+import { getUserPosts, type UserPost } from "@/lib/posts";
 import city from "@/assets/city-sunset.jpg";
 
 export const Route = createFileRoute("/home")({
