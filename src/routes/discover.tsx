@@ -1,7 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { Search } from "lucide-react";
-import { Avatar, BottomNav, Pill, SideNav, avatar } from "@/components/ediraa";
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Loader2, Search } from "lucide-react";
+import { BottomNav, Pill, SideNav, UserRow } from "@/components/ediraa";
+import { PostCard } from "@/components/post-card";
+import { useAuth } from "@/lib/auth";
+import { fetchFeed, fetchPeople, fetchTrending } from "@/lib/social";
+import { useFollow } from "@/lib/use-follow";
 
 export const Route = createFileRoute("/discover")({
   head: () => ({
@@ -9,7 +14,10 @@ export const Route = createFileRoute("/discover")({
       { title: "Discover — Ediraa" },
       { name: "description", content: "Find people, businesses and trending topics on Ediraa." },
       { property: "og:title", content: "Discover — Ediraa" },
-      { property: "og:description", content: "Find people, businesses and trending topics on Ediraa." },
+      {
+        property: "og:description",
+        content: "Find people, businesses and trending topics on Ediraa.",
+      },
     ],
   }),
   component: DiscoverPage,
@@ -17,23 +25,43 @@ export const Route = createFileRoute("/discover")({
 
 const filters = ["All", "People", "Business", "Groups"] as const;
 
-const people = [
-  { name: "Ananya R", sub: "2 mutual friends", img: avatar("women", 12) },
-  { name: "Rahul S", sub: "3 mutual friends", img: avatar("men", 22) },
-  { name: "Meghana K", sub: "1 mutual friend", img: avatar("women", 33) },
-  { name: "Kiran D", sub: "5 mutual friends", img: avatar("men", 52) },
-];
-
-const topics = ["#Ediraa", "#Startups", "#Business", "#Tech", "#Bangalore", "#Networking", "#Growth", "#LocalHub"];
+function useDebounced<T>(value: T, ms = 300) {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return v;
+}
 
 function DiscoverPage() {
+  const { user } = useAuth();
+  const meId = user?.id ?? "";
   const [filter, setFilter] = useState<(typeof filters)[number]>("All");
   const [query, setQuery] = useState("");
-  const [following, setFollowing] = useState<Record<string, boolean>>({});
+  const q = useDebounced(query.trim());
+  const follow = useFollow();
 
-  const visible = people.filter(
-    (p) => p.name.toLowerCase().includes(query.toLowerCase()) && (filter === "All" || filter === "People")
-  );
+  const showPeople = filter === "All" || filter === "People" || filter === "Business";
+  const people = useQuery({
+    queryKey: ["people", "discover", q, filter, meId],
+    queryFn: () => fetchPeople({ query: q, businessOnly: filter === "Business", limit: 20 }),
+    enabled: !!meId && showPeople,
+  });
+
+  // Posts only show up when searching (the home feed is for browsing).
+  const showPosts = filter === "All" && q.length > 0;
+  const posts = useQuery({
+    queryKey: ["feed", "search", q, meId],
+    queryFn: () => fetchFeed({ tab: "for_you", search: q }),
+    enabled: !!meId && showPosts,
+  });
+
+  const trending = useQuery({
+    queryKey: ["trending", meId],
+    queryFn: () => fetchTrending(12),
+    enabled: !!meId,
+  });
 
   return (
     <div className="mx-auto max-w-6xl px-4 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,640px)] lg:justify-center">
@@ -50,42 +78,86 @@ function DiscoverPage() {
           />
         </label>
         <div className="flex gap-2 overflow-x-auto pb-1">
-          {filters.map((f) => <Pill key={f} active={filter === f} onClick={() => setFilter(f)}>{f}</Pill>)}
+          {filters.map((f) => (
+            <Pill key={f} active={filter === f} onClick={() => setFilter(f)}>
+              {f}
+            </Pill>
+          ))}
         </div>
-        <section className="glass-card p-4">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-semibold">People you may know</h2>
-            <button className="text-xs font-medium text-primary">See All</button>
-          </div>
-          <div className="space-y-4">
-            {visible.length === 0 && <p className="text-sm text-muted-foreground">No people match your search.</p>}
-            {visible.map((p) => {
-              const isFollowing = !!following[p.name];
-              return (
-                <div key={p.name} className="flex items-center gap-3">
-                  <Avatar src={p.img} size={40} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold">{p.name}</p>
-                    <p className="truncate text-xs text-muted-foreground">{p.sub}</p>
-                  </div>
-                  <button
-                    onClick={() => setFollowing((s) => ({ ...s, [p.name]: !isFollowing }))}
-                    className={`shrink-0 rounded-lg px-3 py-1 text-xs font-medium transition ${isFollowing ? "bg-elevated text-muted-foreground" : "border border-primary text-primary"}`}
-                  >
-                    {isFollowing ? "Following" : "Follow"}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </section>
+
+        {filter === "Groups" ? (
+          <section className="glass-card p-6 text-center text-sm text-muted-foreground">
+            Groups are coming soon.
+          </section>
+        ) : (
+          <section className="glass-card p-4">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="font-semibold">
+                {q ? "People" : filter === "Business" ? "Businesses" : "People you may know"}
+              </h2>
+            </div>
+            <div className="space-y-4">
+              {people.isLoading && (
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              )}
+              {people.isError && <p className="text-sm text-destructive">Couldn't load people.</p>}
+              {people.isSuccess && people.data.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  {q ? "No people match your search." : "No one to show yet."}
+                </p>
+              )}
+              {people.data?.map((p) => (
+                <UserRow
+                  key={p.id}
+                  name={p.full_name || p.username}
+                  sub={
+                    p.mutual_count > 0
+                      ? `${p.mutual_count} mutual ${p.mutual_count === 1 ? "friend" : "friends"}`
+                      : `@${p.username}`
+                  }
+                  img={p.avatar_url}
+                  following={follow.isFollowing(p.id, p.is_following)}
+                  pending={follow.isPending(p.id)}
+                  onToggle={() => follow.toggle(p.id, follow.isFollowing(p.id, p.is_following))}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {showPosts && (
+          <section className="space-y-4">
+            <h2 className="px-1 font-semibold">Posts</h2>
+            {posts.isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+            {posts.isSuccess && posts.data.length === 0 && (
+              <p className="px-1 text-sm text-muted-foreground">No posts match your search.</p>
+            )}
+            {posts.data?.map((p) => (
+              <PostCard key={p.id} post={p} />
+            ))}
+          </section>
+        )}
+
         <section className="glass-card p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="font-semibold">Trending Topics</h2>
-            <button className="text-xs font-medium text-primary">See All</button>
           </div>
+          {trending.isSuccess && trending.data.length === 0 && (
+            <p className="text-sm text-muted-foreground">Hashtags used in posts will trend here.</p>
+          )}
           <div className="flex flex-wrap gap-2">
-            {topics.map((t) => <span key={t} className="rounded-full bg-elevated px-3 py-1.5 text-xs font-medium">{t}</span>)}
+            {trending.data?.map((t) => (
+              <button
+                key={t.tag}
+                onClick={() => {
+                  setFilter("All");
+                  setQuery(`#${t.tag}`);
+                }}
+                className="rounded-full bg-elevated px-3 py-1.5 text-xs font-medium"
+              >
+                #{t.tag}
+              </button>
+            ))}
           </div>
         </section>
       </main>

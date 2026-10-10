@@ -1,0 +1,304 @@
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import {
+  Loader2,
+  MessageSquare,
+  MoreHorizontal,
+  Send,
+  Share2,
+  ThumbsUp,
+  Trash2,
+} from "lucide-react";
+import { Avatar } from "@/components/ediraa";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useAuth } from "@/lib/auth";
+import { addComment, deleteComment, deletePost, fetchComments, setLike } from "@/lib/social";
+import { timeAgo } from "@/lib/time";
+import type { FeedRow } from "@/integrations/supabase/types";
+
+/** Renders #hashtags in the brand colour. */
+function RichText({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(/(#[A-Za-z0-9_]+)/g).map((part, i) =>
+        /^#[A-Za-z0-9_]+$/.test(part) ? (
+          <span key={i} className="text-primary">
+            {part}
+          </span>
+        ) : (
+          <span key={i}>{part}</span>
+        ),
+      )}
+    </>
+  );
+}
+
+export function PostCard({ post }: { post: FeedRow }) {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const mine = user?.id === post.author_id;
+
+  const [liked, setLiked] = useState(post.liked_by_me);
+  const [likes, setLikes] = useState(post.like_count);
+  const [commentCount, setCommentCount] = useState(post.comment_count);
+  const [showComments, setShowComments] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [likeBusy, setLikeBusy] = useState(false);
+
+  // Keep in sync when the feed refetches.
+  useEffect(() => {
+    setLiked(post.liked_by_me);
+    setLikes(post.like_count);
+    setCommentCount(post.comment_count);
+  }, [post.liked_by_me, post.like_count, post.comment_count]);
+
+  const toggleLike = async () => {
+    if (!user || likeBusy) return;
+    const next = !liked;
+    setLikeBusy(true);
+    setLiked(next);
+    setLikes((n) => Math.max(0, n + (next ? 1 : -1)));
+    try {
+      await setLike(post.id, user.id, next);
+    } catch {
+      setLiked(!next);
+      setLikes((n) => Math.max(0, n + (next ? -1 : 1)));
+      toast.error("Couldn't update your like. Please try again.");
+    } finally {
+      setLikeBusy(false);
+    }
+  };
+
+  const remove = useMutation({
+    mutationFn: () => deletePost(post.id),
+    onSuccess: () => {
+      toast.success("Post deleted");
+      void qc.invalidateQueries({ queryKey: ["feed"] });
+      void qc.invalidateQueries({ queryKey: ["user-posts"] });
+      void qc.invalidateQueries({ queryKey: ["follow-counts"] });
+      void qc.invalidateQueries({ queryKey: ["trending"] });
+    },
+    onError: () => toast.error("Couldn't delete the post."),
+  });
+
+  const share = async () => {
+    const text = post.content || `A post by ${post.author_name || post.author_username} on Ediraa`;
+    try {
+      if (navigator.share)
+        await navigator.share({ title: "Ediraa", text, url: window.location.origin + "/home" });
+      else {
+        await navigator.clipboard.writeText(`${text}\n${window.location.origin}/home`);
+        toast.success("Copied to clipboard");
+      }
+    } catch {
+      /* user cancelled the share sheet */
+    }
+  };
+
+  const name = post.author_name || post.author_username;
+
+  return (
+    <article className="glass-card p-3">
+      <div className="flex items-center gap-3">
+        <Avatar src={post.author_avatar} name={name} size={40} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold">{name}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            @{post.author_username} • {timeAgo(post.created_at)} • {post.audience}
+          </p>
+        </div>
+        {mine && (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              aria-label="Post options"
+              className="rounded-full p-1 text-muted-foreground outline-none hover:bg-elevated"
+            >
+              <MoreHorizontal className="h-5 w-5" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={() => remove.mutate()}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete post
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+
+      {post.content && (
+        <p className="mt-3 whitespace-pre-line break-words text-sm leading-relaxed">
+          <RichText text={post.content} />
+        </p>
+      )}
+      {post.image_url && (
+        <img
+          src={post.image_url}
+          alt=""
+          loading="lazy"
+          className="mt-3 max-h-[480px] w-full rounded-xl object-cover"
+        />
+      )}
+
+      {(likes > 0 || commentCount > 0) && (
+        <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+          <span className="flex items-center gap-2">
+            {likes > 0 && (
+              <>
+                <span className="grid h-5 w-5 place-items-center rounded-full bg-primary">
+                  <ThumbsUp className="h-3 w-3 fill-primary-foreground text-primary-foreground" />
+                </span>
+                {likes}
+              </>
+            )}
+          </span>
+          {commentCount > 0 && (
+            <button onClick={() => setShowComments((v) => !v)} className="hover:underline">
+              {commentCount} {commentCount === 1 ? "comment" : "comments"}
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className="mt-3 grid grid-cols-3 border-t border-border pt-2 text-sm">
+        <button
+          onClick={toggleLike}
+          className={`flex items-center justify-center gap-2 py-2 ${liked ? "text-primary" : ""}`}
+        >
+          <ThumbsUp className={`h-5 w-5 ${liked ? "fill-primary" : ""}`} />
+          Like
+        </button>
+        <button
+          onClick={() => setShowComments((v) => !v)}
+          className="flex items-center justify-center gap-2 py-2"
+        >
+          <MessageSquare className="h-5 w-5" />
+          Comment
+        </button>
+        <button onClick={share} className="flex items-center justify-center gap-2 py-2">
+          <Share2 className="h-5 w-5" />
+          Share
+        </button>
+      </div>
+
+      {showComments && (
+        <Comments
+          postId={post.id}
+          draft={draft}
+          setDraft={setDraft}
+          onAdded={() => setCommentCount((n) => n + 1)}
+          onRemoved={() => setCommentCount((n) => Math.max(0, n - 1))}
+        />
+      )}
+    </article>
+  );
+}
+
+function Comments({
+  postId,
+  draft,
+  setDraft,
+  onAdded,
+  onRemoved,
+}: {
+  postId: string;
+  draft: string;
+  setDraft: (v: string) => void;
+  onAdded: () => void;
+  onRemoved: () => void;
+}) {
+  const { user, profile } = useAuth();
+  const qc = useQueryClient();
+  const key = ["comments", postId];
+  const list = useQuery({ queryKey: key, queryFn: () => fetchComments(postId) });
+
+  const add = useMutation({
+    mutationFn: (text: string) => addComment(postId, user!.id, text),
+    onSuccess: () => {
+      setDraft("");
+      onAdded();
+      void qc.invalidateQueries({ queryKey: key });
+      void qc.invalidateQueries({ queryKey: ["notifications"] });
+    },
+    onError: () => toast.error("Couldn't post your comment."),
+  });
+
+  const del = useMutation({
+    mutationFn: (id: string) => deleteComment(id),
+    onSuccess: () => {
+      onRemoved();
+      void qc.invalidateQueries({ queryKey: key });
+    },
+    onError: () => toast.error("Couldn't delete the comment."),
+  });
+
+  const text = draft.trim();
+
+  return (
+    <div className="mt-3 space-y-3 border-t border-border pt-3">
+      {list.isLoading && <Loader2 className="mx-auto h-4 w-4 animate-spin text-muted-foreground" />}
+      {list.isError && <p className="text-xs text-destructive">Couldn't load comments.</p>}
+      {list.data?.map((c) => (
+        <div key={c.id} className="flex items-start gap-2">
+          <Avatar
+            src={c.author?.avatar_url}
+            name={c.author?.full_name || c.author?.username}
+            size={30}
+          />
+          <div className="min-w-0 flex-1 rounded-xl bg-elevated/60 px-3 py-2">
+            <p className="text-xs font-semibold">
+              {c.author?.full_name || c.author?.username}{" "}
+              <span className="font-normal text-muted-foreground">• {timeAgo(c.created_at)}</span>
+            </p>
+            <p className="mt-0.5 whitespace-pre-line break-words text-sm">{c.content}</p>
+          </div>
+          {c.author_id === user?.id && (
+            <button
+              onClick={() => del.mutate(c.id)}
+              aria-label="Delete comment"
+              className="mt-2 text-muted-foreground hover:text-destructive"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      ))}
+      <div className="flex items-center gap-2">
+        <Avatar
+          src={profile?.avatar_url}
+          name={profile?.full_name || profile?.username}
+          size={30}
+        />
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value.slice(0, 300))}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && text && !add.isPending) add.mutate(text);
+          }}
+          placeholder="Write a comment…"
+          className="min-w-0 flex-1 rounded-full border border-border bg-elevated/40 px-4 py-2 text-sm outline-none placeholder:text-muted-foreground focus:border-primary"
+        />
+        <button
+          onClick={() => text && add.mutate(text)}
+          disabled={!text || add.isPending}
+          aria-label="Send comment"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-brand text-primary-foreground disabled:opacity-50"
+        >
+          {add.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Send className="h-4 w-4" />
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}

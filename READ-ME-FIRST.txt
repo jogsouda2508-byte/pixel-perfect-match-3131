@@ -1,0 +1,13 @@
+HOW TO USE
+1. Unzip this folder.
+2. Copy everything inside it into your project root, and choose "Replace" when asked.
+   (Folder structure matches your project: src/..., supabase/...)
+3. DELETE these old files from your project:
+     src/lib/posts.ts
+     src/assets/city-sunset.jpg
+     src/assets/desk.jpg
+     src/assets/mountain-road.jpg
+4. Open Supabase -> SQL Editor, paste supabase/migrations/20261012000000_posts_feed.sql, click Run.
+5. npm install   (no new packages needed, but safe to run)
+   npm run dev
+DO NOT touch auth, login, signup, onboarding files or your first migration.
