@@ -62,9 +62,9 @@ export function BottomNav() {
     <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background/95 backdrop-blur md:hidden">
       <div className="mx-auto flex max-w-xl items-center justify-around px-2 py-2">
         {items.slice(0, 2).map((i) => <NavItem key={i.label} {...i} />)}
-        <button aria-label="Create" className="-mt-6 grid h-14 w-14 place-items-center rounded-full bg-gradient-brand text-primary-foreground glow">
+        <Link to="/create" aria-label="Create" className="-mt-6 grid h-14 w-14 place-items-center rounded-full bg-gradient-brand text-primary-foreground glow">
           <Plus className="h-7 w-7" />
-        </button>
+        </Link>
         {items.slice(2).map((i) => <NavItem key={i.label} {...i} />)}
       </div>
     </nav>
@@ -100,7 +100,7 @@ export function SideNav() {
           <i.icon className="h-5 w-5" />{i.label}
         </Link>
       ))}
-      <button className="mt-3 flex items-center justify-center gap-2 rounded-full bg-gradient-brand py-3 font-semibold text-primary-foreground glow"><Plus className="h-5 w-5" />Create</button>
+      <Link to="/create" className="mt-3 flex items-center justify-center gap-2 rounded-full bg-gradient-brand py-3 font-semibold text-primary-foreground glow"><Plus className="h-5 w-5" />Create</Link>
     </aside>
   );
 }
