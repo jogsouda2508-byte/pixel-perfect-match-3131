@@ -92,6 +92,7 @@ export function Pill({
 
 export function UserRow({
   name,
+  username,
   sub,
   img,
   following = false,
@@ -99,26 +100,45 @@ export function UserRow({
   onToggle,
 }: {
   name: string;
+  /** when given, the avatar and name link to that user's profile */
+  username?: string;
   sub: string;
   img?: string | null;
   following?: boolean;
   pending?: boolean;
   onToggle?: () => void;
 }) {
-  return (
-    <div className="flex items-center gap-3">
+  const identity = (
+    <>
       <Avatar src={img} name={name} size={40} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold">{name}</p>
         <p className="truncate text-xs text-muted-foreground">{sub}</p>
       </div>
-      <button
-        onClick={onToggle}
-        disabled={pending}
-        className={`shrink-0 rounded-lg px-3 py-1 text-xs font-medium transition disabled:opacity-60 ${following ? "bg-elevated text-muted-foreground" : "border border-primary text-primary"}`}
-      >
-        {following ? "Following" : "Follow"}
-      </button>
+    </>
+  );
+  return (
+    <div className="flex items-center gap-3">
+      {username ? (
+        <Link
+          to="/u/$username"
+          params={{ username }}
+          className="flex min-w-0 flex-1 items-center gap-3"
+        >
+          {identity}
+        </Link>
+      ) : (
+        <div className="flex min-w-0 flex-1 items-center gap-3">{identity}</div>
+      )}
+      {onToggle && (
+        <button
+          onClick={onToggle}
+          disabled={pending}
+          className={`shrink-0 rounded-lg px-3 py-1 text-xs font-medium transition disabled:opacity-60 ${following ? "bg-elevated text-muted-foreground" : "border border-primary text-primary"}`}
+        >
+          {following ? "Following" : "Follow"}
+        </button>
+      )}
     </div>
   );
 }

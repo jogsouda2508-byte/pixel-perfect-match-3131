@@ -72,6 +72,24 @@ export type PersonRow = {
 
 export type TrendingRow = { tag: string; uses: number };
 
+/** One row of `get_saved_posts` (same shape as the feed, plus when it was saved) */
+export type SavedFeedRow = FeedRow & { saved_at: string };
+
+export type GroupRow = {
+  id: string;
+  name: string;
+  description: string;
+  created_by: string;
+  created_at: string;
+};
+
+/** One row of `get_groups` */
+export type GroupListRow = GroupRow & {
+  member_count: number;
+  is_member: boolean;
+  my_role: "admin" | "member" | null;
+};
+
 /** One row of `get_notifications` */
 export type NotificationRow = {
   kind: "like" | "comment" | "follow";
@@ -98,7 +116,22 @@ export type Database = {
         Row: { follower_id: string; following_id: string; created_at: string };
         Insert: { follower_id: string; following_id: string; created_at?: string };
         Update: { created_at?: string };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "follows_follower_id_fkey";
+            columns: ["follower_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "follows_following_id_fkey";
+            columns: ["following_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       posts: {
         Row: PostRow;
@@ -153,6 +186,24 @@ export type Database = {
           },
         ];
       };
+      saved_posts: {
+        Row: { user_id: string; post_id: string; created_at: string };
+        Insert: { user_id: string; post_id: string };
+        Update: { created_at?: string };
+        Relationships: [];
+      };
+      groups: {
+        Row: GroupRow;
+        Insert: { name: string; description?: string; created_by: string };
+        Update: { name?: string; description?: string };
+        Relationships: [];
+      };
+      group_members: {
+        Row: { group_id: string; user_id: string; role: "admin" | "member"; created_at: string };
+        Insert: { group_id: string; user_id: string; role?: "member" };
+        Update: { role?: "admin" | "member" };
+        Relationships: [];
+      };
     };
     Views: { [_ in never]: never };
     Functions: {
@@ -174,6 +225,15 @@ export type Database = {
       get_trending_topics: { Args: { p_limit: number }; Returns: TrendingRow[] };
       get_notifications: { Args: { p_limit: number }; Returns: NotificationRow[] };
       get_unread_notification_count: { Args: Record<PropertyKey, never>; Returns: number };
+      get_saved_posts: {
+        Args: { p_limit: number; p_before: string | null };
+        Returns: SavedFeedRow[];
+      };
+      create_group: { Args: { p_name: string; p_description: string }; Returns: string };
+      get_groups: {
+        Args: { p_query: string | null; p_mine_only: boolean; p_limit: number };
+        Returns: GroupListRow[];
+      };
     };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };

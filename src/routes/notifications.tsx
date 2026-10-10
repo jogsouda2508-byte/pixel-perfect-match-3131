@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Heart, Loader2, MessageSquare, UserPlus } from "lucide-react";
@@ -114,17 +114,27 @@ function NotificationsPage() {
                 key={`${n.kind}-${n.actor_id}-${n.post_id ?? ""}-${n.created_at}`}
                 className="flex items-center gap-3 p-4"
               >
-                <div className="relative shrink-0">
+                <Link
+                  to="/u/$username"
+                  params={{ username: n.actor_username }}
+                  className="relative shrink-0"
+                >
                   <Avatar src={n.actor_avatar} name={n.actor_name || n.actor_username} size={44} />
                   <span
                     className={`absolute -bottom-0.5 -right-0.5 grid h-5 w-5 place-items-center rounded-full border-2 border-background ${kindColor[n.kind]}`}
                   >
                     {kindIcon[n.kind]}
                   </span>
-                </div>
+                </Link>
                 <div className="min-w-0 flex-1">
                   <p className="break-words text-sm">
-                    <span className="font-semibold">{n.actor_name || n.actor_username}</span>{" "}
+                    <Link
+                      to="/u/$username"
+                      params={{ username: n.actor_username }}
+                      className="font-semibold hover:underline"
+                    >
+                      {n.actor_name || n.actor_username}
+                    </Link>{" "}
                     <span className="text-muted-foreground">{describe(n)}</span>
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">{timeAgo(n.created_at)}</p>

@@ -192,6 +192,7 @@ function HomePage() {
             <UserRow
               key={p.id}
               name={p.full_name || p.username}
+              username={p.username}
               sub={
                 p.mutual_count > 0
                   ? `${p.mutual_count} mutual ${p.mutual_count === 1 ? "friend" : "friends"}`

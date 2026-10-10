@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
+import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
+  Bookmark,
   Loader2,
   MessageSquare,
   MoreHorizontal,
@@ -18,8 +20,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/lib/auth";
-import { addComment, deleteComment, deletePost, fetchComments, setLike } from "@/lib/social";
+import {
+  addComment,
+  deleteComment,
+  deletePost,
+  fetchComments,
+  setLike,
+  type CommentView,
+} from "@/lib/social";
 import { timeAgo } from "@/lib/time";
+import { useSaved } from "@/lib/use-saved";
 import type { FeedRow } from "@/integrations/supabase/types";
 
 /** Renders #hashtags in the brand colour. */
@@ -42,7 +52,9 @@ function RichText({ text }: { text: string }) {
 export function PostCard({ post }: { post: FeedRow }) {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const saved = useSaved();
   const mine = user?.id === post.author_id;
+  const isSaved = saved.isSaved(post.id);
 
   const [liked, setLiked] = useState(post.liked_by_me);
   const [likes, setLikes] = useState(post.like_count);
@@ -106,13 +118,28 @@ export function PostCard({ post }: { post: FeedRow }) {
   return (
     <article className="glass-card p-3">
       <div className="flex items-center gap-3">
-        <Avatar src={post.author_avatar} name={name} size={40} />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold">{name}</p>
-          <p className="truncate text-xs text-muted-foreground">
-            @{post.author_username} • {timeAgo(post.created_at)} • {post.audience}
-          </p>
-        </div>
+        <Link
+          to="/u/$username"
+          params={{ username: post.author_username }}
+          className="flex min-w-0 flex-1 items-center gap-3"
+        >
+          <Avatar src={post.author_avatar} name={name} size={40} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold">{name}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              @{post.author_username} • {timeAgo(post.created_at)} • {post.audience}
+            </p>
+          </div>
+        </Link>
+        <button
+          type="button"
+          onClick={() => saved.toggle(post.id)}
+          aria-label={isSaved ? "Remove from saved" : "Save post"}
+          aria-pressed={isSaved}
+          className={`rounded-full p-1 hover:bg-elevated ${isSaved ? "text-primary" : "text-muted-foreground"}`}
+        >
+          <Bookmark className={`h-5 w-5 ${isSaved ? "fill-primary" : ""}`} />
+        </button>
         {mine && (
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -248,14 +275,18 @@ function Comments({
       {list.isError && <p className="text-xs text-destructive">Couldn't load comments.</p>}
       {list.data?.map((c) => (
         <div key={c.id} className="flex items-start gap-2">
-          <Avatar
-            src={c.author?.avatar_url}
-            name={c.author?.full_name || c.author?.username}
-            size={30}
-          />
+          <CommentAuthorLink author={c.author} className="shrink-0">
+            <Avatar
+              src={c.author?.avatar_url}
+              name={c.author?.full_name || c.author?.username}
+              size={30}
+            />
+          </CommentAuthorLink>
           <div className="min-w-0 flex-1 rounded-xl bg-elevated/60 px-3 py-2">
             <p className="text-xs font-semibold">
-              {c.author?.full_name || c.author?.username}{" "}
+              <CommentAuthorLink author={c.author} className="hover:underline">
+                {c.author?.full_name || c.author?.username}
+              </CommentAuthorLink>{" "}
               <span className="font-normal text-muted-foreground">• {timeAgo(c.created_at)}</span>
             </p>
             <p className="mt-0.5 whitespace-pre-line break-words text-sm">{c.content}</p>
@@ -300,5 +331,23 @@ function Comments({
         </button>
       </div>
     </div>
+  );
+}
+
+/** Links a commenter's avatar / name to their profile (plain text if the author is gone). */
+function CommentAuthorLink({
+  author,
+  className,
+  children,
+}: {
+  author: CommentView["author"];
+  className?: string;
+  children: ReactNode;
+}) {
+  if (!author?.username) return <span className={className}>{children}</span>;
+  return (
+    <Link to="/u/$username" params={{ username: author.username }} className={className}>
+      {children}
+    </Link>
   );
 }

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, Search } from "lucide-react";
 import { BottomNav, Pill, SideNav, UserRow } from "@/components/ediraa";
+import { GroupsPanel } from "@/components/groups-panel";
 import { PostCard } from "@/components/post-card";
 import { useAuth } from "@/lib/auth";
 import { fetchFeed, fetchPeople, fetchTrending } from "@/lib/social";
@@ -86,9 +87,7 @@ function DiscoverPage() {
         </div>
 
         {filter === "Groups" ? (
-          <section className="glass-card p-6 text-center text-sm text-muted-foreground">
-            Groups are coming soon.
-          </section>
+          <GroupsPanel query={q} />
         ) : (
           <section className="glass-card p-4">
             <div className="mb-4 flex items-center justify-between">
@@ -110,6 +109,7 @@ function DiscoverPage() {
                 <UserRow
                   key={p.id}
                   name={p.full_name || p.username}
+                  username={p.username}
                   sub={
                     p.mutual_count > 0
                       ? `${p.mutual_count} mutual ${p.mutual_count === 1 ? "friend" : "friends"}`

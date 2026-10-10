@@ -7,7 +7,21 @@ import { isSupabaseConfigured } from "@/integrations/supabase/client";
 // Logged-in users are bounced away from these.
 const PUBLIC_ONLY = ["/", "/login", "/signup", "/forgot-password"];
 // Need a session AND a finished onboarding.
-const PROTECTED = ["/home", "/discover", "/create", "/profile", "/notifications", "/more"];
+const PROTECTED = [
+  "/home",
+  "/discover",
+  "/create",
+  "/profile",
+  "/notifications",
+  "/more",
+  "/saved",
+  "/groups",
+  "/business",
+  "/settings",
+  "/help",
+];
+// Other people's profiles live at /u/<username>.
+const PROTECTED_PREFIXES = ["/u/"];
 // Need a session, but are the onboarding step itself.
 const ONBOARDING = "/onboarding";
 // Everything else (/verify, /reset-password, 404) is reachable in any state.
@@ -36,7 +50,7 @@ export function resolveRedirect(
   const p = normalize(path);
   if (PUBLIC_ONLY.includes(p))
     return s.session ? (s.onboardingDone ? "/home" : "/onboarding") : null;
-  if (PROTECTED.includes(p)) {
+  if (PROTECTED.includes(p) || PROTECTED_PREFIXES.some((x) => p.startsWith(x))) {
     if (!s.session) return "/login";
     return s.onboardingDone ? null : "/onboarding";
   }

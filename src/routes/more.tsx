@@ -12,7 +12,8 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
-import { Avatar, BottomNav, SideNav } from "@/components/ediraa";
+import { Avatar } from "@/components/ediraa";
+import { PageShell } from "@/components/page-shell";
 import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/more")({
@@ -25,13 +26,13 @@ export const Route = createFileRoute("/more")({
   component: MorePage,
 });
 
-const rows = [
-  { label: "Business Page", icon: Building2 },
-  { label: "Saved Posts", icon: Bookmark },
-  { label: "Groups", icon: Users },
-  { label: "Settings & Privacy", icon: Settings },
-  { label: "Help & Support", icon: HelpCircle },
-  { label: "Invite Friends", icon: UserPlus },
+const links = [
+  { label: "My Profile", icon: User, to: "/profile" },
+  { label: "Business Page", icon: Building2, to: "/business" },
+  { label: "Saved Posts", icon: Bookmark, to: "/saved" },
+  { label: "Groups", icon: Users, to: "/groups" },
+  { label: "Settings & Privacy", icon: Settings, to: "/settings" },
+  { label: "Help & Support", icon: HelpCircle, to: "/help" },
 ] as const;
 
 function MorePage() {
@@ -50,49 +51,63 @@ function MorePage() {
     }
   };
 
+  const invite = async () => {
+    const url = `${window.location.origin}/signup`;
+    const text = "Join me on Ediraa — connect with people and businesses around you.";
+    try {
+      if (navigator.share) await navigator.share({ title: "Ediraa", text, url });
+      else {
+        await navigator.clipboard.writeText(`${text} ${url}`);
+        toast.success("Invite link copied to clipboard");
+      }
+    } catch {
+      /* user cancelled the share sheet */
+    }
+  };
+
   const name = profile?.full_name || profile?.username || "";
 
   return (
-    <div className="mx-auto max-w-6xl px-4 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,640px)] lg:justify-center">
-      <SideNav />
-      <main className="min-w-0 space-y-4">
-        <h1 className="text-xl font-bold">More</h1>
-        <Link to="/profile" className="glass-card flex items-center gap-3 p-4">
-          <Avatar src={profile?.avatar_url} name={name} size={48} ring />
-          <div className="min-w-0 flex-1">
-            <p className="truncate font-semibold">{name}</p>
-            <p className="truncate text-sm text-muted-foreground">@{profile?.username}</p>
-          </div>
-          <ChevronRight className="h-5 w-5 text-muted-foreground" />
-        </Link>
-        <section className="glass-card divide-y divide-border">
-          <Link to="/profile" className="flex w-full items-center gap-3 px-4 py-3.5 text-sm">
-            <User className="h-5 w-5" />
-            My Profile
+    <PageShell>
+      <h1 className="text-xl font-bold">More</h1>
+      <Link to="/profile" className="glass-card flex items-center gap-3 p-4">
+        <Avatar src={profile?.avatar_url} name={name} size={48} ring />
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-semibold">{name}</p>
+          <p className="truncate text-sm text-muted-foreground">@{profile?.username}</p>
+        </div>
+        <ChevronRight className="h-5 w-5 text-muted-foreground" />
+      </Link>
+      <section className="glass-card divide-y divide-border">
+        {links.map((r) => (
+          <Link
+            key={r.label}
+            to={r.to}
+            className="flex w-full items-center gap-3 px-4 py-3.5 text-sm"
+          >
+            <r.icon className="h-5 w-5" />
+            {r.label}
             <ChevronRight className="ml-auto h-5 w-5 text-muted-foreground" />
           </Link>
-          {rows.map((r) => (
-            <button
-              key={r.label}
-              type="button"
-              className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-sm"
-            >
-              <r.icon className="h-5 w-5" />
-              {r.label}
-              <ChevronRight className="ml-auto h-5 w-5 text-muted-foreground" />
-            </button>
-          ))}
-        </section>
+        ))}
         <button
           type="button"
-          onClick={logout}
-          disabled={busy}
-          className="flex w-full items-center justify-center gap-2 rounded-full border border-destructive py-3.5 font-semibold text-destructive transition hover:bg-destructive/10 disabled:opacity-60"
+          onClick={invite}
+          className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-sm"
         >
-          {busy && <Loader2 className="h-4 w-4 animate-spin" />}Log Out
+          <UserPlus className="h-5 w-5" />
+          Invite Friends
+          <ChevronRight className="ml-auto h-5 w-5 text-muted-foreground" />
         </button>
-      </main>
-      <BottomNav />
-    </div>
+      </section>
+      <button
+        type="button"
+        onClick={logout}
+        disabled={busy}
+        className="flex w-full items-center justify-center gap-2 rounded-full border border-destructive py-3.5 font-semibold text-destructive transition hover:bg-destructive/10 disabled:opacity-60"
+      >
+        {busy && <Loader2 className="h-4 w-4 animate-spin" />}Log Out
+      </button>
+    </PageShell>
   );
 }

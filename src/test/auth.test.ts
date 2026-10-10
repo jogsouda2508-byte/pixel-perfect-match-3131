@@ -12,8 +12,25 @@ const done = { session: true, onboardingDone: true };
 
 describe("resolveRedirect (route guard)", () => {
   it("sends logged-out users from protected pages to /login", () => {
-    for (const p of ["/home", "/discover", "/create", "/profile", "/notifications", "/more"])
+    for (const p of [
+      "/home",
+      "/discover",
+      "/create",
+      "/profile",
+      "/notifications",
+      "/more",
+      "/saved",
+      "/groups",
+      "/business",
+      "/settings",
+      "/help",
+    ])
       expect(resolveRedirect(p, out)).toBe("/login");
+  });
+  it("protects other people's profiles (/u/<username>)", () => {
+    expect(resolveRedirect("/u/someone", out)).toBe("/login");
+    expect(resolveRedirect("/u/someone", needsOnboarding)).toBe("/onboarding");
+    expect(resolveRedirect("/u/someone", done)).toBeNull();
   });
   it("lets logged-out users see public pages", () => {
     for (const p of ["/", "/login", "/signup", "/forgot-password", "/verify", "/reset-password"])

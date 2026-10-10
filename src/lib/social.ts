@@ -3,9 +3,13 @@ import type {
   Audience,
   CommentRow,
   FeedRow,
+  GroupListRow,
   NotificationRow,
   PersonRow,
   PostRow,
+  Profile,
+  ProfileUpdate,
+  SavedFeedRow,
   TrendingRow,
 } from "@/integrations/supabase/types";
 
@@ -266,4 +270,169 @@ export async function createStory(authorId: string, file: File): Promise<void> {
 export async function deleteStory(storyId: string): Promise<void> {
   const { error } = await supabase.from("stories").delete().eq("id", storyId);
   if (error) fail("Deleting the story", error);
+}
+
+// ------------------------------------------------------------- other profiles
+/** Looks a profile up by @username (case-insensitive). Resolves to null when nobody has it. */
+export async function fetchProfileByUsername(username: string): Promise<Profile | null> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("username", username.trim().replace(/^@/, "").toLowerCase())
+    .maybeSingle();
+  if (error) fail("Loading the profile", error);
+  return data ?? null;
+}
+
+export async function fetchIsFollowing(meId: string, targetId: string): Promise<boolean> {
+  const { count, error } = await supabase
+    .from("follows")
+    .select("*", { count: "exact", head: true })
+    .eq("follower_id", meId)
+    .eq("following_id", targetId);
+  if (error) fail("Checking follow status", error);
+  return (count ?? 0) > 0;
+}
+
+export async function fetchFollowingIds(meId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("follows")
+    .select("following_id")
+    .eq("follower_id", meId)
+    .limit(1000);
+  if (error) fail("Loading who you follow", error);
+  return (data ?? []).map((r) => r.following_id);
+}
+
+export type FollowListPerson = Pick<
+  Profile,
+  "id" | "full_name" | "username" | "avatar_url" | "account_type"
+>;
+
+/** The people who follow `userId` ("followers") or whom `userId` follows ("following"). */
+export async function fetchFollowList(
+  userId: string,
+  kind: "followers" | "following",
+): Promise<FollowListPerson[]> {
+  // followers: rows where following_id = user, show the follower; following: the reverse.
+  const filterCol = kind === "followers" ? "following_id" : "follower_id";
+  const personFk = kind === "followers" ? "follows_follower_id_fkey" : "follows_following_id_fkey";
+  const { data, error } = await supabase
+    .from("follows")
+    .select(
+      `created_at, person:profiles!${personFk}(id, full_name, username, avatar_url, account_type)`,
+    )
+    .eq(filterCol, userId)
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (error) fail(kind === "followers" ? "Loading followers" : "Loading following", error);
+  return ((data ?? []) as unknown as { person: FollowListPerson | null }[])
+    .map((r) => r.person)
+    .filter((p): p is FollowListPerson => !!p);
+}
+
+// ---------------------------------------------------------------- edit profile
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+
+/** Uploads to the public `avatars` bucket (<uid>/avatar.<ext>) and returns a cache-busted URL. */
+export async function uploadAvatar(userId: string, file: File): Promise<string> {
+  if (!ALLOWED_TYPES.includes(file.type))
+    throw new Error("Please choose a JPG, PNG, WebP or GIF image.");
+  if (file.size > MAX_AVATAR_BYTES) throw new Error("Image must be 5 MB or smaller.");
+  const ext = file.type === "image/jpeg" ? "jpg" : file.type.split("/")[1];
+  const path = `${userId}/avatar.${ext}`; // folder name must equal the user's id (storage policy)
+  const { error } = await supabase.storage
+    .from("avatars")
+    .upload(path, file, { upsert: true, contentType: file.type });
+  if (error) fail("Photo upload", error);
+  const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+  return `${data.publicUrl}?v=${Date.now()}`;
+}
+
+export async function updateMyProfile(userId: string, patch: ProfileUpdate): Promise<void> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .update(patch)
+    .eq("id", userId)
+    .select("id")
+    .maybeSingle();
+  if (error) fail("Saving your profile", error);
+  if (!data) throw new Error("Your profile could not be found. Please log out and sign in again.");
+}
+
+// ---------------------------------------------------------------- saved posts
+export async function fetchSavedIds(userId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("saved_posts")
+    .select("post_id")
+    .eq("user_id", userId)
+    .limit(2000);
+  if (error) fail("Loading saved posts", error);
+  return (data ?? []).map((r) => r.post_id);
+}
+
+export async function setSaved(userId: string, postId: string, save: boolean): Promise<void> {
+  const { error } = save
+    ? await supabase
+        .from("saved_posts")
+        .upsert(
+          { user_id: userId, post_id: postId },
+          { onConflict: "user_id,post_id", ignoreDuplicates: true },
+        )
+    : await supabase.from("saved_posts").delete().eq("user_id", userId).eq("post_id", postId);
+  if (error) fail(save ? "Saving the post" : "Removing the saved post", error);
+}
+
+export async function fetchSavedPosts(before?: string | null): Promise<SavedFeedRow[]> {
+  const { data, error } = await supabase.rpc("get_saved_posts", {
+    p_limit: FEED_PAGE_SIZE,
+    p_before: before ?? null,
+  });
+  if (error) fail("Loading saved posts", error);
+  return data ?? [];
+}
+
+// --------------------------------------------------------------------- groups
+export async function fetchGroups(args: {
+  query?: string;
+  mineOnly?: boolean;
+  limit?: number;
+}): Promise<GroupListRow[]> {
+  const { data, error } = await supabase.rpc("get_groups", {
+    p_query: args.query?.trim() ? args.query.trim() : null,
+    p_mine_only: args.mineOnly ?? false,
+    p_limit: args.limit ?? 30,
+  });
+  if (error) fail("Loading groups", error);
+  return data ?? [];
+}
+
+export async function createGroup(name: string, description: string): Promise<string> {
+  const { data, error } = await supabase.rpc("create_group", {
+    p_name: name.trim(),
+    p_description: description.trim(),
+  });
+  if (error) fail("Creating the group", error);
+  return data as string;
+}
+
+export async function setGroupMembership(
+  groupId: string,
+  userId: string,
+  join: boolean,
+): Promise<void> {
+  const { error } = join
+    ? await supabase
+        .from("group_members")
+        .upsert(
+          { group_id: groupId, user_id: userId },
+          { onConflict: "group_id,user_id", ignoreDuplicates: true },
+        )
+    : await supabase.from("group_members").delete().eq("group_id", groupId).eq("user_id", userId);
+  if (error) fail(join ? "Joining the group" : "Leaving the group", error);
+}
+
+export async function deleteGroup(groupId: string): Promise<void> {
+  const { error } = await supabase.from("groups").delete().eq("id", groupId);
+  if (error) fail("Deleting the group", error);
 }

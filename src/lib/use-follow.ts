@@ -28,6 +28,8 @@ export function useFollow() {
         void qc.invalidateQueries({ queryKey: ["feed"] });
         void qc.invalidateQueries({ queryKey: ["stories"] });
         void qc.invalidateQueries({ queryKey: ["follow-counts"] });
+        void qc.invalidateQueries({ queryKey: ["my-following"] });
+        void qc.invalidateQueries({ queryKey: ["follow-list"] });
       } catch {
         setLocal((s) => ({ ...s, [id]: current }));
         toast.error("Couldn't update follow. Please try again.");

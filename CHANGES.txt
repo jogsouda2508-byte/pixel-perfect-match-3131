@@ -1,0 +1,50 @@
+EDIRAA - PROFILE LINKS + MORE-PAGE FEATURES
+============================================
+
+HOW TO APPLY
+1. Unzip this folder.
+2. Copy everything inside it (src/ and supabase/) into your project root and choose "Replace".
+   You can delete this CHANGES.txt afterwards - it is not part of the app.
+3. Supabase -> SQL Editor -> paste supabase/migrations/20261013000000_saved_groups.sql -> Run.
+   (Needed for Saved Posts and Groups. Safe to run more than once.)
+4. npm run dev   (no new packages are needed)
+   The dev server regenerates src/routeTree.gen.ts by itself; the copy in this zip is
+   already up to date.
+
+These files are based on the main branch of your GitHub repo (latest commit "Removed mock data").
+If you changed any of the REPLACED files locally after that, merge by hand instead of overwriting.
+
+1) OTHER PEOPLE'S PROFILES (the bug)
+   Cause: only /profile existed and it always showed YOUR profile; nothing linked to anyone else.
+   - NEW  src/routes/u.$username.tsx        page for /u/<username>
+   - NEW  src/components/profile-view.tsx   one profile screen shared by /profile and /u/<username>
+          (Follow / Following button, post grid, tappable Followers / Following lists)
+   - EDIT src/routes/profile.tsx            now uses the shared profile view
+   - EDIT src/components/ediraa.tsx         UserRow: avatar + name link to the profile
+   - EDIT src/components/post-card.tsx      post author + commenters link to the profile
+   - EDIT src/routes/home.tsx, discover.tsx suggestion / search rows link to the profile
+   - EDIT src/routes/notifications.tsx      actor avatar + name link to the profile
+   - EDIT src/components/auth-gate.tsx      /u/<username> and the new pages need login
+   - EDIT src/lib/social.ts                 profile lookup, follow lists, etc.
+
+2) "MORE" PAGE - everything was a dead button, now each one works
+   - Edit Profile / Settings & Privacy -> NEW src/routes/settings.tsx
+       change photo, name, bio, location; change password; log out
+   - Saved Posts   -> NEW src/routes/saved.tsx + bookmark icon on every post
+                      NEW src/lib/use-saved.ts
+   - Groups        -> NEW src/routes/groups.tsx + src/components/groups-panel.tsx
+                      create / join / leave / delete; also shown in Discover -> Groups
+   - Business Page -> NEW src/routes/business.tsx
+                      switch personal <-> business account, business badge, list of businesses
+   - Help & Support-> NEW src/routes/help.tsx  (FAQ + contact button)
+   - Invite Friends-> share sheet / copy-link (in src/routes/more.tsx)
+   - NEW  src/components/page-shell.tsx     shared page layout
+   - EDIT src/routes/more.tsx
+   - EDIT src/integrations/supabase/types.ts, src/routeTree.gen.ts, src/test/auth.test.ts, src/lib/use-follow.ts
+   - NEW  supabase/migrations/20261013000000_saved_groups.sql
+
+TO DO BEFORE YOU SHIP
+   - src/routes/help.tsx: set SUPPORT_EMAIL (it is a placeholder, support@example.com).
+
+NOT BUILT (still "coming soon")
+   Messages, Reels, Tagged posts, Video posts, and group posts/chat.
