@@ -34,7 +34,10 @@ function Splash() {
           <span className="h-1.5 w-5 rounded-full bg-primary" />
           {[0, 1, 2].map((i) => <span key={i} className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />)}
         </div>
-        <Link to="/home" className="mt-10 w-64 rounded-full bg-gradient-brand py-3.5 font-semibold text-primary-foreground glow">Get Started</Link>
+        <div className="mt-10 flex w-64 flex-col gap-3">
+          <Link to="/signup" className="rounded-full bg-gradient-brand py-3.5 font-semibold text-primary-foreground glow">Create Account</Link>
+          <Link to="/login" className="rounded-full border border-primary py-3.5 font-semibold text-foreground transition hover:bg-elevated">Log In</Link>
+        </div>
       </div>
     </main>
   );

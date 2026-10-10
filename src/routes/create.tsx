@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowLeft, Image, Video, MapPin, Users, Hash, Globe, UserCheck, Building2 } from "lucide-react";
-import { Avatar, BottomNav, SideNav, avatar } from "@/components/ediraa";
+import { Avatar, BottomNav, SideNav } from "@/components/ediraa";
+import { useAuth } from "@/lib/auth";
 import { addUserPost } from "@/lib/posts";
 
 export const Route = createFileRoute("/create")({
@@ -25,13 +26,14 @@ const audiences = [
 
 function CreatePostPage() {
   const navigate = useNavigate();
+  const { profile } = useAuth();
   const [text, setText] = useState("");
   const [audience, setAudience] = useState<(typeof audiences)[number]["label"]>("Public");
   const empty = text.trim().length === 0;
 
   const post = () => {
-    if (empty) return;
-    addUserPost({ text: text.trim(), audience });
+    if (empty || !profile) return;
+    addUserPost(profile.id, { text: text.trim(), audience });
     navigate({ to: "/home" });
   };
 
@@ -47,7 +49,7 @@ function CreatePostPage() {
         </header>
         <section className="glass-card p-4">
           <div className="flex items-start gap-3">
-            <Avatar src={avatar("men", 32)} size={40} />
+            <Avatar src={profile?.avatar_url} name={profile?.full_name || profile?.username} size={40} />
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value.slice(0, MAX))}

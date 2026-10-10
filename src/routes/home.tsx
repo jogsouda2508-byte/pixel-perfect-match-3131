@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Search, Bell, Plus, MapPin, Image, Video, FileText, MoreHorizontal, ThumbsUp, MessageSquare, Share2, Heart } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { Avatar, BottomNav, Pill, SideNav, UserRow, Verified, avatar } from "@/components/ediraa";
+import { useAuth } from "@/lib/auth";
 import { getUserPosts, type UserPost } from "@/lib/posts";
 import city from "@/assets/city-sunset.jpg";
 
@@ -17,7 +19,6 @@ export const Route = createFileRoute("/home")({
   component: HomePage,
 });
 
-const me = avatar("men", 32);
 const stories = [
   { n: "Rohit", img: avatar("men", 45) },
   { n: "Sneha", img: avatar("women", 44) },
@@ -25,10 +26,13 @@ const stories = [
 ];
 
 function HomePage() {
+  const { profile } = useAuth();
+  const me = profile?.avatar_url ?? null;
+  const myName = profile?.full_name || profile?.username || "";
   const [tab, setTab] = useState("For You");
   const [liked, setLiked] = useState(false);
   const [userPosts, setUserPosts] = useState<UserPost[]>([]);
-  useEffect(() => setUserPosts(getUserPosts()), []);
+  useEffect(() => setUserPosts(profile ? getUserPosts(profile.id) : []), [profile]);
   return (
     <div className="mx-auto max-w-6xl px-4 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,640px)_300px]">
       <SideNav />
@@ -38,20 +42,20 @@ function HomePage() {
           <div className="flex items-center gap-4">
             <Search className="h-6 w-6" />
             <div className="relative"><Bell className="h-6 w-6" /><span className="absolute right-0 top-0 h-2.5 w-2.5 rounded-full bg-destructive" /></div>
-            <Avatar src={me} size={34} />
+            <Link to="/profile" aria-label="Profile"><Avatar src={me} name={myName} size={34} /></Link>
           </div>
         </header>
         <div className="flex gap-2 overflow-x-auto pb-1">
           {["For You", "Following", "Local", "Business"].map((t) => <Pill key={t} active={tab === t} onClick={() => setTab(t)}>{t}</Pill>)}
         </div>
         <div className="flex gap-4 overflow-x-auto pb-1">
-          <Story label="Create Story"><div className="relative"><Avatar src={me} size={60} ring /><span className="absolute -bottom-0.5 left-1/2 grid h-6 w-6 -translate-x-1/2 place-items-center rounded-full bg-primary"><Plus className="h-4 w-4" /></span></div></Story>
+          <Story label="Create Story"><div className="relative"><Avatar src={me} name={myName} size={60} ring /><span className="absolute -bottom-0.5 left-1/2 grid h-6 w-6 -translate-x-1/2 place-items-center rounded-full bg-primary"><Plus className="h-4 w-4" /></span></div></Story>
           {stories.map((s) => <Story key={s.n} label={s.n}><Avatar src={s.img} size={60} ring /></Story>)}
           <Story label="Local Hub"><div className="rounded-full bg-gradient-brand p-[2px]"><div className="grid h-14 w-14 place-items-center rounded-full bg-background"><MapPin className="h-6 w-6 text-success" /></div></div></Story>
         </div>
         <section className="glass-card p-3">
           <div className="flex items-center gap-3 rounded-xl border border-border bg-elevated/40 p-3">
-            <Avatar src={me} size={34} /><span className="text-sm text-muted-foreground">What's on your mind?</span>
+            <Avatar src={me} name={myName} size={34} /><span className="text-sm text-muted-foreground">What's on your mind?</span>
           </div>
           <div className="mt-3 grid grid-cols-3 divide-x divide-border text-sm">
             <span className="flex items-center justify-center gap-2"><Image className="h-4 w-4 text-success" />Photo</span>
@@ -62,8 +66,8 @@ function HomePage() {
         {userPosts.map((p) => (
           <article key={p.id} className="glass-card p-3">
             <div className="flex items-center gap-3">
-              <Avatar src={me} size={40} />
-              <div className="flex-1"><p className="text-sm font-semibold">Basava Jarkande</p><p className="text-xs text-muted-foreground">@basava_2005 • {p.time} • {p.audience}</p></div>
+              <Avatar src={me} name={myName} size={40} />
+              <div className="flex-1"><p className="text-sm font-semibold">{myName}</p><p className="text-xs text-muted-foreground">@{profile?.username} • {p.time} • {p.audience}</p></div>
             </div>
             <p className="mt-3 text-sm leading-relaxed">{p.text}</p>
             <div className="mt-3 grid grid-cols-3 border-t border-border pt-2 text-sm">

@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Home, Search, Plus, MessageSquare, User, BadgeCheck } from "lucide-react";
+import { Home, Search, Plus, MessageSquare, User, BadgeCheck, MoreHorizontal } from "lucide-react";
 import type { ReactNode } from "react";
 
 export const avatar = (g: "men" | "women", n: number) => `https://randomuser.me/api/portraits/${g}/${n}.jpg`;
@@ -19,10 +19,25 @@ export function Logo({ size = 96 }: { size?: number }) {
   );
 }
 
-export function Avatar({ src, size = 40, ring = false }: { src: string; size?: number; ring?: boolean }) {
+export function Avatar({ src, size = 40, ring = false, name }: { src?: string | null | undefined; size?: number; ring?: boolean; name?: string | undefined }) {
+  const initials = (name ?? "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join("");
   return (
     <div className={ring ? "rounded-full bg-gradient-brand p-[2px]" : ""} style={{ width: size, height: size }}>
-      <img src={src} alt="" className="h-full w-full rounded-full border-2 border-background object-cover" />
+      {src ? (
+        <img src={src} alt="" className="h-full w-full rounded-full border-2 border-background object-cover" />
+      ) : (
+        <div
+          className="grid h-full w-full place-items-center rounded-full border-2 border-background bg-gradient-brand font-semibold text-primary-foreground"
+          style={{ fontSize: Math.max(10, size * 0.38) }}
+        >
+          {initials || "?"}
+        </div>
+      )}
     </div>
   );
 }
@@ -100,6 +115,13 @@ export function SideNav() {
           <i.icon className="h-5 w-5" />{i.label}
         </Link>
       ))}
+      <Link
+        to="/more"
+        activeProps={{ className: "flex items-center gap-3 rounded-xl px-3 py-2.5 bg-elevated text-primary" }}
+        inactiveProps={{ className: "flex items-center gap-3 rounded-xl px-3 py-2.5 text-muted-foreground hover:bg-card" }}
+      >
+        <MoreHorizontal className="h-5 w-5" />More
+      </Link>
       <Link to="/create" className="mt-3 flex items-center justify-center gap-2 rounded-full bg-gradient-brand py-3 font-semibold text-primary-foreground glow"><Plus className="h-5 w-5" />Create</Link>
     </aside>
   );

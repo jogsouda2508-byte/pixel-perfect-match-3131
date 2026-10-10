@@ -1,7 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { MapPin, Settings } from "lucide-react";
-import { Avatar, BottomNav, SideNav, Verified, avatar } from "@/components/ediraa";
+import { Avatar, BottomNav, SideNav } from "@/components/ediraa";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth";
+import { getUserPosts } from "@/lib/posts";
 import city from "@/assets/city-sunset.jpg";
 import desk from "@/assets/desk.jpg";
 import road from "@/assets/mountain-road.jpg";
@@ -9,16 +12,15 @@ import road from "@/assets/mountain-road.jpg";
 export const Route = createFileRoute("/profile")({
   head: () => ({
     meta: [
-      { title: "Basava Jarkande — Ediraa Profile" },
-      { name: "description", content: "Dreamer, builder, founder. Posts, reels and tagged photos from Basava Jarkande on Ediraa." },
-      { property: "og:title", content: "Basava Jarkande — Ediraa Profile" },
-      { property: "og:description", content: "Dreamer, builder, founder. Posts, reels and tagged photos from Basava Jarkande on Ediraa." },
+      { title: "Profile — Ediraa" },
+      { name: "description", content: "Your posts, reels and tagged photos on Ediraa." },
+      { property: "og:title", content: "Profile — Ediraa" },
+      { property: "og:description", content: "Your posts, reels and tagged photos on Ediraa." },
     ],
   }),
   component: ProfilePage,
 });
 
-const me = avatar("men", 32);
 const tabs = ["Posts", "Reels", "Tagged"] as const;
 
 type Quote = { a: string; b: string; c: string; d: string };
@@ -31,6 +33,23 @@ const quotes: Quote[] = [
 ];
 
 function ProfilePage() {
+  const { profile } = useAuth();
+  const [counts, setCounts] = useState({ posts: 0, followers: 0, following: 0 });
+  const profileId = profile?.id;
+  useEffect(() => {
+    if (!profileId) return;
+    let active = true;
+    (async () => {
+      const [followers, following] = await Promise.all([
+        supabase.from("follows").select("*", { count: "exact", head: true }).eq("following_id", profileId),
+        supabase.from("follows").select("*", { count: "exact", head: true }).eq("follower_id", profileId),
+      ]);
+      if (!active) return;
+      setCounts({ posts: getUserPosts(profileId).length, followers: followers.count ?? 0, following: following.count ?? 0 });
+    })();
+    return () => { active = false; };
+  }, [profileId]);
+  const name = profile?.full_name || profile?.username || "";
   const [tab, setTab] = useState<(typeof tabs)[number]>("Posts");
   const tiles: ({ img: string; alt: string } | { quote: Quote })[] = [
     { quote: quotes[0]! },
@@ -50,25 +69,29 @@ function ProfilePage() {
         <section className="glass-card overflow-hidden">
           <div className="relative">
             <img src={city} alt="Sunset over the city" className="h-40 w-full object-cover md:h-52" />
-            <button aria-label="Settings" className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-full bg-background/60 backdrop-blur">
+            <Link to="/more" aria-label="Settings" className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-full bg-background/60 backdrop-blur">
               <Settings className="h-5 w-5" />
-            </button>
+            </Link>
           </div>
           <div className="relative px-4 pb-4">
             <div className="-mt-10 flex items-end justify-between">
               <div className="rounded-full bg-gradient-brand p-[3px]">
-                <img src={me} alt="Basava Jarkande" className="h-20 w-20 rounded-full border-4 border-background object-cover md:h-24 md:w-24" />
+                {profile?.avatar_url ? (
+                  <img src={profile.avatar_url} alt={name} className="h-20 w-20 rounded-full border-4 border-background object-cover md:h-24 md:w-24" />
+                ) : (
+                  <div className="grid h-20 w-20 place-items-center rounded-full border-4 border-background bg-elevated text-2xl font-bold md:h-24 md:w-24">{name.slice(0, 1).toUpperCase() || "?"}</div>
+                )}
               </div>
               <button className="rounded-full border border-primary px-5 py-2 text-sm font-semibold text-primary">Edit Profile</button>
             </div>
-            <h1 className="mt-3 flex items-center gap-1.5 text-xl font-bold">Basava Jarkande <Verified /></h1>
-            <p className="text-sm text-muted-foreground">@basava_2005</p>
-            <p className="mt-2 text-sm leading-relaxed">Dreamer | Builder | Founder<br />Turning ideas into reality 🚀</p>
-            <p className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground"><MapPin className="h-4 w-4" />Bangalore, India</p>
+            <h1 className="mt-3 flex items-center gap-1.5 text-xl font-bold">{name}</h1>
+            <p className="text-sm text-muted-foreground">@{profile?.username}</p>
+            {profile?.bio && <p className="mt-2 whitespace-pre-line text-sm leading-relaxed">{profile.bio}</p>}
+            {profile?.location && <p className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground"><MapPin className="h-4 w-4" />{profile.location}</p>}
             <div className="mt-4 grid grid-cols-3 text-center">
-              <Stat n="124" l="Posts" />
-              <Stat n="2.4K" l="Followers" />
-              <Stat n="856" l="Following" />
+              <Stat n={String(counts.posts)} l="Posts" />
+              <Stat n={String(counts.followers)} l="Followers" />
+              <Stat n={String(counts.following)} l="Following" />
             </div>
           </div>
           <div className="grid grid-cols-3 border-t border-border">
