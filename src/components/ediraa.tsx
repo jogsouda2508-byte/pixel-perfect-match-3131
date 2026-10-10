@@ -52,7 +52,7 @@ export function UserRow({ name, sub, img }: { name: string; sub: string; img: st
 
 const items = [
   { to: "/home", label: "Home", icon: Home },
-  { to: "/home", label: "Discover", icon: Search },
+  { to: "/discover", label: "Discover", icon: Search },
   { to: "/home", label: "Messages", icon: MessageSquare },
   { to: "/profile", label: "Profile", icon: User },
 ] as const;
@@ -71,7 +71,7 @@ export function BottomNav() {
   );
 }
 
-function NavItem({ to, label, icon: Icon }: { to: "/home" | "/profile"; label: string; icon: typeof Home }) {
+function NavItem({ to, label, icon: Icon }: { to: "/home" | "/profile" | "/discover"; label: string; icon: typeof Home }) {
   return (
     <Link
       to={to}
