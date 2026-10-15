@@ -1,6 +1,14 @@
 import { Link } from "@tanstack/react-router";
-import { Home, Search, Plus, MessageSquare, User, BadgeCheck, MoreHorizontal } from "lucide-react";
+import {
+  Home,
+  Search,
+  MessageSquare,
+  User,
+  BadgeCheck,
+  Video,
+} from "lucide-react";
 import type { ReactNode } from "react";
+import { ComposerLauncher } from "@/components/composer";
 
 export function Logo({ size = 96 }: { size?: number }) {
   return (
@@ -145,30 +153,24 @@ export function UserRow({
 
 const items = [
   { to: "/home", label: "Home", icon: Home },
-  { to: "/discover", label: "Discover", icon: Search },
-  { to: "/home", label: "Messages", icon: MessageSquare },
+  { to: "/videos", label: "Videos", icon: Video },
+  { to: "/chat", label: "Chat", icon: MessageSquare },
+  { to: "/discover", label: "Search", icon: Search },
   { to: "/profile", label: "Profile", icon: User },
 ] as const;
 
 export function BottomNav() {
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background/95 backdrop-blur md:hidden">
-      <div className="mx-auto flex max-w-xl items-center justify-around px-2 py-2">
-        {items.slice(0, 2).map((i) => (
-          <NavItem key={i.label} {...i} />
-        ))}
-        <Link
-          to="/create"
-          aria-label="Create"
-          className="-mt-6 grid h-14 w-14 place-items-center rounded-full bg-gradient-brand text-primary-foreground glow"
-        >
-          <Plus className="h-7 w-7" />
-        </Link>
-        {items.slice(2).map((i) => (
-          <NavItem key={i.label} {...i} />
-        ))}
-      </div>
-    </nav>
+    <>
+      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background/95 backdrop-blur md:hidden">
+        <div className="mx-auto flex max-w-xl items-center justify-around px-1 py-1">
+          {items.map((i) => (
+            <NavItem key={i.label} {...i} />
+          ))}
+        </div>
+      </nav>
+      <ComposerLauncher variant="mobile" />
+    </>
   );
 }
 
@@ -177,7 +179,7 @@ function NavItem({
   label,
   icon: Icon,
 }: {
-  to: "/home" | "/profile" | "/discover";
+  to: "/home" | "/videos" | "/chat" | "/discover" | "/profile";
   label: string;
   icon: typeof Home;
 }) {
@@ -185,13 +187,18 @@ function NavItem({
     <Link
       to={to}
       activeOptions={{ exact: true }}
-      activeProps={{ className: "flex flex-col items-center gap-1 text-xs text-primary" }}
+      activeProps={{
+        className:
+          "relative flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 text-primary after:absolute after:left-1/2 after:top-0.5 after:h-1 after:w-1 after:-translate-x-1/2 after:rounded-full after:bg-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+        "aria-current": "page",
+      }}
       inactiveProps={{
-        className: "flex flex-col items-center gap-1 text-xs text-muted-foreground",
+        className:
+          "relative flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
       }}
     >
-      <Icon className="h-6 w-6" />
-      {label}
+      <Icon className="h-5 w-5" aria-hidden="true" />
+      <span className="text-[11px] leading-tight">{label}</span>
     </Link>
   );
 }
@@ -220,26 +227,7 @@ export function SideNav() {
           {i.label}
         </Link>
       ))}
-      <Link
-        to="/more"
-        activeProps={{
-          className: "flex items-center gap-3 rounded-xl px-3 py-2.5 bg-elevated text-primary",
-        }}
-        inactiveProps={{
-          className:
-            "flex items-center gap-3 rounded-xl px-3 py-2.5 text-muted-foreground hover:bg-card",
-        }}
-      >
-        <MoreHorizontal className="h-5 w-5" />
-        More
-      </Link>
-      <Link
-        to="/create"
-        className="mt-3 flex items-center justify-center gap-2 rounded-full bg-gradient-brand py-3 font-semibold text-primary-foreground glow"
-      >
-        <Plus className="h-5 w-5" />
-        Create
-      </Link>
+      <ComposerLauncher variant="sidebar" />
     </aside>
   );
 }

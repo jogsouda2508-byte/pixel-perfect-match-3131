@@ -5,10 +5,12 @@ import { useAuth } from "@/lib/auth";
 import { isSupabaseConfigured } from "@/integrations/supabase/client";
 
 // Logged-in users are bounced away from these.
-const PUBLIC_ONLY = ["/", "/login", "/signup", "/forgot-password"];
+const PUBLIC_ONLY = ["/", "/welcome", "/login", "/signup", "/forgot-password"];
 // Need a session AND a finished onboarding.
 const PROTECTED = [
   "/home",
+  "/videos",
+  "/chat",
   "/discover",
   "/create",
   "/profile",
@@ -21,7 +23,7 @@ const PROTECTED = [
   "/help",
 ];
 // Other people's profiles live at /u/<username>.
-const PROTECTED_PREFIXES = ["/u/"];
+const PROTECTED_PREFIXES = ["/u/", "/chat/"];
 // Need a session, but are the onboarding step itself.
 const ONBOARDING = "/onboarding";
 // Everything else (/verify, /reset-password, 404) is reachable in any state.
@@ -66,7 +68,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const path = useRouterState({ select: (st) => st.location.pathname });
 
-  const target = loading
+  const target = loading || normalize(path) === "/"
     ? null
     : resolveRedirect(path, {
         session: !!session,
@@ -82,7 +84,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const p = normalize(path);
   // Logged-out visitors are the common case on public pages, so render them right
   // away (good for the server-rendered splash) instead of showing a spinner first.
-  if (loading) return PUBLIC_ONLY.includes(p) ? <>{children}</> : <Spinner />;
+  if (loading) return PUBLIC_ONLY.includes(p) || p === "/" ? <>{children}</> : <Spinner />;
   if (target) return <Spinner />;
   return <>{children}</>;
 }

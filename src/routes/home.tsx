@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { Search, Bell, Image, Video, FileText, Loader2 } from "lucide-react";
+import { Search, Bell, Loader2 } from "lucide-react";
 import { Avatar, BottomNav, Pill, SideNav, UserRow, Verified } from "@/components/ediraa";
 import { PostCard } from "@/components/post-card";
 import { Stories } from "@/components/stories";
@@ -90,16 +90,33 @@ function HomePage() {
         <header className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Ediraa</h1>
           <div className="flex items-center gap-4">
-            <Link to="/discover" aria-label="Search">
+            <Link
+              to="/discover"
+              aria-label="Search"
+              className="grid h-11 w-11 place-items-center rounded-full hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
               <Search className="h-6 w-6" />
             </Link>
-            <Link to="/notifications" aria-label="Notifications" className="relative">
-              <Bell className="h-6 w-6" />
+            <Link
+              to="/notifications"
+              aria-label={`Notifications${(unread.data ?? 0) > 0 ? `, ${unread.data} unread` : ""}`}
+              className="relative rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <span className="grid h-11 w-11 place-items-center rounded-full hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <Bell className="h-6 w-6" />
+              </span>
               {(unread.data ?? 0) > 0 && (
-                <span className="absolute right-0 top-0 h-2.5 w-2.5 rounded-full bg-destructive" />
+                <span className="absolute right-0 top-0 grid min-h-5 min-w-5 place-items-center rounded-full bg-brand-accent px-1 text-[10px] font-bold leading-none text-brand-accent-foreground">
+                  {(unread.data ?? 0) > 99 ? "99+" : unread.data}
+                  <span className="sr-only"> unread</span>
+                </span>
               )}
             </Link>
-            <Link to="/profile" aria-label="Profile">
+            <Link
+              to="/profile"
+              aria-label="Profile"
+              className="grid h-11 w-11 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
               <Avatar src={me} name={myName} size={34} />
             </Link>
           </div>
@@ -120,20 +137,6 @@ function HomePage() {
             <Avatar src={me} name={myName} size={34} />
             <span className="text-sm text-muted-foreground">What's on your mind?</span>
           </Link>
-          <div className="mt-3 grid grid-cols-3 divide-x divide-border text-sm">
-            <Link to="/create" className="flex items-center justify-center gap-2">
-              <Image className="h-4 w-4 text-success" />
-              Photo
-            </Link>
-            <Link to="/create" className="flex items-center justify-center gap-2">
-              <Video className="h-4 w-4 text-destructive" />
-              Video
-            </Link>
-            <Link to="/create" className="flex items-center justify-center gap-2">
-              <FileText className="h-4 w-4 text-violet" />
-              Post
-            </Link>
-          </div>
         </section>
 
         {feed.isLoading && (
