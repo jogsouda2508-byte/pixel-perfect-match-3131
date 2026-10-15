@@ -206,12 +206,7 @@ function ConversationDetail({ id }: { id: string }) {
               className="flex min-w-0 items-center gap-3 rounded-lg p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <Avatar src={contact.data.avatar_url} name={name} size={40} />
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-semibold">{name}</span>
-                <span className="block truncate text-xs text-muted-foreground">
-                  @{contact.data.username}
-                </span>
-              </span>
+              <span className="truncate text-sm font-semibold">{name}</span>
             </Link>
           ) : (
             <h1 className="truncate text-sm font-semibold">{name}</h1>

@@ -132,10 +132,7 @@ function ChatPage() {
                         </span>
                       )}
                     </span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      @{contact.username}
-                    </span>
-                    <span className="mt-0.5 flex items-center gap-2">
+                    <span className="mt-1 flex items-center gap-2">
                       <span className="truncate text-sm text-muted-foreground">
                         {conversation.last_message_preview || "No messages yet"}
                       </span>
