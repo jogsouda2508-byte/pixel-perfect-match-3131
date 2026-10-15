@@ -101,8 +101,8 @@ function uploadVideoFile(
 ): Promise<UploadResult> {
   return new Promise((resolve, reject) => {
     const config = import.meta.env;
-    const projectUrl = config.VITE_SUPABASE_URL as string | undefined;
-    const publishableKey = config.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+    const projectUrl = config["VITE_SUPABASE_URL"] as string | undefined;
+    const publishableKey = config["VITE_SUPABASE_PUBLISHABLE_KEY"] as string | undefined;
     if (!projectUrl || !publishableKey) {
       reject(new Error("Video uploads are unavailable because Supabase is not configured."));
       return;
@@ -268,7 +268,12 @@ export async function fetchVideoById(videoId: string, userId: string): Promise<V
       .eq("post_id", post.id)
       .eq("user_id", userId)
       .maybeSingle(),
-    supabase.from("follows").select("*").eq("following_id", post.author_id),
+    // Just "do I follow this author?" -- a head count, not every follower row.
+    supabase
+      .from("follows")
+      .select("*", { count: "exact", head: true })
+      .eq("following_id", post.author_id)
+      .eq("follower_id", userId),
   ]);
   const errorResult =
     author.error ?? likes.error ?? comments.error ?? liked.error ?? follows.error;
@@ -277,6 +282,10 @@ export async function fetchVideoById(videoId: string, userId: string): Promise<V
 
   return {
     ...post,
+    // the query filters on media_type = 'video' and rejects rows without a video_url above
+    media_type: "video",
+    video_url: post.video_url,
+    duration_seconds: post.duration_seconds ?? 0,
     author_name: author.data.full_name,
     author_username: author.data.username,
     author_avatar: author.data.avatar_url,
@@ -284,7 +293,7 @@ export async function fetchVideoById(videoId: string, userId: string): Promise<V
     like_count: likes.count ?? 0,
     comment_count: comments.count ?? 0,
     liked_by_me: !!liked.data,
-    is_following: (follows.data ?? []).some((follow) => follow.follower_id === userId),
+    is_following: (follows.count ?? 0) > 0,
   };
 }
 
@@ -300,7 +309,9 @@ export async function fetchUserVideos(userId: string): Promise<PostRow[]> {
   return data ?? [];
 }
 
-export async function deleteVideoPost(post: VideoFeedRow): Promise<void> {
+export async function deleteVideoPost(
+  post: Pick<VideoFeedRow, "id" | "video_url" | "thumbnail_url">,
+): Promise<void> {
   const { error } = await supabase.from("posts").delete().eq("id", post.id);
   if (error) storageError("delete this video", error);
 

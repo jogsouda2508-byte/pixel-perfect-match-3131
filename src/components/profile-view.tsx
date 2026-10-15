@@ -1,7 +1,15 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Building2, Loader2, MapPin, MessageSquare, Settings, Video } from "lucide-react";
+import {
+  Building2,
+  Loader2,
+  MapPin,
+  MessageSquare,
+  Play,
+  Settings,
+  Video,
+} from "lucide-react";
 import { toast } from "sonner";
 import { BottomNav, SideNav, UserRow } from "@/components/ediraa";
 import {
@@ -244,7 +252,29 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
             )}
             <div className="mt-3 grid grid-cols-3 gap-1.5">
               {posts.data?.map((p) =>
-                p.image_url ? (
+                p.media_type === "video" && p.video_url ? (
+                  <Link
+                    key={p.id}
+                    to="/videos"
+                    search={{ video: p.id }}
+                    aria-label={`Play video${p.content ? `: ${p.content.slice(0, 60)}` : ""}`}
+                    className="relative block aspect-square overflow-hidden rounded-lg bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {p.thumbnail_url && (
+                      <img
+                        src={p.thumbnail_url}
+                        alt=""
+                        loading="lazy"
+                        className="h-full w-full object-cover"
+                      />
+                    )}
+                    <span className="absolute inset-0 grid place-items-center">
+                      <span className="grid h-9 w-9 place-items-center rounded-full bg-black/55">
+                        <Play className="h-5 w-5 fill-white text-white" aria-hidden="true" />
+                      </span>
+                    </span>
+                  </Link>
+                ) : p.image_url ? (
                   <img
                     key={p.id}
                     src={p.image_url}
