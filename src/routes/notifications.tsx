@@ -27,13 +27,12 @@ export const Route = createFileRoute("/notifications")({
   component: NotificationsPage,
 });
 
-const tabs = ["All", "Likes", "Comments", "Follows", "Shares"] as const;
+const tabs = ["All", "Likes", "Comments", "Follows"] as const;
 const tabKind: Record<(typeof tabs)[number], NotificationRow["kind"] | null> = {
   All: null,
   Likes: "like",
   Comments: "comment",
   Follows: "follow",
-  Shares: "share",
 };
 
 const kindIcon = {

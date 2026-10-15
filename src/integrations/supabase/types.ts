@@ -314,6 +314,7 @@ export type Database = {
       get_trending_topics: { Args: { p_limit: number }; Returns: TrendingRow[] };
       get_notifications: { Args: { p_limit: number }; Returns: NotificationRow[] };
       get_unread_notification_count: { Args: Record<PropertyKey, never>; Returns: number };
+      get_unread_chat_count: { Args: Record<PropertyKey, never>; Returns: number };
       get_saved_posts: {
         Args: { p_limit: number; p_before: string | null };
         Returns: SavedFeedRow[];

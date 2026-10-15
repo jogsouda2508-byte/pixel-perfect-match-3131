@@ -1,7 +1,8 @@
+import { UnreadBadge, useChatUnread } from "@/lib/use-chat-unread";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { Search, Bell, Loader2 } from "lucide-react";
+import { Search, Bell, Loader2, Send } from "lucide-react";
 import { Avatar, BottomNav, Pill, SideNav, UserRow, Verified } from "@/components/ediraa";
 import { PostCard } from "@/components/post-card";
 import { Stories } from "@/components/stories";
@@ -81,6 +82,7 @@ function HomePage() {
     enabled: !!meId,
     refetchInterval: 30_000,
   });
+  const chatUnread = useChatUnread();
   const follow = useFollow();
 
   return (
@@ -111,6 +113,16 @@ function HomePage() {
                   <span className="sr-only"> unread</span>
                 </span>
               )}
+            </Link>
+            <Link
+              to="/chat"
+              aria-label={`Messages${chatUnread > 0 ? `, ${chatUnread} unread` : ""}`}
+              className="relative rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <span className="grid h-11 w-11 place-items-center rounded-full hover:bg-muted">
+                <Send className="h-6 w-6" />
+              </span>
+              <UnreadBadge count={chatUnread} className="absolute right-0 top-0" />
             </Link>
             <Link
               to="/profile"

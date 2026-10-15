@@ -195,7 +195,8 @@ export async function fetchTrending(limit = 8): Promise<TrendingRow[]> {
 export async function fetchNotifications(): Promise<NotificationRow[]> {
   const { data, error } = await supabase.rpc("get_notifications", { p_limit: 50 });
   if (error) fail("Loading notifications", error);
-  return data ?? [];
+  // Shared reels/posts show up under Messages, not in the bell.
+  return (data ?? []).filter((n) => n.kind !== "share");
 }
 
 export async function fetchUnreadCount(): Promise<number> {
