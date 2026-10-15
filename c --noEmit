@@ -1,0 +1,23 @@
+[33mcommit 82074370bfea80d99ebb59c0f2cec028de69f346[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeature/video-fixes[m[33m, [m[1;31morigin/feature/video-fixes[m[33m)[m
+Author: yasminsoudagar <yasminsoudagar760@gmail.com>
+Date:   Thu Oct 15 19:50:37 2026 +0530
+
+    Fix video feed, likes, share to followed users, save star
+
+ src/components/post-card.tsx                       |  92 [32m+++++[m[31m--[m
+ src/components/profile-view.tsx                    |  34 [32m++[m[31m-[m
+ src/components/share-video-dialog.tsx              | 201 [32m++++++++++++++++[m
+ src/components/shared-video-card.tsx               |  67 [32m++++++[m
+ src/components/video-player.tsx                    |  92 [32m+++++++[m
+ src/components/video-viewer.tsx                    |  35 [32m+[m[31m--[m
+ src/integrations/supabase/types.ts                 |  12 [32m+[m
+ src/lib/use-saved.ts                               |  24 [32m+[m[31m-[m
+ src/lib/video-share.ts                             |  34 [32m+++[m
+ src/lib/videos.ts                                  |  21 [32m+[m[31m-[m
+ src/routes/chat.$id.tsx                            |   8 [32m+[m[31m-[m
+ src/routes/videos.tsx                              |   9 [32m+[m[31m-[m
+ src/test/post-card-video.test.tsx                  | 196 [32m+++++++++++++++[m
+ src/test/use-saved.test.tsx                        |  72 [32m++++++[m
+ src/test/video-share.test.ts                       |  60 [32m+++++[m
+ .../migrations/20261016000000_video_share_feed.sql | 264 [32m+++++++++++++++++++++[m
+ 16 files changed, 1171 insertions(+), 50 deletions(-)

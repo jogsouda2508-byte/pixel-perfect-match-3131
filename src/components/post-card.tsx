@@ -23,12 +23,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/lib/auth";
+import { togglePostLike } from "@/lib/post-cache";
 import {
   addComment,
   deleteComment,
   deletePost,
   fetchComments,
-  setLike,
   type CommentView,
 } from "@/lib/social";
 import { timeAgo } from "@/lib/time";
@@ -85,7 +85,12 @@ export function PostCard({ post }: { post: FeedRow }) {
     setLiked(next);
     setLikes((n) => Math.max(0, n + (next ? 1 : -1)));
     try {
-      await setLike(post.id, user.id, next);
+      await togglePostLike(
+        qc,
+        user.id,
+        { id: post.id, liked_by_me: liked, like_count: likes },
+        next,
+      );
     } catch {
       setLiked(!next);
       setLikes((n) => Math.max(0, n + (next ? -1 : 1)));
@@ -201,11 +206,7 @@ export function PostCard({ post }: { post: FeedRow }) {
         </p>
       )}
       {isVideo && post.video_url ? (
-        <VideoPlayer
-          src={post.video_url}
-          poster={post.thumbnail_url}
-          label={`Video by ${name}`}
-        />
+        <VideoPlayer src={post.video_url} poster={post.thumbnail_url} label={`Video by ${name}`} />
       ) : (
         post.image_url && (
           <img

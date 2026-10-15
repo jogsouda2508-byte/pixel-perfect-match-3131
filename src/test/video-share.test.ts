@@ -25,7 +25,9 @@ describe("shareErrorMessage", () => {
   });
 
   it("finds the code inside a longer database message and has a safe fallback", () => {
-    expect(shareErrorMessage("ERROR: not_following_recipient (P0001)")).toMatch(/people you follow/);
+    expect(shareErrorMessage("ERROR: not_following_recipient (P0001)")).toMatch(
+      /people you follow/,
+    );
     expect(shareErrorMessage("connection reset")).toMatch(/Couldn't share/);
     expect(shareErrorMessage(null)).toMatch(/Couldn't share/);
     expect(shareErrorMessage(undefined)).toMatch(/Couldn't share/);

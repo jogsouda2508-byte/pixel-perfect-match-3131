@@ -18,9 +18,24 @@ import { toast } from "sonner";
 import { Avatar, BottomNav, SideNav } from "@/components/ediraa";
 import { ComposerLauncher } from "@/components/composer";
 import { ShareVideoDialog } from "@/components/share-video-dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -30,11 +45,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/lib/auth";
-import { addComment, fetchComments, setLike, type CommentView } from "@/lib/social";
+import { togglePostLike } from "@/lib/post-cache";
+import { addComment, fetchComments, type CommentView } from "@/lib/social";
 import { timeAgo } from "@/lib/time";
 import { useFollow } from "@/lib/use-follow";
 import { useSaved } from "@/lib/use-saved";
-import { deleteVideoPost, fetchVideoById, fetchVideoFeed, truncateCaption, VIDEO_PAGE_SIZE } from "@/lib/videos";
+import {
+  deleteVideoPost,
+  fetchVideoById,
+  fetchVideoFeed,
+  truncateCaption,
+  VIDEO_PAGE_SIZE,
+} from "@/lib/videos";
 import type { VideoFeedRow } from "@/integrations/supabase/types";
 
 export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
@@ -44,7 +66,9 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
   const saved = useSaved();
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRefs = useRef(new Map<string, HTMLVideoElement>());
+  // ref blocks a fast double click before any re-render; state lets the button look disabled
   const pendingLikes = useRef(new Set<string>());
+  const [likeBusy, setLikeBusy] = useState<Record<string, boolean>>({});
   const lastScrollTarget = useRef("");
   const [activeId, setActiveId] = useState(initialVideoId ?? "");
   const [muted, setMuted] = useState(() => {
@@ -55,7 +79,6 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
   const [progress, setProgress] = useState(0);
   const [videoErrors, setVideoErrors] = useState<Record<string, boolean>>({});
   const [expandedCaptions, setExpandedCaptions] = useState<Record<string, boolean>>({});
-  const [likes, setLikes] = useState<Record<string, { liked: boolean; count: number }>>({});
   const [commentsVideo, setCommentsVideo] = useState<VideoFeedRow | null>(null);
   const [deleteVideo, setDeleteVideo] = useState<VideoFeedRow | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -116,7 +139,9 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
       },
       { root, threshold: [0, 0.7, 1] },
     );
-    root.querySelectorAll<HTMLElement>("[data-video-id]").forEach((slide) => observer.observe(slide));
+    root
+      .querySelectorAll<HTMLElement>("[data-video-id]")
+      .forEach((slide) => observer.observe(slide));
     return () => observer.disconnect();
   }, [items.length]);
 
@@ -191,19 +216,16 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
   const toggleLike = async (post: VideoFeedRow) => {
     if (!user || pendingLikes.current.has(post.id)) return;
     pendingLikes.current.add(post.id);
-    const previous = likes[post.id] ?? { liked: post.liked_by_me, count: post.like_count };
-    const next = !previous.liked;
-    setLikes((state) => ({
-      ...state,
-      [post.id]: { liked: next, count: Math.max(0, previous.count + (next ? 1 : -1)) },
-    }));
+    setLikeBusy((state) => ({ ...state, [post.id]: true }));
     try {
-      await setLike(post.id, user.id, next);
+      // Updates every cached copy of this video (Videos, Home feed, Saved, deep link)
+      // immediately, then writes to the database; rolls all of them back if the write fails.
+      await togglePostLike(queryClient, user.id, post, !post.liked_by_me);
     } catch {
-      setLikes((state) => ({ ...state, [post.id]: previous }));
       toast.error("Couldn't update your like. Please try again.");
     } finally {
       pendingLikes.current.delete(post.id);
+      setLikeBusy((state) => ({ ...state, [post.id]: false }));
     }
   };
 
@@ -265,12 +287,10 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
         {items.map((post, index) => {
           const active = activeVideo?.id === post.id;
           const preloadNext = index === activeIndex + 1;
-          const state = likes[post.id] ?? { liked: post.liked_by_me, count: post.like_count };
+          const state = { liked: post.liked_by_me, count: post.like_count };
           const following = follow.isFollowing(post.author_id, post.is_following);
           const longCaption = truncateCaption(post.content);
-          const caption = expandedCaptions[post.id]
-            ? post.content
-            : longCaption.text;
+          const caption = expandedCaptions[post.id] ? post.content : longCaption.text;
           const own = post.author_id === user?.id;
 
           return (
@@ -415,13 +435,17 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                 <div className="flex flex-col items-center gap-1">
                   <button
                     type="button"
-                    disabled={pendingLikes.current.has(post.id)}
+                    disabled={!!likeBusy[post.id]}
                     onClick={() => void toggleLike(post)}
-                    aria-label={state.liked ? `Unlike, ${state.count} likes` : `Like, ${state.count} likes`}
+                    aria-label={
+                      state.liked ? `Unlike, ${state.count} likes` : `Like, ${state.count} likes`
+                    }
                     aria-pressed={state.liked}
                     className="grid h-12 w-12 place-items-center rounded-full bg-black/35 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
                   >
-                    <Heart className={`h-6 w-6 ${state.liked ? "fill-red-500 text-red-500" : ""}`} />
+                    <Heart
+                      className={`h-6 w-6 ${state.liked ? "fill-red-500 text-red-500" : ""}`}
+                    />
                   </button>
                   <span className="text-sm font-semibold">{state.count}</span>
                 </div>
@@ -479,7 +503,6 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-
             </article>
           );
         })}
@@ -572,7 +595,9 @@ function VideoFeedEmpty() {
             <Camera className="h-8 w-8" aria-hidden="true" />
           </div>
           <h1 className="text-xl font-semibold">No videos yet</h1>
-          <p className="text-sm text-muted-foreground">Be the first to share a short video with your community.</p>
+          <p className="text-sm text-muted-foreground">
+            Be the first to share a short video with your community.
+          </p>
           <ComposerLauncher variant="video" videoLabel />
         </div>
       </section>
@@ -630,9 +655,7 @@ function VideoComments({
               <Skeleton className="h-12 w-3/4" />
             </div>
           )}
-          {comments.isError && (
-            <p className="text-sm text-destructive">Couldn't load comments.</p>
-          )}
+          {comments.isError && <p className="text-sm text-destructive">Couldn't load comments.</p>}
           {comments.isSuccess && comments.data.length === 0 && (
             <p className="py-8 text-center text-sm text-muted-foreground">No comments yet.</p>
           )}

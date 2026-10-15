@@ -190,7 +190,9 @@ describe("Share for video posts", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Send video to Ana Followed" }));
 
-    expect(await screen.findByText(/only share videos with people you follow/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/only share videos with people you follow/i),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Send video to Ana Followed" })).toBeEnabled();
   });
 });
