@@ -137,10 +137,31 @@ function NotificationsPage() {
                     >
                       {n.actor_name || n.actor_username}
                     </Link>{" "}
-                    <span className="text-muted-foreground">{describe(n)}</span>
+                    {(n.kind === "like" || n.kind === "comment") && n.post_id ? (
+                      <Link
+                        to="/post/$id"
+                        params={{ id: n.post_id }}
+                        search={n.kind === "comment" ? { comments: true } : {}}
+                        className="text-muted-foreground hover:underline"
+                      >
+                        {describe(n)}
+                      </Link>
+                    ) : (
+                      <span className="text-muted-foreground">{describe(n)}</span>
+                    )}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">{timeAgo(n.created_at)}</p>
                 </div>
+                {(n.kind === "like" || n.kind === "comment") && n.post_id && (
+                  <Link
+                    to="/post/$id"
+                    params={{ id: n.post_id }}
+                    search={n.kind === "comment" ? { comments: true } : {}}
+                    className="shrink-0 rounded-full border border-border px-4 py-1.5 text-xs font-semibold hover:bg-muted"
+                  >
+                    {n.kind === "comment" ? "View comment" : "View post"}
+                  </Link>
+                )}
                 {n.kind === "share" && n.conversation_id && (
                   <Link
                     to="/chat/$id"

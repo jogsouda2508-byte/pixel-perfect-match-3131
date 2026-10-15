@@ -31,6 +31,7 @@ import { Route as VideosRouteImport } from './routes/videos'
 import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as ChatIndexRouteImport } from './routes/chat.index'
 import { Route as ChatIdRouteImport } from './routes/chat.$id'
+import { Route as PostIdRouteImport } from './routes/post.$id'
 import { Route as UUsernameRouteImport } from './routes/u.$username'
 
 const IndexRoute = IndexRouteImport.update({
@@ -143,6 +144,11 @@ const ChatIdRoute = ChatIdRouteImport.update({
   path: '/chat/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PostIdRoute = PostIdRouteImport.update({
+  id: '/post/$id',
+  path: '/post/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const UUsernameRoute = UUsernameRouteImport.update({
   id: '/u/$username',
   path: '/u/$username',
@@ -171,6 +177,7 @@ export interface FileRoutesByFullPath {
   '/videos': typeof VideosRoute
   '/welcome': typeof WelcomeRoute
   '/chat/$id': typeof ChatIdRoute
+  '/post/$id': typeof PostIdRoute
   '/u/$username': typeof UUsernameRoute
   '/chat/': typeof ChatIndexRoute
 }
@@ -196,6 +203,7 @@ export interface FileRoutesByTo {
   '/videos': typeof VideosRoute
   '/welcome': typeof WelcomeRoute
   '/chat/$id': typeof ChatIdRoute
+  '/post/$id': typeof PostIdRoute
   '/u/$username': typeof UUsernameRoute
   '/chat': typeof ChatIndexRoute
 }
@@ -222,6 +230,7 @@ export interface FileRoutesById {
   '/videos': typeof VideosRoute
   '/welcome': typeof WelcomeRoute
   '/chat/$id': typeof ChatIdRoute
+  '/post/$id': typeof PostIdRoute
   '/u/$username': typeof UUsernameRoute
   '/chat/': typeof ChatIndexRoute
 }
@@ -249,6 +258,7 @@ export interface FileRouteTypes {
     | '/videos'
     | '/welcome'
     | '/chat/$id'
+    | '/post/$id'
     | '/u/$username'
     | '/chat/'
   fileRoutesByTo: FileRoutesByTo
@@ -274,6 +284,7 @@ export interface FileRouteTypes {
     | '/videos'
     | '/welcome'
     | '/chat/$id'
+    | '/post/$id'
     | '/u/$username'
     | '/chat'
   id:
@@ -299,6 +310,7 @@ export interface FileRouteTypes {
     | '/videos'
     | '/welcome'
     | '/chat/$id'
+    | '/post/$id'
     | '/u/$username'
     | '/chat/'
   fileRoutesById: FileRoutesById
@@ -325,6 +337,7 @@ export interface RootRouteChildren {
   VideosRoute: typeof VideosRoute
   WelcomeRoute: typeof WelcomeRoute
   ChatIdRoute: typeof ChatIdRoute
+  PostIdRoute: typeof PostIdRoute
   UUsernameRoute: typeof UUsernameRoute
   ChatIndexRoute: typeof ChatIndexRoute
 }
@@ -485,6 +498,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/post/$id': {
+      id: '/post/$id'
+      path: '/post/$id'
+      fullPath: '/post/$id'
+      preLoaderRoute: typeof PostIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/u/$username': {
       id: '/u/$username'
       path: '/u/$username'
@@ -517,6 +537,7 @@ const rootRouteChildren: RootRouteChildren = {
   VideosRoute: VideosRoute,
   WelcomeRoute: WelcomeRoute,
   ChatIdRoute: ChatIdRoute,
+  PostIdRoute: PostIdRoute,
   UUsernameRoute: UUsernameRoute,
   ChatIndexRoute: ChatIndexRoute,
 }

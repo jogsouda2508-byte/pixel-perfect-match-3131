@@ -437,3 +437,49 @@ export async function deleteGroup(groupId: string): Promise<void> {
   const { error } = await supabase.from("groups").delete().eq("id", groupId);
   if (error) fail("Deleting the group", error);
 }
+
+// ------------------------------------------------------------ single post
+/** One post (image, text or video) with counts, as the viewer's RLS allows. Null if gone/hidden. */
+export async function fetchPostById(postId: string, userId: string): Promise<FeedRow | null> {
+  const { data: post, error } = await supabase
+    .from("posts")
+    .select("*")
+    .eq("id", postId)
+    .maybeSingle();
+  if (error) fail("Loading this post", error);
+  if (!post) return null;
+
+  const [author, likes, comments, liked] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("full_name, username, avatar_url, account_type")
+      .eq("id", post.author_id)
+      .maybeSingle(),
+    supabase.from("post_likes").select("*", { count: "exact", head: true }).eq("post_id", post.id),
+    supabase
+      .from("post_comments")
+      .select("*", { count: "exact", head: true })
+      .eq("post_id", post.id),
+    supabase
+      .from("post_likes")
+      .select("post_id")
+      .eq("post_id", post.id)
+      .eq("user_id", userId)
+      .maybeSingle(),
+  ]);
+  const failed = author.error ?? likes.error ?? comments.error ?? liked.error;
+  if (failed) fail("Loading this post", failed);
+  if (!author.data) return null;
+
+  return {
+    ...post,
+    media_type: post.media_type ?? "image",
+    author_name: author.data.full_name,
+    author_username: author.data.username,
+    author_avatar: author.data.avatar_url,
+    author_account_type: author.data.account_type,
+    like_count: likes.count ?? 0,
+    comment_count: comments.count ?? 0,
+    liked_by_me: !!liked.data,
+  };
+}

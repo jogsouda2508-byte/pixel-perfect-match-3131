@@ -52,7 +52,7 @@ function RichText({ text }: { text: string }) {
   );
 }
 
-export function PostCard({ post }: { post: FeedRow }) {
+export function PostCard({ post, openComments = false }: { post: FeedRow; openComments?: boolean }) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const saved = useSaved();
@@ -65,7 +65,7 @@ export function PostCard({ post }: { post: FeedRow }) {
   const [liked, setLiked] = useState(post.liked_by_me);
   const [likes, setLikes] = useState(post.like_count);
   const [commentCount, setCommentCount] = useState(post.comment_count);
-  const [showComments, setShowComments] = useState(false);
+  const [showComments, setShowComments] = useState(openComments);
   const [draft, setDraft] = useState("");
   const [likeBusy, setLikeBusy] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
