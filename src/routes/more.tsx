@@ -2,12 +2,12 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
-  Bookmark,
   Building2,
   ChevronRight,
   HelpCircle,
   Loader2,
   Settings,
+  Star,
   User,
   UserPlus,
   Users,
@@ -29,7 +29,7 @@ export const Route = createFileRoute("/more")({
 const links = [
   { label: "My Profile", icon: User, to: "/profile" },
   { label: "Business Page", icon: Building2, to: "/business" },
-  { label: "Saved Posts", icon: Bookmark, to: "/saved" },
+  { label: "Saved Posts", icon: Star, to: "/saved" },
   { label: "Groups", icon: Users, to: "/groups" },
   { label: "Settings & Privacy", icon: Settings, to: "/settings" },
   { label: "Help & Support", icon: HelpCircle, to: "/help" },

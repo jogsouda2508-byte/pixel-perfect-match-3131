@@ -3,7 +3,6 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  Bookmark,
   Loader2,
   MessageSquare,
   MoreHorizontal,
@@ -155,30 +154,26 @@ export function PostCard({ post }: { post: FeedRow }) {
             </p>
           </div>
         </Link>
-        {isVideo ? (
-          // Videos are saved with a five-point star: outline = not saved, filled = saved.
-          <button
-            type="button"
-            onClick={() => void saved.toggle(post.id)}
-            disabled={savePending}
-            aria-label={isSaved ? "Remove video from saved" : "Save video"}
-            aria-pressed={isSaved}
-            className={`grid h-9 w-9 place-items-center rounded-full hover:bg-elevated disabled:opacity-60 ${isSaved ? "text-warning" : "text-muted-foreground"}`}
-          >
-            <Star className={`h-5 w-5 ${isSaved ? "fill-warning" : ""}`} />
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => void saved.toggle(post.id)}
-            disabled={savePending}
-            aria-label={isSaved ? "Remove from saved" : "Save post"}
-            aria-pressed={isSaved}
-            className={`rounded-full p-1 hover:bg-elevated disabled:opacity-60 ${isSaved ? "text-primary" : "text-muted-foreground"}`}
-          >
-            <Bookmark className={`h-5 w-5 ${isSaved ? "fill-primary" : ""}`} />
-          </button>
-        )}
+        {/* Every post (video, image or text) is saved with a five-point star:
+            outline = not saved, filled = saved. One code path, so any future post type gets it too. */}
+        <button
+          type="button"
+          onClick={() => void saved.toggle(post.id)}
+          disabled={savePending}
+          aria-label={
+            isSaved
+              ? isVideo
+                ? "Remove video from saved"
+                : "Remove from saved"
+              : isVideo
+                ? "Save video"
+                : "Save post"
+          }
+          aria-pressed={isSaved}
+          className={`grid h-9 w-9 place-items-center rounded-full hover:bg-elevated disabled:opacity-60 ${isSaved ? "text-warning" : "text-muted-foreground"}`}
+        >
+          <Star className={`h-5 w-5 ${isSaved ? "fill-warning" : ""}`} aria-hidden="true" />
+        </button>
         {mine && (
           <DropdownMenu>
             <DropdownMenuTrigger
