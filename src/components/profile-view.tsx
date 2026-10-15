@@ -1,7 +1,8 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Building2, Loader2, MapPin, Settings } from "lucide-react";
+import { Building2, Loader2, MapPin, MessageSquare, Settings, Video } from "lucide-react";
+import { toast } from "sonner";
 import { BottomNav, SideNav, UserRow } from "@/components/ediraa";
 import {
   Dialog,
@@ -19,6 +20,8 @@ import {
   fetchUserPosts,
 } from "@/lib/social";
 import { useFollow } from "@/lib/use-follow";
+import { startConversation } from "@/lib/chat";
+import { fetchUserVideos } from "@/lib/videos";
 import type { Profile } from "@/integrations/supabase/types";
 
 const tabs = ["Posts", "Reels", "Tagged"] as const;
@@ -26,8 +29,10 @@ const tabs = ["Posts", "Reels", "Tagged"] as const;
 /** Shared by /profile (your own) and /u/<username> (anyone else). */
 export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean }) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<(typeof tabs)[number]>("Posts");
   const [list, setList] = useState<"followers" | "following" | null>(null);
+  const [startingMessage, setStartingMessage] = useState(false);
   const name = profile.full_name || profile.username;
   const follow = useFollow();
 
@@ -39,12 +44,79 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
     queryKey: ["user-posts", profile.id],
     queryFn: () => fetchUserPosts(profile.id),
   });
+  const videos = useQuery({
+    queryKey: ["user-videos", profile.id],
+    queryFn: () => fetchUserVideos(profile.id),
+    enabled: tab === "Reels",
+  });
   const followState = useQuery({
     queryKey: ["is-following", user?.id, profile.id],
     queryFn: () => fetchIsFollowing(user!.id, profile.id),
     enabled: !isMe && !!user,
   });
   const following = follow.isFollowing(profile.id, followState.data ?? false);
+
+  const message = async () => {
+    if (startingMessage) return;
+    setStartingMessage(true);
+    try {
+      const id = await startConversation(profile.id);
+      navigate({ to: "/chat/$id", params: { id } });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't start a conversation.");
+    } finally {
+      setStartingMessage(false);
+    }
+  };
+
+  const reelsContent = (
+    <section aria-label="Videos" className="mt-3">
+      {videos.isLoading && (
+        <div className="grid grid-cols-3 gap-1.5" aria-label="Loading videos">
+          {[0, 1, 2, 3, 4, 5].map((item) => (
+            <div key={item} className="aspect-[9/16] animate-pulse rounded-lg bg-elevated" />
+          ))}
+        </div>
+      )}
+      {videos.isError && (
+        <p className="glass-card p-6 text-center text-sm text-destructive">
+          Couldn't load videos. Please try again.
+        </p>
+      )}
+      {videos.isSuccess && videos.data.length === 0 && (
+        <p className="glass-card p-6 text-center text-sm text-muted-foreground">
+          {isMe ? "You haven't shared any videos yet." : "No videos to show yet."}
+        </p>
+      )}
+      <div className="grid grid-cols-3 gap-1.5">
+        {videos.data?.map((video) => (
+          <Link
+            key={video.id}
+            to="/videos"
+            search={{ video: video.id }}
+            aria-label={`Watch video${video.content ? `: ${video.content}` : ""}`}
+            className="group relative aspect-[9/16] overflow-hidden rounded-lg bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {video.thumbnail_url ? (
+              <img
+                src={video.thumbnail_url}
+                alt=""
+                loading="lazy"
+                className="h-full w-full object-cover transition group-hover:scale-105"
+              />
+            ) : (
+              <div className="grid h-full w-full place-items-center text-white">
+                <Video className="h-8 w-8" aria-hidden="true" />
+              </div>
+            )}
+            <span className="absolute bottom-2 right-2 rounded bg-black/65 px-1.5 py-0.5 text-xs text-white">
+              {video.duration_seconds ? `${Math.ceil(video.duration_seconds)}s` : "Video"}
+            </span>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
 
   return (
     <div className="mx-auto max-w-6xl px-4 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,640px)] lg:justify-center">
@@ -55,9 +127,9 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
             <div className="h-40 w-full bg-gradient-brand opacity-80 md:h-52" />
             {isMe && (
               <Link
-                to="/settings"
-                aria-label="Settings"
-                className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-full bg-background/60 backdrop-blur"
+                to="/more"
+                aria-label="More profile options"
+                className="absolute right-3 top-3 grid h-11 w-11 place-items-center rounded-full bg-background/80 backdrop-blur focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <Settings className="h-5 w-5" />
               </Link>
@@ -86,13 +158,28 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
                   Edit Profile
                 </Link>
               ) : (
-                <button
-                  onClick={() => follow.toggle(profile.id, following)}
-                  disabled={follow.isPending(profile.id) || followState.isLoading}
-                  className={`rounded-full px-6 py-2 text-sm font-semibold transition disabled:opacity-60 ${following ? "bg-elevated text-muted-foreground" : "bg-gradient-brand text-primary-foreground"}`}
-                >
-                  {following ? "Following" : "Follow"}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => follow.toggle(profile.id, following)}
+                    disabled={follow.isPending(profile.id) || followState.isLoading}
+                    className={`min-h-11 rounded-full px-5 py-2 text-sm font-semibold transition disabled:opacity-60 ${following ? "bg-elevated text-muted-foreground" : "bg-gradient-brand text-primary-foreground"}`}
+                  >
+                    {following ? "Following" : "Follow"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void message()}
+                    disabled={startingMessage}
+                    className="inline-flex min-h-11 items-center gap-2 rounded-full border border-primary px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                  >
+                    {startingMessage ? (
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <MessageSquare className="h-4 w-4" aria-hidden="true" />
+                    )}
+                    Message
+                  </button>
+                </div>
               )}
             </div>
             <h1 className="mt-3 flex items-center gap-1.5 text-xl font-bold">
@@ -178,13 +265,13 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
               )}
             </div>
           </>
+        ) : tab === "Reels" ? (
+          reelsContent
         ) : (
           <p className="glass-card mt-3 p-6 text-center text-sm text-muted-foreground">
-            {tab === "Reels"
-              ? "Reels are coming soon."
-              : isMe
-                ? "Posts you're tagged in will appear here."
-                : "Tagged posts will appear here."}
+            {isMe
+              ? "Posts you're tagged in will appear here."
+              : "Tagged posts will appear here."}
           </p>
         )}
       </main>

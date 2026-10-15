@@ -14,6 +14,8 @@ describe("resolveRedirect (route guard)", () => {
   it("sends logged-out users from protected pages to /login", () => {
     for (const p of [
       "/home",
+      "/chat",
+      "/videos",
       "/discover",
       "/create",
       "/profile",
@@ -31,6 +33,9 @@ describe("resolveRedirect (route guard)", () => {
     expect(resolveRedirect("/u/someone", out)).toBe("/login");
     expect(resolveRedirect("/u/someone", needsOnboarding)).toBe("/onboarding");
     expect(resolveRedirect("/u/someone", done)).toBeNull();
+    expect(resolveRedirect("/chat/conversation-id", out)).toBe("/login");
+    expect(resolveRedirect("/chat/conversation-id", needsOnboarding)).toBe("/onboarding");
+    expect(resolveRedirect("/chat/conversation-id", done)).toBeNull();
   });
   it("lets logged-out users see public pages", () => {
     for (const p of ["/", "/login", "/signup", "/forgot-password", "/verify", "/reset-password"])

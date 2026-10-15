@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as BusinessRouteImport } from './routes/business'
+import { Route as ChatRouteImport } from './routes/chat'
 import { Route as CreateRouteImport } from './routes/create'
 import { Route as DiscoverRouteImport } from './routes/discover'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
@@ -27,6 +28,9 @@ import { Route as SavedRouteImport } from './routes/saved'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as VerifyRouteImport } from './routes/verify'
+import { Route as VideosRouteImport } from './routes/videos'
+import { Route as WelcomeRouteImport } from './routes/welcome'
+import { Route as ChatIdRouteImport } from './routes/chat.$id'
 import { Route as UUsernameRouteImport } from './routes/u.$username'
 
 const IndexRoute = IndexRouteImport.update({
@@ -37,6 +41,11 @@ const IndexRoute = IndexRouteImport.update({
 const BusinessRoute = BusinessRouteImport.update({
   id: '/business',
   path: '/business',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChatRoute = ChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CreateRoute = CreateRouteImport.update({
@@ -119,6 +128,21 @@ const VerifyRoute = VerifyRouteImport.update({
   path: '/verify',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VideosRoute = VideosRouteImport.update({
+  id: '/videos',
+  path: '/videos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WelcomeRoute = WelcomeRouteImport.update({
+  id: '/welcome',
+  path: '/welcome',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChatIdRoute = ChatIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ChatRoute,
+} as any)
 const UUsernameRoute = UUsernameRouteImport.update({
   id: '/u/$username',
   path: '/u/$username',
@@ -128,6 +152,7 @@ const UUsernameRoute = UUsernameRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/business': typeof BusinessRoute
+  '/chat': typeof ChatRouteWithChildren
   '/create': typeof CreateRoute
   '/discover': typeof DiscoverRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -144,11 +169,15 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/verify': typeof VerifyRoute
+  '/videos': typeof VideosRoute
+  '/welcome': typeof WelcomeRoute
+  '/chat/$id': typeof ChatIdRoute
   '/u/$username': typeof UUsernameRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/business': typeof BusinessRoute
+  '/chat': typeof ChatRouteWithChildren
   '/create': typeof CreateRoute
   '/discover': typeof DiscoverRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -165,12 +194,16 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/verify': typeof VerifyRoute
+  '/videos': typeof VideosRoute
+  '/welcome': typeof WelcomeRoute
+  '/chat/$id': typeof ChatIdRoute
   '/u/$username': typeof UUsernameRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/business': typeof BusinessRoute
+  '/chat': typeof ChatRouteWithChildren
   '/create': typeof CreateRoute
   '/discover': typeof DiscoverRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -187,6 +220,9 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/verify': typeof VerifyRoute
+  '/videos': typeof VideosRoute
+  '/welcome': typeof WelcomeRoute
+  '/chat/$id': typeof ChatIdRoute
   '/u/$username': typeof UUsernameRoute
 }
 export interface FileRouteTypes {
@@ -194,6 +230,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/business'
+    | '/chat'
     | '/create'
     | '/discover'
     | '/forgot-password'
@@ -210,11 +247,15 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signup'
     | '/verify'
+    | '/videos'
+    | '/welcome'
+    | '/chat/$id'
     | '/u/$username'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/business'
+    | '/chat'
     | '/create'
     | '/discover'
     | '/forgot-password'
@@ -231,11 +272,15 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signup'
     | '/verify'
+    | '/videos'
+    | '/welcome'
+    | '/chat/$id'
     | '/u/$username'
   id:
     | '__root__'
     | '/'
     | '/business'
+    | '/chat'
     | '/create'
     | '/discover'
     | '/forgot-password'
@@ -252,12 +297,16 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signup'
     | '/verify'
+    | '/videos'
+    | '/welcome'
+    | '/chat/$id'
     | '/u/$username'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BusinessRoute: typeof BusinessRoute
+  ChatRoute: typeof ChatRouteWithChildren
   CreateRoute: typeof CreateRoute
   DiscoverRoute: typeof DiscoverRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
@@ -274,6 +323,8 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   SignupRoute: typeof SignupRoute
   VerifyRoute: typeof VerifyRoute
+  VideosRoute: typeof VideosRoute
+  WelcomeRoute: typeof WelcomeRoute
   UUsernameRoute: typeof UUsernameRoute
 }
 
@@ -291,6 +342,13 @@ declare module '@tanstack/react-router' {
       path: '/business'
       fullPath: '/business'
       preLoaderRoute: typeof BusinessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chat': {
+      id: '/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof ChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/create': {
@@ -405,6 +463,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VerifyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/videos': {
+      id: '/videos'
+      path: '/videos'
+      fullPath: '/videos'
+      preLoaderRoute: typeof VideosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/welcome': {
+      id: '/welcome'
+      path: '/welcome'
+      fullPath: '/welcome'
+      preLoaderRoute: typeof WelcomeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chat/$id': {
+      id: '/chat/$id'
+      path: '/$id'
+      fullPath: '/chat/$id'
+      preLoaderRoute: typeof ChatIdRouteImport
+      parentRoute: typeof ChatRoute
+    }
     '/u/$username': {
       id: '/u/$username'
       path: '/u/$username'
@@ -415,9 +494,20 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface ChatRouteChildren {
+  ChatIdRoute: typeof ChatIdRoute
+}
+
+const ChatRouteChildren: ChatRouteChildren = {
+  ChatIdRoute: ChatIdRoute,
+}
+
+const ChatRouteWithChildren = ChatRoute._addFileChildren(ChatRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BusinessRoute: BusinessRoute,
+  ChatRoute: ChatRouteWithChildren,
   CreateRoute: CreateRoute,
   DiscoverRoute: DiscoverRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
@@ -434,6 +524,8 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   SignupRoute: SignupRoute,
   VerifyRoute: VerifyRoute,
+  VideosRoute: VideosRoute,
+  WelcomeRoute: WelcomeRoute,
   UUsernameRoute: UUsernameRoute,
 }
 export const routeTree = rootRouteImport

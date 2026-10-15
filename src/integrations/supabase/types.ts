@@ -25,6 +25,10 @@ export type PostRow = {
   image_url: string | null;
   audience: Audience;
   created_at: string;
+  media_type: "image" | "video";
+  video_url: string | null;
+  thumbnail_url: string | null;
+  duration_seconds: number | null;
 };
 
 export type CommentRow = {
@@ -57,6 +61,14 @@ export type FeedRow = {
   like_count: number;
   comment_count: number;
   liked_by_me: boolean;
+};
+
+export type VideoFeedRow = FeedRow & {
+  media_type: "video";
+  video_url: string;
+  thumbnail_url: string | null;
+  duration_seconds: number;
+  is_following: boolean;
 };
 
 /** One row of `get_people` */
@@ -103,6 +115,27 @@ export type NotificationRow = {
   i_follow_actor: boolean;
 };
 
+export type ConversationRow = {
+  id: string;
+  created_at: string;
+  last_message_at: string | null;
+  last_message_preview: string | null;
+};
+
+export type ConversationParticipantRow = {
+  conversation_id: string;
+  user_id: string;
+  last_read_at: string;
+};
+
+export type MessageRow = {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  body: string;
+  created_at: string;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -140,8 +173,19 @@ export type Database = {
           content?: string;
           image_url?: string | null;
           audience?: Audience;
+          media_type?: "image" | "video";
+          video_url?: string | null;
+          thumbnail_url?: string | null;
+          duration_seconds?: number | null;
         };
-        Update: { content?: string };
+        Update: {
+          content?: string;
+          image_url?: string | null;
+          media_type?: "image" | "video";
+          video_url?: string | null;
+          thumbnail_url?: string | null;
+          duration_seconds?: number | null;
+        };
         Relationships: [
           {
             foreignKeyName: "posts_author_id_fkey";
@@ -204,6 +248,42 @@ export type Database = {
         Update: { role?: "admin" | "member" };
         Relationships: [];
       };
+      conversations: {
+        Row: ConversationRow;
+        Insert: {
+          id?: string;
+          created_at?: string;
+          last_message_at?: string | null;
+          last_message_preview?: string | null;
+        };
+        Update: {
+          last_message_at?: string | null;
+          last_message_preview?: string | null;
+        };
+        Relationships: [];
+      };
+      conversation_participants: {
+        Row: ConversationParticipantRow;
+        Insert: {
+          conversation_id: string;
+          user_id: string;
+          last_read_at?: string;
+        };
+        Update: { last_read_at?: string };
+        Relationships: [];
+      };
+      messages: {
+        Row: MessageRow;
+        Insert: {
+          id?: string;
+          conversation_id: string;
+          sender_id: string;
+          body: string;
+          created_at?: string;
+        };
+        Update: never;
+        Relationships: [];
+      };
     };
     Views: { [_ in never]: never };
     Functions: {
@@ -234,6 +314,12 @@ export type Database = {
         Args: { p_query: string | null; p_mine_only: boolean; p_limit: number };
         Returns: GroupListRow[];
       };
+      get_video_feed: {
+        Args: { p_limit: number; p_offset: number };
+        Returns: VideoFeedRow[];
+      };
+      is_conversation_member: { Args: { conv: string }; Returns: boolean };
+      get_or_create_dm: { Args: { other_user: string }; Returns: string };
     };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };
