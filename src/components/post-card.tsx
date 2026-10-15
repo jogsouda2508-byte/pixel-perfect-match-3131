@@ -13,6 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Avatar } from "@/components/ediraa";
+import { MediaGallery } from "@/components/media-gallery";
 import { ShareVideoDialog } from "@/components/share-video-dialog";
 import { VideoPlayer } from "@/components/video-player";
 import {
@@ -69,6 +70,7 @@ export function PostCard({ post, openComments = false }: { post: FeedRow; openCo
   const [draft, setDraft] = useState("");
   const [likeBusy, setLikeBusy] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
 
   // Keep in sync when the feed refetches.
   useEffect(() => {
@@ -204,12 +206,26 @@ export function PostCard({ post, openComments = false }: { post: FeedRow; openCo
         <VideoPlayer src={post.video_url} poster={post.thumbnail_url} label={`Video by ${name}`} />
       ) : (
         post.image_url && (
-          <img
-            src={post.image_url}
-            alt=""
-            loading="lazy"
-            className="mt-3 max-h-[480px] w-full rounded-xl object-cover"
-          />
+          <>
+            <button
+              type="button"
+              onClick={() => setGalleryOpen(true)}
+              aria-label="Open photo"
+              className="mt-3 block w-full overflow-hidden rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <img
+                src={post.image_url}
+                alt=""
+                loading="lazy"
+                className="max-h-[480px] w-full object-cover"
+              />
+            </button>
+            <MediaGallery
+              items={[{ id: post.id, type: "image", src: post.image_url, caption: post.content }]}
+              startIndex={galleryOpen ? 0 : null}
+              onClose={() => setGalleryOpen(false)}
+            />
+          </>
         )
       )}
 
