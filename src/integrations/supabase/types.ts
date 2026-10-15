@@ -61,6 +61,12 @@ export type FeedRow = {
   like_count: number;
   comment_count: number;
   liked_by_me: boolean;
+  /** Video columns (get_feed / get_saved_posts). Rows from a database that has not yet
+   *  run 20261016000000_video_share_feed.sql omit them, so treat missing as an image post. */
+  media_type: "image" | "video";
+  video_url: string | null;
+  thumbnail_url: string | null;
+  duration_seconds: number | null;
 };
 
 export type VideoFeedRow = FeedRow & {
@@ -134,6 +140,8 @@ export type MessageRow = {
   sender_id: string;
   body: string;
   created_at: string;
+  /** Set only by the share_post_to_user() RPC; null for ordinary messages. */
+  shared_post_id: string | null;
 };
 
 export type Database = {
@@ -320,6 +328,10 @@ export type Database = {
       };
       is_conversation_member: { Args: { conv: string }; Returns: boolean };
       get_or_create_dm: { Args: { other_user: string }; Returns: string };
+      share_post_to_user: {
+        Args: { p_post_id: string; p_recipient_id: string };
+        Returns: string;
+      };
     };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };

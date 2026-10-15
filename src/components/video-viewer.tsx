@@ -9,6 +9,7 @@ import {
   MoreHorizontal,
   Play,
   Share2,
+  Star,
   Volume2,
   VolumeX,
 } from "lucide-react";
@@ -16,6 +17,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Avatar, BottomNav, SideNav } from "@/components/ediraa";
 import { ComposerLauncher } from "@/components/composer";
+import { ShareVideoDialog } from "@/components/share-video-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -31,6 +33,7 @@ import { useAuth } from "@/lib/auth";
 import { addComment, fetchComments, setLike, type CommentView } from "@/lib/social";
 import { timeAgo } from "@/lib/time";
 import { useFollow } from "@/lib/use-follow";
+import { useSaved } from "@/lib/use-saved";
 import { deleteVideoPost, fetchVideoById, fetchVideoFeed, truncateCaption, VIDEO_PAGE_SIZE } from "@/lib/videos";
 import type { VideoFeedRow } from "@/integrations/supabase/types";
 
@@ -38,6 +41,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
   const follow = useFollow();
+  const saved = useSaved();
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRefs = useRef(new Map<string, HTMLVideoElement>());
   const pendingLikes = useRef(new Set<string>());
@@ -55,6 +59,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
   const [commentsVideo, setCommentsVideo] = useState<VideoFeedRow | null>(null);
   const [deleteVideo, setDeleteVideo] = useState<VideoFeedRow | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [shareTarget, setShareTarget] = useState<VideoFeedRow | null>(null);
 
   const feed = useInfiniteQuery({
     queryKey: ["video-feed", user?.id],
@@ -106,7 +111,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
         const visible = entries
           .filter((entry) => entry.isIntersecting && entry.intersectionRatio >= 0.7)
           .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        const id = (visible?.target as HTMLElement | undefined)?.dataset.videoId;
+        const id = (visible?.target as HTMLElement | undefined)?.dataset["videoId"];
         if (id) setActiveId(id);
       },
       { root, threshold: [0, 0.7, 1] },
@@ -209,18 +214,6 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
       toast.success("Video link copied");
     } catch {
       toast.error("Couldn't copy the video link.");
-    }
-  };
-
-  const shareVideo = async (post: VideoFeedRow) => {
-    const url = `${window.location.origin}/videos?video=${encodeURIComponent(post.id)}`;
-    try {
-      if (navigator.share) await navigator.share({ title: "Ediraa video", url });
-      else await navigator.clipboard.writeText(url);
-      if (!navigator.share) toast.success("Video link copied");
-    } catch (error) {
-      if (!(error instanceof DOMException && error.name === "AbortError"))
-        toast.error("Couldn't share this video.");
     }
   };
 
@@ -445,11 +438,24 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                 </div>
                 <button
                   type="button"
-                  onClick={() => void shareVideo(post)}
+                  onClick={() => setShareTarget(post)}
                   aria-label="Share video"
                   className="grid h-12 w-12 place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                 >
                   <Share2 className="h-6 w-6" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void saved.toggle(post.id)}
+                  disabled={saved.isPending(post.id)}
+                  aria-label={saved.isSaved(post.id) ? "Remove video from saved" : "Save video"}
+                  aria-pressed={saved.isSaved(post.id)}
+                  className="grid h-12 w-12 place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
+                >
+                  <Star
+                    className={`h-6 w-6 ${saved.isSaved(post.id) ? "fill-warning text-warning" : ""}`}
+                    aria-hidden="true"
+                  />
                 </button>
                 <DropdownMenu>
                   <DropdownMenuTrigger
@@ -494,6 +500,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
         )}
       </section>
       <BottomNav />
+      <ShareVideoDialog post={shareTarget} onClose={() => setShareTarget(null)} />
       <VideoComments
         post={commentsVideo}
         onClose={() => setCommentsVideo(null)}

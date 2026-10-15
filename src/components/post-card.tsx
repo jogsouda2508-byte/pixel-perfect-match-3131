@@ -9,10 +9,13 @@ import {
   MoreHorizontal,
   Send,
   Share2,
+  Star,
   ThumbsUp,
   Trash2,
 } from "lucide-react";
 import { Avatar } from "@/components/ediraa";
+import { ShareVideoDialog } from "@/components/share-video-dialog";
+import { VideoPlayer } from "@/components/video-player";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,6 +33,7 @@ import {
 } from "@/lib/social";
 import { timeAgo } from "@/lib/time";
 import { useSaved } from "@/lib/use-saved";
+import { deleteVideoPost } from "@/lib/videos";
 import type { FeedRow } from "@/integrations/supabase/types";
 
 /** Renders #hashtags in the brand colour. */
@@ -55,6 +59,9 @@ export function PostCard({ post }: { post: FeedRow }) {
   const saved = useSaved();
   const mine = user?.id === post.author_id;
   const isSaved = saved.isSaved(post.id);
+  // Rows from a database without the video migration have no media_type: treat as image/text.
+  const isVideo = post.media_type === "video" && !!post.video_url;
+  const savePending = saved.isPending(post.id);
 
   const [liked, setLiked] = useState(post.liked_by_me);
   const [likes, setLikes] = useState(post.like_count);
@@ -62,6 +69,7 @@ export function PostCard({ post }: { post: FeedRow }) {
   const [showComments, setShowComments] = useState(false);
   const [draft, setDraft] = useState("");
   const [likeBusy, setLikeBusy] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   // Keep in sync when the feed refetches.
   useEffect(() => {
@@ -88,10 +96,21 @@ export function PostCard({ post }: { post: FeedRow }) {
   };
 
   const remove = useMutation({
-    mutationFn: () => deletePost(post.id),
+    // Video posts also remove their video + thumbnail files from storage.
+    mutationFn: () =>
+      isVideo
+        ? deleteVideoPost({
+            id: post.id,
+            video_url: post.video_url ?? "",
+            thumbnail_url: post.thumbnail_url,
+          })
+        : deletePost(post.id),
     onSuccess: () => {
-      toast.success("Post deleted");
+      toast.success(isVideo ? "Video deleted" : "Post deleted");
       void qc.invalidateQueries({ queryKey: ["feed"] });
+      void qc.invalidateQueries({ queryKey: ["video-feed"] });
+      void qc.invalidateQueries({ queryKey: ["user-videos"] });
+      void qc.invalidateQueries({ queryKey: ["saved-posts"] });
       void qc.invalidateQueries({ queryKey: ["user-posts"] });
       void qc.invalidateQueries({ queryKey: ["follow-counts"] });
       void qc.invalidateQueries({ queryKey: ["trending"] });
@@ -131,15 +150,30 @@ export function PostCard({ post }: { post: FeedRow }) {
             </p>
           </div>
         </Link>
-        <button
-          type="button"
-          onClick={() => saved.toggle(post.id)}
-          aria-label={isSaved ? "Remove from saved" : "Save post"}
-          aria-pressed={isSaved}
-          className={`rounded-full p-1 hover:bg-elevated ${isSaved ? "text-primary" : "text-muted-foreground"}`}
-        >
-          <Bookmark className={`h-5 w-5 ${isSaved ? "fill-primary" : ""}`} />
-        </button>
+        {isVideo ? (
+          // Videos are saved with a five-point star: outline = not saved, filled = saved.
+          <button
+            type="button"
+            onClick={() => void saved.toggle(post.id)}
+            disabled={savePending}
+            aria-label={isSaved ? "Remove video from saved" : "Save video"}
+            aria-pressed={isSaved}
+            className={`grid h-9 w-9 place-items-center rounded-full hover:bg-elevated disabled:opacity-60 ${isSaved ? "text-warning" : "text-muted-foreground"}`}
+          >
+            <Star className={`h-5 w-5 ${isSaved ? "fill-warning" : ""}`} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => void saved.toggle(post.id)}
+            disabled={savePending}
+            aria-label={isSaved ? "Remove from saved" : "Save post"}
+            aria-pressed={isSaved}
+            className={`rounded-full p-1 hover:bg-elevated disabled:opacity-60 ${isSaved ? "text-primary" : "text-muted-foreground"}`}
+          >
+            <Bookmark className={`h-5 w-5 ${isSaved ? "fill-primary" : ""}`} />
+          </button>
+        )}
         {mine && (
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -166,13 +200,21 @@ export function PostCard({ post }: { post: FeedRow }) {
           <RichText text={post.content} />
         </p>
       )}
-      {post.image_url && (
-        <img
-          src={post.image_url}
-          alt=""
-          loading="lazy"
-          className="mt-3 max-h-[480px] w-full rounded-xl object-cover"
+      {isVideo && post.video_url ? (
+        <VideoPlayer
+          src={post.video_url}
+          poster={post.thumbnail_url}
+          label={`Video by ${name}`}
         />
+      ) : (
+        post.image_url && (
+          <img
+            src={post.image_url}
+            alt=""
+            loading="lazy"
+            className="mt-3 max-h-[480px] w-full rounded-xl object-cover"
+          />
+        )
       )}
 
       {(likes > 0 || commentCount > 0) && (
@@ -198,7 +240,9 @@ export function PostCard({ post }: { post: FeedRow }) {
       <div className="mt-3 grid grid-cols-3 border-t border-border pt-2 text-sm">
         <button
           onClick={toggleLike}
-          className={`flex items-center justify-center gap-2 py-2 ${liked ? "text-primary" : ""}`}
+          disabled={likeBusy}
+          aria-pressed={liked}
+          className={`flex items-center justify-center gap-2 py-2 disabled:opacity-60 ${liked ? "text-primary" : ""}`}
         >
           <ThumbsUp className={`h-5 w-5 ${liked ? "fill-primary" : ""}`} />
           Like
@@ -210,11 +254,21 @@ export function PostCard({ post }: { post: FeedRow }) {
           <MessageSquare className="h-5 w-5" />
           Comment
         </button>
-        <button onClick={share} className="flex items-center justify-center gap-2 py-2">
+        <button
+          onClick={isVideo ? () => setShareOpen(true) : share}
+          className="flex items-center justify-center gap-2 py-2"
+        >
           <Share2 className="h-5 w-5" />
           Share
         </button>
       </div>
+
+      {isVideo && (
+        <ShareVideoDialog
+          post={shareOpen ? { id: post.id } : null}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
 
       {showComments && (
         <Comments

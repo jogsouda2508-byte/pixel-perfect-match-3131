@@ -6,6 +6,7 @@ import { Avatar } from "@/components/ediraa";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { PageShell } from "@/components/page-shell";
+import { SharedVideoCard } from "@/components/shared-video-card";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { getConversation, getMessages, markRead, sendMessage } from "@/lib/chat";
@@ -168,6 +169,7 @@ function ConversationDetail({ id }: { id: string }) {
       sender_id: user!.id,
       body,
       created_at: new Date().toISOString(),
+      shared_post_id: null,
       status: "sending",
     };
     setMessages((current) => [...current, optimistic]);
@@ -254,7 +256,11 @@ function ConversationDetail({ id }: { id: string }) {
                         : "rounded-bl-md bg-secondary text-secondary-foreground"
                     }`}
                   >
-                    <p className="whitespace-pre-wrap text-sm">{message.body}</p>
+                    {message.shared_post_id ? (
+                      <SharedVideoCard postId={message.shared_post_id} own={own} />
+                    ) : (
+                      <p className="whitespace-pre-wrap text-sm">{message.body}</p>
+                    )}
                     <div
                       className={`mt-1 flex items-center gap-2 text-sm ${
                         own ? "text-primary-foreground/80" : "text-muted-foreground"
