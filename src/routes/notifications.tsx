@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Heart, Loader2, MessageSquare, UserPlus } from "lucide-react";
+import { ArrowLeft, Heart, Loader2, MessageSquare, Send, UserPlus } from "lucide-react";
 import { Avatar, BottomNav, Pill, SideNav } from "@/components/ediraa";
 import { useAuth } from "@/lib/auth";
 import { fetchNotifications, markNotificationsSeen } from "@/lib/social";
@@ -27,12 +27,13 @@ export const Route = createFileRoute("/notifications")({
   component: NotificationsPage,
 });
 
-const tabs = ["All", "Likes", "Comments", "Follows"] as const;
+const tabs = ["All", "Likes", "Comments", "Follows", "Shares"] as const;
 const tabKind: Record<(typeof tabs)[number], NotificationRow["kind"] | null> = {
   All: null,
   Likes: "like",
   Comments: "comment",
   Follows: "follow",
+  Shares: "share",
 };
 
 const kindIcon = {
@@ -41,12 +42,14 @@ const kindIcon = {
     <MessageSquare className="h-3.5 w-3.5 fill-primary-foreground text-primary-foreground" />
   ),
   follow: <UserPlus className="h-3.5 w-3.5 text-primary-foreground" />,
+  share: <Send className="h-3.5 w-3.5 text-primary-foreground" />,
 } as const;
-const kindColor = { like: "bg-destructive", comment: "bg-primary", follow: "bg-success" } as const;
+const kindColor = { like: "bg-destructive", comment: "bg-primary", follow: "bg-success", share: "bg-primary" } as const;
 
 function describe(n: NotificationRow) {
   if (n.kind === "like") return "liked your post";
   if (n.kind === "comment") return `commented: ${n.snippet ?? ""}`;
+  if (n.kind === "share") return n.snippet === "video" ? "shared a video with you" : "shared a post with you";
   return "started following you";
 }
 
@@ -139,6 +142,15 @@ function NotificationsPage() {
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">{timeAgo(n.created_at)}</p>
                 </div>
+                {n.kind === "share" && n.conversation_id && (
+                  <Link
+                    to="/chat/$id"
+                    params={{ id: n.conversation_id }}
+                    className="shrink-0 rounded-full bg-gradient-brand px-4 py-1.5 text-xs font-semibold text-primary-foreground"
+                  >
+                    Open
+                  </Link>
+                )}
                 {n.kind === "follow" && (
                   <button
                     onClick={() => follow.toggle(n.actor_id, following)}
