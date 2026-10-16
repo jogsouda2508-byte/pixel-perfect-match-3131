@@ -3,8 +3,10 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import {
   AlertCircle,
   Camera,
+  Download,
   Heart,
   Loader2,
+  Maximize,
   MessageCircle,
   MoreHorizontal,
   Play,
@@ -50,6 +52,7 @@ import { addComment, fetchComments, type CommentView } from "@/lib/social";
 import { timeAgo } from "@/lib/time";
 import { useFollow } from "@/lib/use-follow";
 import { useSaved } from "@/lib/use-saved";
+import { downloadVideo } from "@/lib/video-download";
 import {
   deleteVideoPost,
   fetchVideoById,
@@ -58,6 +61,12 @@ import {
   VIDEO_PAGE_SIZE,
 } from "@/lib/videos";
 import type { VideoFeedRow } from "@/integrations/supabase/types";
+
+function formatTime(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const whole = Math.floor(seconds);
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+}
 
 export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
   const { user, profile } = useAuth();
@@ -77,6 +86,10 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
   });
   const [playing, setPlaying] = useState(true);
   const [progress, setProgress] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [buffering, setBuffering] = useState<Record<string, boolean>>({});
+  const [downloading, setDownloading] = useState<Record<string, boolean>>({});
   const [videoErrors, setVideoErrors] = useState<Record<string, boolean>>({});
   const [expandedCaptions, setExpandedCaptions] = useState<Record<string, boolean>>({});
   const [commentsVideo, setCommentsVideo] = useState<VideoFeedRow | null>(null);
@@ -213,6 +226,41 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
     window.localStorage.setItem("ediraa-videos-muted", String(next));
   };
 
+  const seekTo = (post: VideoFeedRow, percent: number) => {
+    const video = videoRefs.current.get(post.id);
+    if (!video || !Number.isFinite(video.duration) || video.duration <= 0) return;
+    video.currentTime = (percent / 100) * video.duration;
+    setProgress(percent);
+    setCurrentTime(video.currentTime);
+  };
+
+  const enterFullscreen = async (post: VideoFeedRow) => {
+    const video = videoRefs.current.get(post.id) as
+      (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | undefined;
+    if (!video) return;
+    try {
+      if (video.requestFullscreen) await video.requestFullscreen();
+      else if (video.webkitEnterFullscreen) video.webkitEnterFullscreen();
+      else toast.error("Full screen isn't supported in this browser.");
+    } catch {
+      toast.error("Couldn't open full screen.");
+    }
+  };
+
+  const download = async (post: VideoFeedRow) => {
+    if (downloading[post.id]) return;
+    setDownloading((state) => ({ ...state, [post.id]: true }));
+    try {
+      const filename = await downloadVideo(post);
+      toast.success(`Download started: ${filename}`);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      toast.error(error instanceof Error ? error.message : "Couldn't download this video.");
+    } finally {
+      setDownloading((state) => ({ ...state, [post.id]: false }));
+    }
+  };
+
   const toggleLike = async (post: VideoFeedRow) => {
     if (!user || pendingLikes.current.has(post.id)) return;
     pendingLikes.current.add(post.id);
@@ -316,14 +364,22 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                     loop
                     preload={active ? "auto" : "metadata"}
                     onTimeUpdate={(event) => {
-                      if (active)
-                        setProgress(
-                          event.currentTarget.duration
-                            ? (event.currentTarget.currentTime / event.currentTarget.duration) * 100
-                            : 0,
-                        );
+                      if (!active) return;
+                      const el = event.currentTarget;
+                      setCurrentTime(el.currentTime);
+                      setProgress(el.duration ? (el.currentTime / el.duration) * 100 : 0);
                     }}
-                    onError={() => setVideoErrors((state) => ({ ...state, [post.id]: true }))}
+                    onLoadedMetadata={(event) => {
+                      if (active) setDuration(event.currentTarget.duration || 0);
+                    }}
+                    onWaiting={() => setBuffering((state) => ({ ...state, [post.id]: true }))}
+                    onLoadStart={() => setBuffering((state) => ({ ...state, [post.id]: true }))}
+                    onCanPlay={() => setBuffering((state) => ({ ...state, [post.id]: false }))}
+                    onPlaying={() => setBuffering((state) => ({ ...state, [post.id]: false }))}
+                    onError={() => {
+                      setBuffering((state) => ({ ...state, [post.id]: false }));
+                      setVideoErrors((state) => ({ ...state, [post.id]: true }));
+                    }}
                     onClick={(event) => {
                       event.stopPropagation();
                       if (active) setPlaying((value) => !value);
@@ -360,7 +416,16 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                     </div>
                   </div>
                 )}
-                {active && !playing && !videoErrors[post.id] && (
+                {active && buffering[post.id] && !videoErrors[post.id] && (
+                  <span
+                    role="status"
+                    aria-label="Loading video"
+                    className="pointer-events-none absolute grid h-14 w-14 place-items-center rounded-full bg-black/50"
+                  >
+                    <Loader2 className="h-7 w-7 animate-spin" aria-hidden="true" />
+                  </span>
+                )}
+                {active && !playing && !buffering[post.id] && !videoErrors[post.id] && (
                   <span className="pointer-events-none absolute grid h-14 w-14 place-items-center rounded-full bg-black/50">
                     <Play className="h-7 w-7 fill-white" aria-hidden="true" />
                   </span>
@@ -368,8 +433,22 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
               </div>
 
               {active && (
-                <div className="absolute inset-x-0 bottom-14 z-20 h-1 bg-white/25 md:bottom-0">
-                  <div className="h-full bg-white" style={{ width: `${progress}%` }} />
+                <div className="absolute inset-x-0 bottom-14 z-20 px-3 md:bottom-0">
+                  <div className="flex items-center gap-2 text-xs tabular-nums text-white/85">
+                    <span aria-hidden="true">{formatTime(currentTime)}</span>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={0.1}
+                      value={progress}
+                      onChange={(event) => seekTo(post, Number(event.target.value))}
+                      aria-label="Seek video"
+                      aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
+                      className="h-6 flex-1 cursor-pointer accent-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    />
+                    <span aria-hidden="true">{formatTime(duration)}</span>
+                  </div>
                 </div>
               )}
               <header className="absolute inset-x-0 top-0 z-10 flex items-center justify-end bg-gradient-to-b from-black/65 to-transparent p-3 pt-[max(env(safe-area-inset-top),0.75rem)]">
@@ -467,6 +546,27 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                   className="grid h-12 w-12 place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                 >
                   <Share2 className="h-6 w-6" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void download(post)}
+                  disabled={!!downloading[post.id]}
+                  aria-label="Download video"
+                  className="grid h-12 w-12 place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
+                >
+                  {downloading[post.id] ? (
+                    <Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Download className="h-6 w-6" aria-hidden="true" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void enterFullscreen(post)}
+                  aria-label="Full screen"
+                  className="grid h-12 w-12 place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                >
+                  <Maximize className="h-6 w-6" aria-hidden="true" />
                 </button>
                 <button
                   type="button"
