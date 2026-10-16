@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { BottomNav, SideNav, UserRow } from "@/components/ediraa";
-import { MediaGallery, type GalleryItem } from "@/components/media-gallery";
+import { Gallery, type GalleryItem } from "@/components/gallery";
 import {
   Dialog,
   DialogContent,
@@ -334,7 +334,7 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
         )}
       </main>
       <BottomNav />
-      <MediaGallery
+      <Gallery
         items={galleryItems}
         startIndex={galleryIndex}
         onClose={() => setGalleryIndex(null)}

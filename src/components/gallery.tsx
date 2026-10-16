@@ -16,7 +16,7 @@ export type GalleryItem = {
  * Full-screen, Instagram-style viewer. Open it by passing the index of the tapped item;
  * pass null to close. Arrow buttons, the keyboard arrows and swipe all move between items.
  */
-export function MediaGallery({
+export function Gallery({
   items,
   startIndex,
   onClose,

@@ -13,7 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Avatar } from "@/components/ediraa";
-import { MediaGallery } from "@/components/media-gallery";
+import { Gallery } from "@/components/gallery";
 import { ShareVideoDialog } from "@/components/share-video-dialog";
 import { VideoPlayer } from "@/components/video-player";
 import {
@@ -220,7 +220,7 @@ export function PostCard({ post, openComments = false }: { post: FeedRow; openCo
                 className="max-h-[480px] w-full object-cover"
               />
             </button>
-            <MediaGallery
+            <Gallery
               items={[{ id: post.id, type: "image", src: post.image_url, caption: post.content }]}
               startIndex={galleryOpen ? 0 : null}
               onClose={() => setGalleryOpen(false)}
