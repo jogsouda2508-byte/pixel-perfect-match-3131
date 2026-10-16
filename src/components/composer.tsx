@@ -213,6 +213,7 @@ export function ComposerLauncher({
         postedId = post.id;
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ["video-feed"] }),
+          queryClient.invalidateQueries({ queryKey: ["feed"] }),
           queryClient.invalidateQueries({ queryKey: ["user-videos"] }),
           queryClient.invalidateQueries({ queryKey: ["user-posts"] }),
         ]);

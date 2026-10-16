@@ -110,7 +110,7 @@ export type GroupListRow = GroupRow & {
 
 /** One row of `get_notifications` */
 export type NotificationRow = {
-  kind: "like" | "comment" | "follow";
+  kind: "like" | "comment" | "follow" | "share";
   actor_id: string;
   actor_name: string;
   actor_username: string;
@@ -119,6 +119,7 @@ export type NotificationRow = {
   snippet: string | null;
   created_at: string;
   i_follow_actor: boolean;
+  conversation_id: string | null;
 };
 
 export type ConversationRow = {
@@ -313,6 +314,7 @@ export type Database = {
       get_trending_topics: { Args: { p_limit: number }; Returns: TrendingRow[] };
       get_notifications: { Args: { p_limit: number }; Returns: NotificationRow[] };
       get_unread_notification_count: { Args: Record<PropertyKey, never>; Returns: number };
+      get_unread_chat_count: { Args: Record<PropertyKey, never>; Returns: number };
       get_saved_posts: {
         Args: { p_limit: number; p_before: string | null };
         Returns: SavedFeedRow[];

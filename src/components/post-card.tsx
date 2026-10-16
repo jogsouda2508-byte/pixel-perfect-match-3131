@@ -3,7 +3,6 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  Bookmark,
   Loader2,
   MessageSquare,
   MoreHorizontal,
@@ -14,6 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Avatar } from "@/components/ediraa";
+import { Gallery } from "@/components/gallery";
 import { ShareVideoDialog } from "@/components/share-video-dialog";
 import { VideoPlayer } from "@/components/video-player";
 import {
@@ -23,12 +23,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/lib/auth";
+import { togglePostLike } from "@/lib/post-cache";
 import {
   addComment,
   deleteComment,
   deletePost,
   fetchComments,
-  setLike,
   type CommentView,
 } from "@/lib/social";
 import { timeAgo } from "@/lib/time";
@@ -53,7 +53,7 @@ function RichText({ text }: { text: string }) {
   );
 }
 
-export function PostCard({ post }: { post: FeedRow }) {
+export function PostCard({ post, openComments = false }: { post: FeedRow; openComments?: boolean }) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const saved = useSaved();
@@ -66,10 +66,11 @@ export function PostCard({ post }: { post: FeedRow }) {
   const [liked, setLiked] = useState(post.liked_by_me);
   const [likes, setLikes] = useState(post.like_count);
   const [commentCount, setCommentCount] = useState(post.comment_count);
-  const [showComments, setShowComments] = useState(false);
+  const [showComments, setShowComments] = useState(openComments);
   const [draft, setDraft] = useState("");
   const [likeBusy, setLikeBusy] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
 
   // Keep in sync when the feed refetches.
   useEffect(() => {
@@ -85,7 +86,12 @@ export function PostCard({ post }: { post: FeedRow }) {
     setLiked(next);
     setLikes((n) => Math.max(0, n + (next ? 1 : -1)));
     try {
-      await setLike(post.id, user.id, next);
+      await togglePostLike(
+        qc,
+        user.id,
+        { id: post.id, liked_by_me: liked, like_count: likes },
+        next,
+      );
     } catch {
       setLiked(!next);
       setLikes((n) => Math.max(0, n + (next ? -1 : 1)));
@@ -150,30 +156,26 @@ export function PostCard({ post }: { post: FeedRow }) {
             </p>
           </div>
         </Link>
-        {isVideo ? (
-          // Videos are saved with a five-point star: outline = not saved, filled = saved.
-          <button
-            type="button"
-            onClick={() => void saved.toggle(post.id)}
-            disabled={savePending}
-            aria-label={isSaved ? "Remove video from saved" : "Save video"}
-            aria-pressed={isSaved}
-            className={`grid h-9 w-9 place-items-center rounded-full hover:bg-elevated disabled:opacity-60 ${isSaved ? "text-warning" : "text-muted-foreground"}`}
-          >
-            <Star className={`h-5 w-5 ${isSaved ? "fill-warning" : ""}`} />
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => void saved.toggle(post.id)}
-            disabled={savePending}
-            aria-label={isSaved ? "Remove from saved" : "Save post"}
-            aria-pressed={isSaved}
-            className={`rounded-full p-1 hover:bg-elevated disabled:opacity-60 ${isSaved ? "text-primary" : "text-muted-foreground"}`}
-          >
-            <Bookmark className={`h-5 w-5 ${isSaved ? "fill-primary" : ""}`} />
-          </button>
-        )}
+        {/* Every post (video, image or text) is saved with a five-point star:
+            outline = not saved, filled = saved. One code path, so any future post type gets it too. */}
+        <button
+          type="button"
+          onClick={() => void saved.toggle(post.id)}
+          disabled={savePending}
+          aria-label={
+            isSaved
+              ? isVideo
+                ? "Remove video from saved"
+                : "Remove from saved"
+              : isVideo
+                ? "Save video"
+                : "Save post"
+          }
+          aria-pressed={isSaved}
+          className={`grid h-9 w-9 place-items-center rounded-full hover:bg-elevated disabled:opacity-60 ${isSaved ? "text-warning" : "text-muted-foreground"}`}
+        >
+          <Star className={`h-5 w-5 ${isSaved ? "fill-warning" : ""}`} aria-hidden="true" />
+        </button>
         {mine && (
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -201,19 +203,29 @@ export function PostCard({ post }: { post: FeedRow }) {
         </p>
       )}
       {isVideo && post.video_url ? (
-        <VideoPlayer
-          src={post.video_url}
-          poster={post.thumbnail_url}
-          label={`Video by ${name}`}
-        />
+        <VideoPlayer src={post.video_url} poster={post.thumbnail_url} label={`Video by ${name}`} />
       ) : (
         post.image_url && (
-          <img
-            src={post.image_url}
-            alt=""
-            loading="lazy"
-            className="mt-3 max-h-[480px] w-full rounded-xl object-cover"
-          />
+          <>
+            <button
+              type="button"
+              onClick={() => setGalleryOpen(true)}
+              aria-label="Open photo"
+              className="mt-3 block w-full overflow-hidden rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <img
+                src={post.image_url}
+                alt=""
+                loading="lazy"
+                className="max-h-[480px] w-full object-cover"
+              />
+            </button>
+            <Gallery
+              items={[{ id: post.id, type: "image", src: post.image_url, caption: post.content }]}
+              startIndex={galleryOpen ? 0 : null}
+              onClose={() => setGalleryOpen(false)}
+            />
+          </>
         )
       )}
 

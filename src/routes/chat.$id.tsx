@@ -68,6 +68,7 @@ function ConversationDetail({ id }: { id: string }) {
         if (active) {
           void queryClient
             .invalidateQueries({ queryKey: ["chat-conversations", user.id] })
+            .then(() => queryClient.invalidateQueries({ queryKey: ["chat-unread", user.id] }))
             .catch((error: unknown) => {
               console.error("Refreshing unread conversations failed", error);
               if (active) setScreenError("The unread count couldn't be refreshed.");

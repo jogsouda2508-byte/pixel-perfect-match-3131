@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { BottomNav, SideNav, UserRow } from "@/components/ediraa";
+import { Gallery, type GalleryItem } from "@/components/gallery";
 import {
   Dialog,
   DialogContent,
@@ -63,6 +64,26 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
     enabled: !isMe && !!user,
   });
   const following = follow.isFollowing(profile.id, followState.data ?? false);
+
+  // Every photo and video post, in grid order, for the full-screen gallery.
+  const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
+  const galleryItems: GalleryItem[] = [];
+  const galleryIndexByPost = new Map<string, number>();
+  for (const p of posts.data ?? []) {
+    if (p.media_type === "video" && p.video_url) {
+      galleryIndexByPost.set(p.id, galleryItems.length);
+      galleryItems.push({
+        id: p.id,
+        type: "video",
+        src: p.video_url,
+        poster: p.thumbnail_url,
+        caption: p.content,
+      });
+    } else if (p.image_url) {
+      galleryIndexByPost.set(p.id, galleryItems.length);
+      galleryItems.push({ id: p.id, type: "image", src: p.image_url, caption: p.content });
+    }
+  }
 
   const message = async () => {
     if (startingMessage) return;
@@ -253,12 +274,12 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
             <div className="mt-3 grid grid-cols-3 gap-1.5">
               {posts.data?.map((p) =>
                 p.media_type === "video" && p.video_url ? (
-                  <Link
+                  <button
+                    type="button"
                     key={p.id}
-                    to="/videos"
-                    search={{ video: p.id }}
+                    onClick={() => setGalleryIndex(galleryIndexByPost.get(p.id) ?? 0)}
                     aria-label={`Play video${p.content ? `: ${p.content.slice(0, 60)}` : ""}`}
-                    className="relative block aspect-square overflow-hidden rounded-lg bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="relative block aspect-square w-full overflow-hidden rounded-lg bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     {p.thumbnail_url && (
                       <img
@@ -273,15 +294,22 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
                         <Play className="h-5 w-5 fill-white text-white" aria-hidden="true" />
                       </span>
                     </span>
-                  </Link>
+                  </button>
                 ) : p.image_url ? (
-                  <img
+                  <button
+                    type="button"
                     key={p.id}
-                    src={p.image_url}
-                    alt={p.content.slice(0, 80)}
-                    loading="lazy"
-                    className="aspect-square w-full rounded-lg object-cover"
-                  />
+                    onClick={() => setGalleryIndex(galleryIndexByPost.get(p.id) ?? 0)}
+                    aria-label={`Open photo${p.content ? `: ${p.content.slice(0, 60)}` : ""}`}
+                    className="block aspect-square w-full overflow-hidden rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <img
+                      src={p.image_url}
+                      alt={p.content.slice(0, 80)}
+                      loading="lazy"
+                      className="h-full w-full object-cover"
+                    />
+                  </button>
                 ) : (
                   <div
                     key={p.id}
@@ -306,6 +334,11 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
         )}
       </main>
       <BottomNav />
+      <Gallery
+        items={galleryItems}
+        startIndex={galleryIndex}
+        onClose={() => setGalleryIndex(null)}
+      />
       <FollowListDialog
         userId={profile.id}
         kind={list}

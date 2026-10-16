@@ -116,13 +116,28 @@ describe("PostCard video posts", () => {
     expect(saved.querySelector("svg")?.getAttribute("class")).toMatch(/fill-warning/);
   });
 
-  it("keeps the bookmark and the image for image posts", () => {
+  it("keeps the image and uses the same star save button for image posts", () => {
     const { container } = renderCard(post({ image_url: "https://cdn.example/media/i.jpg" }));
 
     expect(container.querySelector("video")).toBeNull();
     expect(container.querySelector("img[src='https://cdn.example/media/i.jpg']")).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Save post" })).toBeInTheDocument();
+    const save = screen.getByRole("button", { name: "Save post" });
+    expect(save).toBeInTheDocument();
+    expect(save.querySelector("svg")?.getAttribute("class")).not.toMatch(/fill-warning/);
     expect(screen.queryByRole("button", { name: "Save video" })).toBeNull();
+  });
+
+  it("shows a filled star for a saved image or text post as well", () => {
+    saveState.saved = true;
+    renderCard(post({ image_url: "https://cdn.example/media/i.jpg" }));
+    const saved = screen.getByRole("button", { name: "Remove from saved" });
+    expect(saved).toHaveAttribute("aria-pressed", "true");
+    expect(saved.querySelector("svg")?.getAttribute("class")).toMatch(/fill-warning/);
+  });
+
+  it("uses the star on plain text posts", () => {
+    renderCard(post());
+    expect(screen.getByRole("button", { name: "Save post" })).toBeInTheDocument();
   });
 
   it("treats rows without media columns (older database) as plain posts", () => {
@@ -190,7 +205,9 @@ describe("Share for video posts", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Send video to Ana Followed" }));
 
-    expect(await screen.findByText(/only share videos with people you follow/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/only share videos with people you follow/i),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Send video to Ana Followed" })).toBeEnabled();
   });
 });

@@ -8,20 +8,16 @@ import {
 
 describe("validateVideoFile", () => {
   it("accepts supported video MIME types and extension fallback", () => {
-    expect(
-      validateVideoFile({ name: "clip.mp4", size: 1_000, type: "video/mp4" }),
-    ).toBeNull();
-    expect(
-      validateVideoFile({ name: "clip.webm", size: 1_000, type: "video/webm" }),
-    ).toBeNull();
+    expect(validateVideoFile({ name: "clip.mp4", size: 1_000, type: "video/mp4" })).toBeNull();
+    expect(validateVideoFile({ name: "clip.webm", size: 1_000, type: "video/webm" })).toBeNull();
     expect(validateVideoFile({ name: "clip.mov", size: 1_000, type: "" })).toBeNull();
   });
 
   it("rejects unsupported formats, empty files, and files over 50 MB", () => {
-    expect(validateVideoFile({ name: "clip.avi", size: 1_000, type: "video/x-msvideo" }))
-      .toMatch(/MP4, WebM, or MOV/);
-    expect(validateVideoFile({ name: "clip.mp4", size: 0, type: "video/mp4" }))
-      .toMatch(/empty/);
+    expect(validateVideoFile({ name: "clip.avi", size: 1_000, type: "video/x-msvideo" })).toMatch(
+      /MP4, WebM, or MOV/,
+    );
+    expect(validateVideoFile({ name: "clip.mp4", size: 0, type: "video/mp4" })).toMatch(/empty/);
     expect(
       validateVideoFile({ name: "clip.mp4", size: MAX_VIDEO_BYTES + 1, type: "video/mp4" }),
     ).toMatch(/50 MB/);

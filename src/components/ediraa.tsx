@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { ComposerLauncher } from "@/components/composer";
+import { UnreadBadge, useChatUnread } from "@/lib/use-chat-unread";
 
 export function Logo({ size = 96 }: { size?: number }) {
   return (
@@ -183,6 +184,8 @@ function NavItem({
   label: string;
   icon: typeof Home;
 }) {
+  const chatUnread = useChatUnread();
+  const count = to === "/chat" ? chatUnread : 0;
   return (
     <Link
       to={to}
@@ -198,12 +201,14 @@ function NavItem({
       }}
     >
       <Icon className="h-5 w-5" aria-hidden="true" />
+      <UnreadBadge count={count} className="absolute right-1/4 top-0.5" />
       <span className="text-[11px] leading-tight">{label}</span>
     </Link>
   );
 }
 
 export function SideNav() {
+  const chatUnread = useChatUnread();
   return (
     <aside className="sticky top-6 hidden h-fit flex-col gap-2 md:flex">
       <div className="mb-4 flex items-center gap-2 px-3">
@@ -225,6 +230,7 @@ export function SideNav() {
         >
           <i.icon className="h-5 w-5" />
           {i.label}
+          {i.to === "/chat" && <UnreadBadge count={chatUnread} className="ml-auto" />}
         </Link>
       ))}
       <ComposerLauncher variant="sidebar" />

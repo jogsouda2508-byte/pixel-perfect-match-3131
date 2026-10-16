@@ -66,10 +66,14 @@ export async function createVideoThumbnail(video: HTMLVideoElement): Promise<Fil
   context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
   const blob = await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob((result) => {
-      if (result) resolve(result);
-      else reject(new Error("Couldn't create a thumbnail for this video."));
-    }, "image/jpeg", 0.82);
+    canvas.toBlob(
+      (result) => {
+        if (result) resolve(result);
+        else reject(new Error("Couldn't create a thumbnail for this video."));
+      },
+      "image/jpeg",
+      0.82,
+    );
   });
   return new File([blob], "thumbnail.jpg", { type: "image/jpeg" });
 }
@@ -108,58 +112,64 @@ function uploadVideoFile(
       return;
     }
 
-    void supabase.auth.getSession().then(({ data, error }) => {
-      if (error || !data.session) {
-        reject(new Error("Please sign in again before uploading a video."));
-        return;
-      }
-
-      const extension = file.name.split(".").pop()?.toLowerCase() || "mp4";
-      const path = `${userId}/${crypto.randomUUID()}.${extension}`;
-      const encodedPath = path.split("/").map(encodeURIComponent).join("/");
-      const xhr = new XMLHttpRequest();
-      const abort = () => xhr.abort();
-
-      if (signal.aborted) {
-        reject(new DOMException("Upload cancelled", "AbortError"));
-        return;
-      }
-      signal.addEventListener("abort", abort, { once: true });
-
-      xhr.open("POST", `${projectUrl.replace(/\/$/, "")}/storage/v1/object/videos/${encodedPath}`);
-      xhr.setRequestHeader("apikey", publishableKey);
-      xhr.setRequestHeader("Authorization", `Bearer ${data.session.access_token}`);
-      xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
-      xhr.setRequestHeader("Cache-Control", "31536000");
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
-      };
-      xhr.onerror = () => {
-        signal.removeEventListener("abort", abort);
-        reject(new Error("Video upload failed. Check your connection and try again."));
-      };
-      xhr.onabort = () => {
-        signal.removeEventListener("abort", abort);
-        reject(new DOMException("Upload cancelled", "AbortError"));
-      };
-      xhr.onload = () => {
-        signal.removeEventListener("abort", abort);
-        if (xhr.status < 200 || xhr.status >= 300) {
-          console.error("Video upload failed", xhr.status, xhr.responseText);
-          reject(new Error("Video upload failed. Check the file and try again."));
+    void supabase.auth
+      .getSession()
+      .then(({ data, error }) => {
+        if (error || !data.session) {
+          reject(new Error("Please sign in again before uploading a video."));
           return;
         }
-        onProgress(100);
-        resolve({
-          path,
-          publicUrl: `${projectUrl.replace(/\/$/, "")}/storage/v1/object/public/videos/${encodedPath}`,
-        });
-      };
-      xhr.send(file);
-    }).catch((error: unknown) => {
-      console.error("Video upload authentication failed", error);
-      reject(new Error("Couldn't prepare the video upload. Please try again."));
-    });
+
+        const extension = file.name.split(".").pop()?.toLowerCase() || "mp4";
+        const path = `${userId}/${crypto.randomUUID()}.${extension}`;
+        const encodedPath = path.split("/").map(encodeURIComponent).join("/");
+        const xhr = new XMLHttpRequest();
+        const abort = () => xhr.abort();
+
+        if (signal.aborted) {
+          reject(new DOMException("Upload cancelled", "AbortError"));
+          return;
+        }
+        signal.addEventListener("abort", abort, { once: true });
+
+        xhr.open(
+          "POST",
+          `${projectUrl.replace(/\/$/, "")}/storage/v1/object/videos/${encodedPath}`,
+        );
+        xhr.setRequestHeader("apikey", publishableKey);
+        xhr.setRequestHeader("Authorization", `Bearer ${data.session.access_token}`);
+        xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+        xhr.setRequestHeader("Cache-Control", "31536000");
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
+        };
+        xhr.onerror = () => {
+          signal.removeEventListener("abort", abort);
+          reject(new Error("Video upload failed. Check your connection and try again."));
+        };
+        xhr.onabort = () => {
+          signal.removeEventListener("abort", abort);
+          reject(new DOMException("Upload cancelled", "AbortError"));
+        };
+        xhr.onload = () => {
+          signal.removeEventListener("abort", abort);
+          if (xhr.status < 200 || xhr.status >= 300) {
+            console.error("Video upload failed", xhr.status, xhr.responseText);
+            reject(new Error("Video upload failed. Check the file and try again."));
+            return;
+          }
+          onProgress(100);
+          resolve({
+            path,
+            publicUrl: `${projectUrl.replace(/\/$/, "")}/storage/v1/object/public/videos/${encodedPath}`,
+          });
+        };
+        xhr.send(file);
+      })
+      .catch((error: unknown) => {
+        console.error("Video upload authentication failed", error);
+        reject(new Error("Couldn't prepare the video upload. Please try again."));
+      });
   });
 }
 
@@ -181,11 +191,8 @@ export async function uploadVideoPost(args: {
   let videoPath: string | null = null;
   let thumbnailPath: string | null = null;
   try {
-    const uploadedVideo = await uploadVideoFile(
-      args.file,
-      args.authorId,
-      args.signal,
-      (progress) => args.onProgress(Math.round(progress * 0.9)),
+    const uploadedVideo = await uploadVideoFile(args.file, args.authorId, args.signal, (progress) =>
+      args.onProgress(Math.round(progress * 0.9)),
     );
     videoPath = uploadedVideo.path;
     if (args.signal.aborted) throw new DOMException("Upload cancelled", "AbortError");
@@ -241,7 +248,10 @@ export async function fetchVideoFeed(offset: number): Promise<VideoFeedRow[]> {
   return data ?? [];
 }
 
-export async function fetchVideoById(videoId: string, userId: string): Promise<VideoFeedRow | null> {
+export async function fetchVideoById(
+  videoId: string,
+  userId: string,
+): Promise<VideoFeedRow | null> {
   const { data: post, error } = await supabase
     .from("posts")
     .select("*")
@@ -275,8 +285,7 @@ export async function fetchVideoById(videoId: string, userId: string): Promise<V
       .eq("following_id", post.author_id)
       .eq("follower_id", userId),
   ]);
-  const errorResult =
-    author.error ?? likes.error ?? comments.error ?? liked.error ?? follows.error;
+  const errorResult = author.error ?? likes.error ?? comments.error ?? liked.error ?? follows.error;
   if (errorResult) storageError("load this video", errorResult);
   if (!author.data) return null;
 
@@ -329,7 +338,10 @@ export async function deleteVideoPost(
   }
 }
 
-export function truncateCaption(text: string, maxLength = 120): {
+export function truncateCaption(
+  text: string,
+  maxLength = 120,
+): {
   text: string;
   truncated: boolean;
 } {

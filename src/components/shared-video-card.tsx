@@ -44,7 +44,12 @@ export function SharedVideoCard({ postId, own }: { postId: string; own: boolean 
     >
       <div className="relative aspect-[9/16] max-h-64 w-full">
         {post.thumbnail_url ? (
-          <img src={post.thumbnail_url} alt="" loading="lazy" className="h-full w-full object-cover" />
+          <img
+            src={post.thumbnail_url}
+            alt=""
+            loading="lazy"
+            className="h-full w-full object-cover"
+          />
         ) : (
           <div className="grid h-full w-full place-items-center">
             <Video className="h-8 w-8" aria-hidden="true" />

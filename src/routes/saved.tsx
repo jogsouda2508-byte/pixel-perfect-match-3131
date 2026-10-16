@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { Bookmark, Loader2 } from "lucide-react";
+import { Loader2, Star } from "lucide-react";
 import { PageHeader, PageShell } from "@/components/page-shell";
 import { PostCard } from "@/components/post-card";
 import { useAuth } from "@/lib/auth";
@@ -51,7 +51,7 @@ function SavedPage() {
       )}
       {saved.isSuccess && posts.length === 0 && (
         <div className="glass-card space-y-3 p-8 text-center">
-          <Bookmark className="mx-auto h-8 w-8 text-muted-foreground" />
+          <Star className="mx-auto h-8 w-8 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
             Nothing saved yet. Tap the bookmark on any post to keep it here.
           </p>

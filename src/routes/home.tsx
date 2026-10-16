@@ -81,6 +81,7 @@ function HomePage() {
     enabled: !!meId,
     refetchInterval: 30_000,
   });
+
   const follow = useFollow();
 
   return (

@@ -3,9 +3,9 @@ import { VideoViewer } from "@/components/video-viewer";
 
 export const Route = createFileRoute("/videos")({
   validateSearch: (search: Record<string, unknown>): { video?: string | undefined } => {
-  const video = search["video"];
-  return { video: typeof video === "string" ? video : undefined };
-},
+    const video = search["video"];
+    return { video: typeof video === "string" ? video : undefined };
+  },
   head: () => ({
     meta: [
       { title: "Videos — Ediraa" },

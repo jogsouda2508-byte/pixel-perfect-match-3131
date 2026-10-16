@@ -19,7 +19,7 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { timeAgo } from "@/lib/time";
 
-export const Route = createFileRoute("/chat")({
+export const Route = createFileRoute("/chat/")({
   head: () => ({
     meta: [{ title: "Chat — Ediraa" }],
   }),

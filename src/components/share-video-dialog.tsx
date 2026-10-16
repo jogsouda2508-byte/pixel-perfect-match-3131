@@ -65,9 +65,7 @@ function RecipientList({ postId }: { postId: string }) {
   const term = search.trim().toLowerCase();
   const people = (following.data ?? []).filter(
     (p) =>
-      !term ||
-      p.username.toLowerCase().includes(term) ||
-      p.full_name.toLowerCase().includes(term),
+      !term || p.username.toLowerCase().includes(term) || p.full_name.toLowerCase().includes(term),
   );
 
   const send = async (recipientId: string, name: string) => {
