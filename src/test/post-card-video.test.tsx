@@ -167,7 +167,8 @@ describe("Share for video posts", () => {
     fireEvent.click(screen.getByRole("button", { name: /share/i }));
 
     expect(await screen.findByText("Ana Followed")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Send video to Ana Followed" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Select Ana Followed" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
   });
 
   it("explains when the viewer follows nobody", async () => {
@@ -178,24 +179,24 @@ describe("Share for video posts", () => {
     expect(await screen.findByText(/not following anyone yet/i)).toBeInTheDocument();
   });
 
-  it("sends once, shows Sent, and ignores repeat clicks", async () => {
+  it("sends once to the selected people, then closes the box", async () => {
     followList.people = [ana];
     shareVideoWithUser.mockResolvedValue("conv-1");
     renderCard(videoPost());
     fireEvent.click(screen.getByRole("button", { name: /share/i }));
 
-    const send = await screen.findByRole("button", { name: "Send video to Ana Followed" });
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Select Ana Followed" }));
+    const send = screen.getByRole("button", { name: "Send" });
+    expect(send).toBeEnabled();
     fireEvent.click(send);
     fireEvent.click(send);
 
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Sent to Ana Followed" })).toBeDisabled(),
-    );
+    await waitFor(() => expect(screen.queryByText("Ana Followed")).not.toBeInTheDocument());
     expect(shareVideoWithUser).toHaveBeenCalledTimes(1);
     expect(shareVideoWithUser).toHaveBeenCalledWith("post-1", "u2");
   });
 
-  it("shows the server's error and allows a retry", async () => {
+  it("shows the server's error, keeps the box open and allows a retry", async () => {
     followList.people = [ana];
     shareVideoWithUser.mockRejectedValue(
       new Error("You can only share videos with people you follow."),
@@ -203,11 +204,13 @@ describe("Share for video posts", () => {
     renderCard(videoPost());
     fireEvent.click(screen.getByRole("button", { name: /share/i }));
 
-    fireEvent.click(await screen.findByRole("button", { name: "Send video to Ana Followed" }));
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Select Ana Followed" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
     expect(
       await screen.findByText(/only share videos with people you follow/i),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Send video to Ana Followed" })).toBeEnabled();
+    expect(screen.getByText("Ana Followed")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send" })).toBeEnabled();
   });
 });

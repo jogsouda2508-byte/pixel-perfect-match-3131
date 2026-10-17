@@ -25,35 +25,47 @@ import { shareVideoWithUser } from "@/lib/video-share";
  */
 export function ShareVideoDialog({
   post,
+  kind = "video",
   onClose,
 }: {
   post: { id: string } | null;
+  /** What is being sent; only changes the wording. Defaults to a video. */
+  kind?: "video" | "post";
   onClose: () => void;
 }) {
   return (
     <Dialog open={!!post} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[85dvh] grid-rows-[auto_auto_minmax(0,1fr)] overflow-hidden [&>button]:grid [&>button]:h-11 [&>button]:w-11 [&>button]:place-items-center">
         <DialogHeader>
-          <DialogTitle>Share video</DialogTitle>
-          <DialogDescription>Send this video to someone you follow.</DialogDescription>
+          <DialogTitle>Share {kind}</DialogTitle>
+          <DialogDescription>Send this {kind} to someone you follow.</DialogDescription>
         </DialogHeader>
         {/* Rendered only while open, so search text and "Sent" marks reset each time. */}
-        {post && <RecipientList postId={post.id} />}
+        {post && <RecipientList postId={post.id} kind={kind} onDone={onClose} />}
       </DialogContent>
     </Dialog>
   );
 }
 
-function RecipientList({ postId }: { postId: string }) {
+function RecipientList({
+  postId,
+  kind,
+  onDone,
+}: {
+  postId: string;
+  kind: "video" | "post";
+  /** Called after everything was sent, so the dialog closes by itself. */
+  onDone: () => void;
+}) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const meId = user?.id ?? "";
   const [search, setSearch] = useState("");
-  const [busy, setBusy] = useState<Record<string, boolean>>({});
-  const [sent, setSent] = useState<Record<string, boolean>>({});
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [sending, setSending] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   // A ref (not state) so a fast double click can't start two sends before a re-render.
-  const inFlight = useRef(new Set<string>());
+  const inFlight = useRef(false);
 
   // Same query key as the profile's "Following" list, so the cache is shared.
   const following = useQuery({
@@ -67,27 +79,51 @@ function RecipientList({ postId }: { postId: string }) {
     (p) =>
       !term || p.username.toLowerCase().includes(term) || p.full_name.toLowerCase().includes(term),
   );
+  const selectedIds = Object.keys(selected).filter((id) => selected[id]);
 
-  const send = async (recipientId: string, name: string) => {
-    if (inFlight.current.has(recipientId) || sent[recipientId]) return;
-    inFlight.current.add(recipientId);
-    setBusy((s) => ({ ...s, [recipientId]: true }));
+  const toggle = (id: string) => {
+    if (sending) return;
+    setSelected((s) => ({ ...s, [id]: !s[id] }));
     setErrors((s) => {
-      const { [recipientId]: _removed, ...rest } = s;
+      const { [id]: _removed, ...rest } = s;
       return rest;
     });
+  };
+
+  const sendAll = async () => {
+    if (inFlight.current || selectedIds.length === 0) return;
+    inFlight.current = true;
+    setSending(true);
+    setErrors({});
     try {
-      await shareVideoWithUser(postId, recipientId);
-      setSent((s) => ({ ...s, [recipientId]: true }));
-      toast.success(`Video sent to ${name}`);
-      void qc.invalidateQueries({ queryKey: ["chat-conversations"] });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Couldn't share this video.";
-      setErrors((s) => ({ ...s, [recipientId]: message }));
-      toast.error(message);
+      const results = await Promise.allSettled(
+        selectedIds.map((id) => shareVideoWithUser(postId, id)),
+      );
+      const failed: Record<string, string> = {};
+      let okCount = 0;
+      results.forEach((result, index) => {
+        const id = selectedIds[index]!;
+        if (result.status === "fulfilled") okCount += 1;
+        else
+          failed[id] =
+            result.reason instanceof Error ? result.reason.message : `Couldn't share this ${kind}.`;
+      });
+      const label = kind === "video" ? "Video" : "Post";
+      if (okCount > 0) {
+        void qc.invalidateQueries({ queryKey: ["chat-conversations"] });
+        toast.success(okCount === 1 ? `${label} sent` : `${label} sent to ${okCount} people`);
+      }
+      if (Object.keys(failed).length === 0) {
+        onDone(); // everything went through: close the box
+        return;
+      }
+      // Keep the box open only for the people it failed for, so they can retry.
+      setSelected(Object.fromEntries(Object.keys(failed).map((id) => [id, true])));
+      setErrors(failed);
+      toast.error(`Couldn't send to ${Object.keys(failed).length} of ${results.length}`);
     } finally {
-      inFlight.current.delete(recipientId);
-      setBusy((s) => ({ ...s, [recipientId]: false }));
+      inFlight.current = false;
+      setSending(false);
     }
   };
 
@@ -132,7 +168,7 @@ function RecipientList({ postId }: { postId: string }) {
         {following.isSuccess && following.data.length === 0 && (
           <div className="space-y-3 py-6 text-center">
             <p className="text-sm text-muted-foreground">
-              You're not following anyone yet. Follow people to share videos with them.
+              You're not following anyone yet. Follow people to share {kind}s with them.
             </p>
             <Link
               to="/discover"
@@ -150,40 +186,35 @@ function RecipientList({ postId }: { postId: string }) {
         <ul className="divide-y divide-border">
           {people.map((person) => {
             const name = person.full_name || person.username;
-            const isBusy = !!busy[person.id];
-            const isSent = !!sent[person.id];
+            const isSelected = !!selected[person.id];
             const error = errors[person.id];
             return (
-              <li key={person.id} className="py-2">
-                <div className="flex min-h-[56px] items-center gap-3">
+              <li key={person.id} className="py-1">
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={isSelected}
+                  aria-label={`Select ${name}`}
+                  disabled={sending}
+                  onClick={() => toggle(person.id)}
+                  className="flex min-h-[56px] w-full items-center gap-3 rounded-lg px-1 text-left hover:bg-elevated/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                >
                   <Avatar src={person.avatar_url} name={name} size={44} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold">{name}</p>
                     <p className="truncate text-sm text-muted-foreground">@{person.username}</p>
                   </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={isSent ? "secondary" : "default"}
-                    disabled={isBusy || isSent}
-                    onClick={() => void send(person.id, name)}
-                    aria-label={isSent ? `Sent to ${name}` : `Send video to ${name}`}
-                    className="min-h-11 min-w-[88px] shrink-0 rounded-full"
+                  <span
+                    aria-hidden="true"
+                    className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border-2 ${
+                      isSelected
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border"
+                    }`}
                   >
-                    {isBusy ? (
-                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                    ) : isSent ? (
-                      <>
-                        <Check className="h-4 w-4" aria-hidden="true" />
-                        Sent
-                      </>
-                    ) : error ? (
-                      "Retry"
-                    ) : (
-                      "Send"
-                    )}
-                  </Button>
-                </div>
+                    {isSelected && <Check className="h-4 w-4" />}
+                  </span>
+                </button>
                 {error && (
                   <p className="pb-1 pl-14 text-xs text-destructive" role="alert">
                     {error}
@@ -194,6 +225,15 @@ function RecipientList({ postId }: { postId: string }) {
           })}
         </ul>
       </div>
+
+      <Button
+        type="button"
+        disabled={sending || selectedIds.length === 0}
+        onClick={() => void sendAll()}
+        className="min-h-11 w-full rounded-full"
+      >
+        {sending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : "Send"}
+      </Button>
     </div>
   );
 }

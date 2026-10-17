@@ -43,12 +43,18 @@ const kindIcon = {
   follow: <UserPlus className="h-3.5 w-3.5 text-primary-foreground" />,
   share: <Send className="h-3.5 w-3.5 text-primary-foreground" />,
 } as const;
-const kindColor = { like: "bg-destructive", comment: "bg-primary", follow: "bg-success", share: "bg-primary" } as const;
+const kindColor = {
+  like: "bg-destructive",
+  comment: "bg-primary",
+  follow: "bg-success",
+  share: "bg-primary",
+} as const;
 
 function describe(n: NotificationRow) {
   if (n.kind === "like") return "liked your post";
   if (n.kind === "comment") return `commented: ${n.snippet ?? ""}`;
-  if (n.kind === "share") return n.snippet === "video" ? "shared a video with you" : "shared a post with you";
+  if (n.kind === "share")
+    return n.snippet === "video" ? "shared a video with you" : "shared a post with you";
   return "started following you";
 }
 
@@ -77,7 +83,7 @@ function NotificationsPage() {
   const visible = (list.data ?? []).filter((n) => !kind || n.kind === kind);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,640px)] lg:justify-center">
+    <div className="mx-auto max-w-[1480px] px-4 sm:px-6 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]">
       <SideNav />
       <main className="min-w-0 space-y-4">
         <header className="flex items-center gap-3">

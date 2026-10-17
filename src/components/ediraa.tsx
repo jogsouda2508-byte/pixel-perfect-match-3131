@@ -1,18 +1,11 @@
 import { Link } from "@tanstack/react-router";
 import logoUrl from "@/assets/logo.png";
-import {
-  Home,
-  Search,
-  MessageSquare,
-  User,
-  BadgeCheck,
-  Video,
-} from "lucide-react";
+import { Home, Search, MessageSquare, User, BadgeCheck, Video } from "lucide-react";
 import type { ReactNode } from "react";
 import { ComposerLauncher } from "@/components/composer";
 import { UnreadBadge, useChatUnread } from "@/lib/use-chat-unread";
 
-export function Logo({ size = 96 }: { size?: number }) {
+export function Logo({ size = 96, className = "" }: { size?: number; className?: string }) {
   return (
     <img
       src={logoUrl}
@@ -20,7 +13,7 @@ export function Logo({ size = 96 }: { size?: number }) {
       height={size}
       alt="Ediraa logo"
       decoding="async"
-      className="select-none object-contain dark:invert"
+      className={`select-none object-contain dark:invert ${className}`}
       draggable={false}
     />
   );
@@ -74,15 +67,18 @@ export function Pill({
   active,
   children,
   onClick,
+  large = false,
 }: {
   active?: boolean;
   children: ReactNode;
   onClick?: () => void;
+  /** Roomier size, used on the wide Discover page. */
+  large?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
-      className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition ${active ? "bg-gradient-brand text-primary-foreground glow" : "border border-border bg-card text-foreground"}`}
+      className={`shrink-0 rounded-full font-medium transition ${large ? "px-5 py-2.5 text-sm" : "px-4 py-2 text-sm"} ${active ? "bg-gradient-brand text-primary-foreground glow" : "border border-border bg-card text-foreground"}`}
     >
       {children}
     </button>
@@ -97,6 +93,7 @@ export function UserRow({
   following = false,
   pending = false,
   onToggle,
+  large = false,
 }: {
   name: string;
   /** when given, the avatar and name link to that user's profile */
@@ -106,13 +103,15 @@ export function UserRow({
   following?: boolean;
   pending?: boolean;
   onToggle?: () => void;
+  /** Roomier size, used on the wide Discover page. */
+  large?: boolean;
 }) {
   const identity = (
     <>
-      <Avatar src={img} name={name} size={40} />
+      <Avatar src={img} name={name} size={large ? 48 : 40} />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold">{name}</p>
-        <p className="truncate text-xs text-muted-foreground">{sub}</p>
+        <p className={`truncate font-semibold ${large ? "text-base" : "text-sm"}`}>{name}</p>
+        <p className={`truncate text-muted-foreground ${large ? "text-sm" : "text-xs"}`}>{sub}</p>
       </div>
     </>
   );
@@ -133,7 +132,7 @@ export function UserRow({
         <button
           onClick={onToggle}
           disabled={pending}
-          className={`shrink-0 rounded-lg px-3 py-1 text-xs font-medium transition disabled:opacity-60 ${following ? "bg-elevated text-muted-foreground" : "border border-primary text-primary"}`}
+          className={`shrink-0 font-medium transition disabled:opacity-60 ${large ? "rounded-xl px-4 py-1.5 text-sm" : "rounded-lg px-3 py-1 text-xs"} ${following ? "bg-elevated text-muted-foreground" : "border border-primary text-primary"}`}
         >
           {following ? "Following" : "Follow"}
         </button>
@@ -202,8 +201,8 @@ export function SideNav() {
   return (
     <aside className="sticky top-6 hidden h-fit flex-col gap-2 md:flex">
       <div className="mb-4 flex items-center gap-2 px-3">
-        <Logo size={36} />
-        <span className="text-xl font-bold">Ediraa</span>
+        <Logo size={56} className="lg:h-16 lg:w-16 2xl:h-[4.5rem] 2xl:w-[4.5rem]" />
+        <span className="text-2xl font-bold 2xl:text-3xl">Ediraa</span>
       </div>
       {items.map((i) => (
         <Link

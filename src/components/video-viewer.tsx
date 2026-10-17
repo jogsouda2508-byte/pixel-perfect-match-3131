@@ -19,6 +19,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Avatar, BottomNav, SideNav } from "@/components/ediraa";
 import { ComposerLauncher } from "@/components/composer";
+import { EmojiButton } from "@/components/emoji-button";
 import { ShareVideoDialog } from "@/components/share-video-dialog";
 import {
   AlertDialog,
@@ -325,7 +326,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
   if (!items.length) return <VideoFeedEmpty />;
 
   return (
-    <main className="relative h-[100dvh] w-full overflow-hidden bg-black md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 md:bg-background md:px-4 lg:grid-cols-[220px_minmax(0,640px)] lg:justify-center">
+    <main className="relative h-[100dvh] w-full overflow-hidden bg-black md:mx-auto md:grid md:max-w-[1480px] md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 md:bg-background md:px-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]">
       <SideNav />
       <section
         ref={containerRef}
@@ -659,7 +660,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
 
 function VideoFeedLoading() {
   return (
-    <div className="mx-auto h-[100dvh] max-w-6xl md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6">
+    <div className="mx-auto h-[100dvh] max-w-[1480px] md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 md:px-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]">
       <SideNav />
       <Skeleton className="h-[100dvh] w-full bg-muted" />
       <BottomNav />
@@ -669,7 +670,7 @@ function VideoFeedLoading() {
 
 function VideoFeedError({ onRetry }: { onRetry: () => void }) {
   return (
-    <div className="mx-auto h-[100dvh] max-w-6xl md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6">
+    <div className="mx-auto h-[100dvh] max-w-[1480px] md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 md:px-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]">
       <SideNav />
       <section className="grid h-[100dvh] place-items-center bg-background p-6 text-center text-foreground">
         <div className="space-y-4">
@@ -687,7 +688,7 @@ function VideoFeedError({ onRetry }: { onRetry: () => void }) {
 
 function VideoFeedEmpty() {
   return (
-    <div className="mx-auto h-[100dvh] max-w-6xl md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6">
+    <div className="mx-auto h-[100dvh] max-w-[1480px] md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 md:px-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]">
       <SideNav />
       <section className="grid h-[100dvh] place-items-center bg-gradient-to-br from-background via-background to-primary/10 p-6 text-center text-foreground">
         <div className="space-y-4">
@@ -717,6 +718,7 @@ function VideoComments({
 }) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState("");
+  const commentInputRef = useRef<HTMLInputElement>(null);
   const key = ["comments", post?.id];
   const comments = useQuery({
     queryKey: key,
@@ -764,7 +766,7 @@ function VideoComments({
           ))}
         </div>
         <form
-          className="flex items-center gap-2 border-t border-border pt-3"
+          className="relative flex items-center gap-2 border-t border-border pt-3"
           onSubmit={(event) => {
             event.preventDefault();
             const text = draft.trim();
@@ -773,12 +775,19 @@ function VideoComments({
           }}
         >
           <Input
+            ref={commentInputRef}
             value={draft}
             onChange={(event) => setDraft(event.target.value.slice(0, 300))}
             placeholder="Add a comment…"
             aria-label="Add a comment"
             maxLength={300}
             className="min-h-11"
+          />
+          <EmojiButton
+            inputRef={commentInputRef}
+            value={draft}
+            onChange={setDraft}
+            maxLength={300}
           />
           <Button type="submit" className="min-h-11" disabled={!draft.trim() || add.isPending}>
             {add.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send"}

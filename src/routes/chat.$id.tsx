@@ -1,7 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, Send } from "lucide-react";
+import { ArrowLeft, Loader2, Send, Smile } from "lucide-react";
 import { Avatar } from "@/components/ediraa";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,6 +20,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { getConversation, getMessages, markRead, sendMessage } from "@/lib/chat";
 import type { MessageRow } from "@/integrations/supabase/types";
 import { timeAgo } from "@/lib/time";
+
+// Loaded on first open only: the emoji data is large and most visits never need it.
+const EmojiPickerPanel = lazy(() => import("@/components/emoji-picker"));
 
 type DisplayMessage = MessageRow & { status?: "sending" | "failed" };
 
@@ -35,6 +46,10 @@ function ConversationDetail({ id }: { id: string }) {
   const [sending, setSending] = useState(false);
   const [screenError, setScreenError] = useState("");
   const sendingRef = useRef(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const emojiWrapRef = useRef<HTMLDivElement>(null);
+  const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const contact = useQuery({
@@ -154,6 +169,49 @@ function ConversationDetail({ id }: { id: string }) {
     }
   };
 
+  // Close the picker on outside click / Escape.
+  useEffect(() => {
+    if (!emojiOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (emojiWrapRef.current?.contains(target) || emojiButtonRef.current?.contains(target)) {
+        return;
+      }
+      setEmojiOpen(false);
+    };
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setEmojiOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [emojiOpen]);
+
+  /** Inserts the emoji at the caret (or over the selection) without touching other text. */
+  const insertEmoji = (emoji: string) => {
+    const input = composerRef.current;
+    const start = input?.selectionStart ?? draft.length;
+    const end = input?.selectionEnd ?? draft.length;
+    const next = draft.slice(0, start) + emoji + draft.slice(end);
+    if (next.length > 2000) {
+      setScreenError("Messages must be 2000 characters or fewer.");
+      return;
+    }
+    setScreenError("");
+    setDraft(next);
+    const caret = start + emoji.length;
+    requestAnimationFrame(() => {
+      const el = composerRef.current;
+      if (!el) return;
+      // Only grab focus on larger screens, so phones don't pop the keyboard over the picker.
+      if (window.matchMedia("(min-width: 640px)").matches) el.focus();
+      el.setSelectionRange(caret, caret);
+    });
+  };
+
   const submitMessage = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const body = draft.trim();
@@ -164,6 +222,7 @@ function ConversationDetail({ id }: { id: string }) {
     }
     setScreenError("");
     setDraft("");
+    setEmojiOpen(false);
     const optimistic: DisplayMessage = {
       id: `pending-${crypto.randomUUID()}`,
       conversation_id: id,
@@ -298,31 +357,68 @@ function ConversationDetail({ id }: { id: string }) {
             {screenError}
           </p>
         )}
-        <form onSubmit={submitMessage} className="flex items-end gap-2 border-t border-border p-3">
-          <Textarea
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={handleComposerKeyDown}
-            placeholder="Write a message…"
-            aria-label="Write a message"
-            maxLength={2000}
-            rows={1}
-            className="min-h-11 max-h-28 resize-y text-sm"
-            disabled={!contact.data || history.isError}
-          />
-          <Button
-            type="submit"
-            aria-label="Send message"
-            disabled={!draft.trim() || sending || !contact.data || history.isError}
-            className="h-11 w-11 shrink-0 p-0"
+        <div className="relative">
+          {emojiOpen && (
+            <div
+              ref={emojiWrapRef}
+              className="absolute bottom-full left-3 z-30 mb-2 w-[min(23rem,calc(100vw-2.5rem))]"
+            >
+              <Suspense
+                fallback={
+                  <div className="grid h-40 place-items-center rounded-2xl border border-border bg-card shadow-lg">
+                    <Loader2
+                      className="h-5 w-5 animate-spin text-primary"
+                      aria-label="Loading emojis"
+                    />
+                  </div>
+                }
+              >
+                <EmojiPickerPanel onSelect={insertEmoji} />
+              </Suspense>
+            </div>
+          )}
+          <form
+            onSubmit={submitMessage}
+            className="flex items-end gap-2 border-t border-border p-3"
           >
-            {sending ? (
-              <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
-            ) : (
-              <Send className="h-5 w-5" aria-hidden="true" />
-            )}
-          </Button>
-        </form>
+            <Button
+              ref={emojiButtonRef}
+              type="button"
+              variant="ghost"
+              aria-label="Add emoji"
+              aria-expanded={emojiOpen}
+              onClick={() => setEmojiOpen((open) => !open)}
+              disabled={!contact.data || history.isError}
+              className={`h-11 w-11 shrink-0 rounded-full p-0 text-primary hover:bg-elevated ${emojiOpen ? "bg-elevated" : ""}`}
+            >
+              <Smile className="h-6 w-6" aria-hidden="true" />
+            </Button>
+            <Textarea
+              ref={composerRef}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={handleComposerKeyDown}
+              placeholder="Write a message…"
+              aria-label="Write a message"
+              maxLength={2000}
+              rows={1}
+              className="min-h-11 max-h-28 resize-y text-sm"
+              disabled={!contact.data || history.isError}
+            />
+            <Button
+              type="submit"
+              aria-label="Send message"
+              disabled={!draft.trim() || sending || !contact.data || history.isError}
+              className="h-11 w-11 shrink-0 p-0"
+            >
+              {sending ? (
+                <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+              ) : (
+                <Send className="h-5 w-5" aria-hidden="true" />
+              )}
+            </Button>
+          </form>
+        </div>
       </section>
     </PageShell>
   );

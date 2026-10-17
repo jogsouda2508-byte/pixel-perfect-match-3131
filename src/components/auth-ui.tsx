@@ -39,7 +39,7 @@ export function AuthShell({
       </svg>
       <div className="relative w-full max-w-md">
         <Link to="/" className="mx-auto flex w-fit items-center gap-2" aria-label="Ediraa home">
-          <Logo size={44} />
+          <Logo size={56} className="lg:h-16 lg:w-16" />
           <span className="text-2xl font-bold">Ediraa</span>
         </Link>
         <div className="glass-card mt-6 p-6">

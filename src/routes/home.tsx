@@ -85,12 +85,20 @@ function HomePage() {
   const follow = useFollow();
 
   return (
-    <div className="mx-auto max-w-6xl px-4 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,640px)_300px]">
+    <div className="mx-auto max-w-[1480px] px-4 sm:px-6 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]">
       <SideNav />
       <main className="min-w-0 space-y-4">
-        <header className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Ediraa</h1>
-          <div className="flex items-center gap-4">
+        <header className="flex flex-wrap items-center justify-between gap-y-3 md:flex-nowrap md:gap-4 lg:min-h-16 2xl:min-h-[4.5rem]">
+          {/* The name lives in the side menu on desktop; keep it on phones, which have no side menu. */}
+          <h1 className="order-1 text-2xl font-bold md:hidden">Ediraa</h1>
+          <div className="order-3 flex w-full gap-2 overflow-x-auto md:order-1 md:w-auto md:min-w-0 md:flex-1">
+            {TABS.map((t) => (
+              <Pill key={t.key} active={tab === t.key} onClick={() => setTab(t.key)}>
+                {t.label}
+              </Pill>
+            ))}
+          </div>
+          <div className="order-2 flex shrink-0 items-center gap-4 md:order-2">
             <Link
               to="/discover"
               aria-label="Search"
@@ -122,13 +130,6 @@ function HomePage() {
             </Link>
           </div>
         </header>
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {TABS.map((t) => (
-            <Pill key={t.key} active={tab === t.key} onClick={() => setTab(t.key)}>
-              {t.label}
-            </Pill>
-          ))}
-        </div>
         <Stories onLocalHub={() => setTab("local")} />
         <section className="glass-card p-3">
           <Link

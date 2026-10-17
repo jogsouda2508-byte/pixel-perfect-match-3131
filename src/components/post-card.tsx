@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Avatar } from "@/components/ediraa";
 import { Gallery } from "@/components/gallery";
+import { EmojiButton } from "@/components/emoji-button";
 import { ShareVideoDialog } from "@/components/share-video-dialog";
 import { VideoPlayer } from "@/components/video-player";
 import {
@@ -53,7 +54,13 @@ function RichText({ text }: { text: string }) {
   );
 }
 
-export function PostCard({ post, openComments = false }: { post: FeedRow; openComments?: boolean }) {
+export function PostCard({
+  post,
+  openComments = false,
+}: {
+  post: FeedRow;
+  openComments?: boolean;
+}) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const saved = useSaved();
@@ -123,20 +130,6 @@ export function PostCard({ post, openComments = false }: { post: FeedRow; openCo
     },
     onError: () => toast.error("Couldn't delete the post."),
   });
-
-  const share = async () => {
-    const text = post.content || `A post by ${post.author_name || post.author_username} on Ediraa`;
-    try {
-      if (navigator.share)
-        await navigator.share({ title: "Ediraa", text, url: window.location.origin + "/home" });
-      else {
-        await navigator.clipboard.writeText(`${text}\n${window.location.origin}/home`);
-        toast.success("Copied to clipboard");
-      }
-    } catch {
-      /* user cancelled the share sheet */
-    }
-  };
 
   const name = post.author_name || post.author_username;
 
@@ -242,7 +235,12 @@ export function PostCard({ post, openComments = false }: { post: FeedRow; openCo
             )}
           </span>
           {commentCount > 0 && (
-            <button onClick={() => setShowComments((v) => !v)} className="hover:underline">
+            <button
+              type="button"
+              onClick={() => setShowComments((v) => !v)}
+              aria-expanded={showComments}
+              className={`rounded-full px-2.5 py-1 text-sm font-semibold text-primary transition hover:bg-primary/10 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${showComments ? "bg-primary/10" : ""}`}
+            >
               {commentCount} {commentCount === 1 ? "comment" : "comments"}
             </button>
           )}
@@ -261,13 +259,13 @@ export function PostCard({ post, openComments = false }: { post: FeedRow; openCo
         </button>
         <button
           onClick={() => setShowComments((v) => !v)}
-          className="flex items-center justify-center gap-2 py-2"
+          className={`flex items-center justify-center gap-2 py-2 ${showComments ? "font-semibold text-primary" : ""}`}
         >
           <MessageSquare className="h-5 w-5" />
           Comment
         </button>
         <button
-          onClick={isVideo ? () => setShareOpen(true) : share}
+          onClick={() => setShareOpen(true)}
           className="flex items-center justify-center gap-2 py-2"
         >
           <Share2 className="h-5 w-5" />
@@ -275,12 +273,11 @@ export function PostCard({ post, openComments = false }: { post: FeedRow; openCo
         </button>
       </div>
 
-      {isVideo && (
-        <ShareVideoDialog
-          post={shareOpen ? { id: post.id } : null}
-          onClose={() => setShareOpen(false)}
-        />
-      )}
+      <ShareVideoDialog
+        post={shareOpen ? { id: post.id } : null}
+        kind={isVideo ? "video" : "post"}
+        onClose={() => setShareOpen(false)}
+      />
 
       {showComments && (
         <Comments
@@ -310,6 +307,7 @@ function Comments({
 }) {
   const { user, profile } = useAuth();
   const qc = useQueryClient();
+  const commentInputRef = useRef<HTMLInputElement>(null);
   const key = ["comments", postId];
   const list = useQuery({ queryKey: key, queryFn: () => fetchComments(postId) });
 
@@ -368,13 +366,14 @@ function Comments({
           )}
         </div>
       ))}
-      <div className="flex items-center gap-2">
+      <div className="relative flex items-center gap-2">
         <Avatar
           src={profile?.avatar_url}
           name={profile?.full_name || profile?.username}
           size={30}
         />
         <input
+          ref={commentInputRef}
           value={draft}
           onChange={(e) => setDraft(e.target.value.slice(0, 300))}
           onKeyDown={(e) => {
@@ -383,6 +382,7 @@ function Comments({
           placeholder="Write a comment…"
           className="min-w-0 flex-1 rounded-full border border-border bg-elevated/40 px-4 py-2 text-sm outline-none placeholder:text-muted-foreground focus:border-primary"
         />
+        <EmojiButton inputRef={commentInputRef} value={draft} onChange={setDraft} maxLength={300} />
         <button
           onClick={() => text && add.mutate(text)}
           disabled={!text || add.isPending}

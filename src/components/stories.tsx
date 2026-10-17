@@ -13,6 +13,9 @@ import {
 } from "@/lib/social";
 import { timeAgo } from "@/lib/time";
 
+/** Every story circle (yours, friends', Local Hub) is exactly this many px, so they all match. */
+const STORY_SIZE = 72;
+
 export function Stories({ onLocalHub }: { onLocalHub: () => void }) {
   const { user, profile } = useAuth();
   const qc = useQueryClient();
@@ -48,7 +51,7 @@ export function Stories({ onLocalHub }: { onLocalHub: () => void }) {
 
   return (
     <>
-      <div className="flex gap-4 overflow-x-auto pb-1">
+      <div className="flex items-start gap-4 overflow-x-auto pb-1 pt-1">
         <input
           ref={fileRef}
           type="file"
@@ -61,12 +64,12 @@ export function Stories({ onLocalHub }: { onLocalHub: () => void }) {
         />
         <StoryBubble label="Create Story" onClick={() => fileRef.current?.click()}>
           <div className="relative">
-            <Avatar src={profile?.avatar_url} name={myName} size={60} ring />
-            <span className="absolute -bottom-0.5 left-1/2 grid h-6 w-6 -translate-x-1/2 place-items-center rounded-full bg-primary">
+            <Avatar src={profile?.avatar_url} name={myName} size={STORY_SIZE} ring />
+            <span className="absolute -bottom-1 left-1/2 grid h-6 w-6 -translate-x-1/2 place-items-center rounded-full border-2 border-background bg-primary text-primary-foreground">
               {upload.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
-                <Plus className="h-4 w-4" />
+                <Plus className="h-3.5 w-3.5" />
               )}
             </span>
           </div>
@@ -77,13 +80,16 @@ export function Stories({ onLocalHub }: { onLocalHub: () => void }) {
             label={g.authorId === meId ? "Your story" : g.name.split(" ")[0] || g.username}
             onClick={() => setViewing(g)}
           >
-            <Avatar src={g.avatar} name={g.name} size={60} ring />
+            <Avatar src={g.avatar} name={g.name} size={STORY_SIZE} ring />
           </StoryBubble>
         ))}
         <StoryBubble label="Local Hub" onClick={onLocalHub}>
-          <div className="rounded-full bg-gradient-brand p-[2px]">
-            <div className="grid h-14 w-14 place-items-center rounded-full bg-background">
-              <MapPin className="h-6 w-6 text-success" />
+          <div
+            className="rounded-full bg-gradient-brand p-[2px]"
+            style={{ width: STORY_SIZE, height: STORY_SIZE }}
+          >
+            <div className="grid h-full w-full place-items-center rounded-full border-2 border-background bg-background">
+              <MapPin className="h-7 w-7 text-success" />
             </div>
           </div>
         </StoryBubble>
@@ -103,9 +109,14 @@ function StoryBubble({
   onClick: () => void;
 }) {
   return (
-    <button type="button" onClick={onClick} className="flex shrink-0 flex-col items-center gap-1.5">
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex shrink-0 flex-col items-center gap-1.5"
+      style={{ width: STORY_SIZE + 12 }}
+    >
       {children}
-      <span className="max-w-[72px] truncate text-xs">{label}</span>
+      <span className="w-full truncate text-center text-xs">{label}</span>
     </button>
   );
 }

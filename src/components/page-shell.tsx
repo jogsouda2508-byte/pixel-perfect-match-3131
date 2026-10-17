@@ -13,7 +13,7 @@ export function PageShell({
 }) {
   return (
     <div
-      className={`mx-auto max-w-6xl px-4 ${showBottomNav ? "pb-28" : "pb-5"} pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,640px)] lg:justify-center`}
+      className={`mx-auto max-w-[1480px] px-4 sm:px-6 ${showBottomNav ? "pb-28" : "pb-5"} pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]`}
     >
       <SideNav />
       <main className="min-w-0 space-y-4">{children}</main>

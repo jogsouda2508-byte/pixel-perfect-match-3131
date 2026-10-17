@@ -1,15 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Building2,
-  Loader2,
-  MapPin,
-  MessageSquare,
-  Play,
-  Settings,
-  Video,
-} from "lucide-react";
+import { Building2, Loader2, MapPin, MessageSquare, Play, Settings, Video } from "lucide-react";
 import { toast } from "sonner";
 import { BottomNav, SideNav, UserRow } from "@/components/ediraa";
 import { Gallery, type GalleryItem } from "@/components/gallery";
@@ -32,6 +24,7 @@ import { useFollow } from "@/lib/use-follow";
 import { startConversation } from "@/lib/chat";
 import { fetchUserVideos } from "@/lib/videos";
 import type { Profile } from "@/integrations/supabase/types";
+import coverUrl from "@/assets/profile-cover.jpg";
 
 const tabs = ["Posts", "Reels", "Tagged"] as const;
 
@@ -148,12 +141,17 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
   );
 
   return (
-    <div className="mx-auto max-w-6xl px-4 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,640px)] lg:justify-center">
+    <div className="mx-auto max-w-[1480px] px-4 sm:px-6 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]">
       <SideNav />
       <main className="min-w-0">
         <section className="glass-card overflow-hidden">
           <div className="relative">
-            <div className="h-40 w-full bg-gradient-brand opacity-80 md:h-52" />
+            <img
+              src={coverUrl}
+              alt=""
+              aria-hidden="true"
+              className="h-40 w-full object-cover md:h-52 xl:h-60"
+            />
             {isMe && (
               <Link
                 to="/more"
@@ -327,9 +325,7 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
           reelsContent
         ) : (
           <p className="glass-card mt-3 p-6 text-center text-sm text-muted-foreground">
-            {isMe
-              ? "Posts you're tagged in will appear here."
-              : "Tagged posts will appear here."}
+            {isMe ? "Posts you're tagged in will appear here." : "Tagged posts will appear here."}
           </p>
         )}
       </main>
