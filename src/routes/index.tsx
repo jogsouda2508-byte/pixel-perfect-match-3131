@@ -36,13 +36,13 @@ function Splash() {
           onboardingDone: !!profile?.onboarding_completed,
         }) ?? "/welcome";
       navigate({ to: target, replace: true });
-    }, 1000);
+    }, 250);
     return () => window.clearTimeout(timer);
   }, [loading, navigate, profile?.onboarding_completed, session]);
 
   return (
     <main
-      className="grid min-h-screen place-items-center bg-background"
+      className="grid min-h-screen place-items-center"
       aria-label="Loading Ediraa"
     >
       <Logo size={112} />

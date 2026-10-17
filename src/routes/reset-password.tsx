@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -23,8 +23,42 @@ function ResetPasswordPage() {
     confirm?: string | undefined;
   }>({});
   const [saving, setSaving] = useState(false);
+  // Give the emailed link a moment to be exchanged for a session before calling it expired.
+  const [waiting, setWaiting] = useState(true);
+  const [linkError, setLinkError] = useState<string>();
 
-  if (loading) return <Spinner />;
+  useEffect(() => {
+    let active = true;
+    const url = new URL(window.location.href);
+    const hash = new URLSearchParams(url.hash.replace(/^#/, ""));
+    const hashError = hash.get("error_description") ?? url.searchParams.get("error_description");
+    if (hashError) setLinkError(hashError.replace(/\+/g, " "));
+
+    (async () => {
+      try {
+        const code = url.searchParams.get("code");
+        const tokenHash = url.searchParams.get("token_hash");
+        if (code) {
+          await supabase.auth.exchangeCodeForSession(code);
+        } else if (tokenHash) {
+          await supabase.auth.verifyOtp({ token_hash: tokenHash, type: "recovery" });
+        }
+      } catch (err) {
+        console.error("Reset link exchange failed", err);
+      }
+      window.setTimeout(() => active && setWaiting(false), 1500);
+    })();
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") setWaiting(false);
+    });
+    return () => {
+      active = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
+  if (loading || (waiting && !session)) return <Spinner />;
 
   // The emailed link signs the user in temporarily; without it the link is invalid/expired.
   if (!session) {
@@ -37,7 +71,9 @@ function ResetPasswordPage() {
           </Link>
         }
       >
-        <p className="text-sm text-muted-foreground">This reset link is invalid or has expired.</p>
+        <p className="text-sm text-muted-foreground">
+          {linkError ?? "This reset link is invalid or has expired."}
+        </p>
         <Link
           to="/forgot-password"
           className="mt-4 block rounded-full bg-gradient-brand py-3.5 text-center font-semibold text-primary-foreground glow"
@@ -64,8 +100,10 @@ function ResetPasswordPage() {
       toast.error(friendlyAuthError(error));
       return;
     }
-    toast.success("Password updated.");
-    navigate({ to: "/home" });
+    toast.success("Password updated. Please log in with your new password.");
+    // End the temporary recovery session so the new password is what the user logs in with.
+    await supabase.auth.signOut();
+    navigate({ to: "/login", replace: true });
   };
 
   return (

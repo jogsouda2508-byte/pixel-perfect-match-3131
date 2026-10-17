@@ -28,6 +28,17 @@ const PROTECTED_PREFIXES = ["/u/", "/chat/"];
 const ONBOARDING = "/onboarding";
 // Everything else (/verify, /reset-password, 404) is reachable in any state.
 
+/** A Google user who authenticated but never finished signing up (no username chosen yet). */
+export function isGoogleSignupPending(
+  user: { app_metadata?: Record<string, unknown>; user_metadata?: Record<string, unknown> } | null,
+  profile: { onboarding_completed?: boolean } | null,
+): boolean {
+  if (!user) return false;
+  if (user.app_metadata?.["provider"] !== "google") return false;
+  if (profile?.onboarding_completed) return false;
+  return user.user_metadata?.["signup_completed"] !== true;
+}
+
 function normalize(path: string) {
   return path.length > 1 ? path.replace(/\/+$/, "") : path;
 }
@@ -64,16 +75,22 @@ export function resolveRedirect(
 }
 
 export function AuthGate({ children }: { children: ReactNode }) {
-  const { session, profile, loading } = useAuth();
+  const { session, user, profile, loading } = useAuth();
   const navigate = useNavigate();
   const path = useRouterState({ select: (st) => st.location.pathname });
 
-  const target = loading || normalize(path) === "/"
-    ? null
-    : resolveRedirect(path, {
-        session: !!session,
-        onboardingDone: !!profile?.onboarding_completed,
-      });
+  const googlePending = !!session && isGoogleSignupPending(user, profile);
+  const target =
+    loading || normalize(path) === "/"
+      ? null
+      : googlePending
+        ? normalize(path) === "/signup"
+          ? null
+          : "/signup"
+        : resolveRedirect(path, {
+            session: !!session,
+            onboardingDone: !!profile?.onboarding_completed,
+          });
 
   useEffect(() => {
     if (target) navigate({ to: target, replace: true });

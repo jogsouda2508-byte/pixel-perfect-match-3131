@@ -26,12 +26,12 @@ export function AuthShell({
       >
         <defs>
           <linearGradient id="a1" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#3B5BFF" stopOpacity=".45" />
-            <stop offset="1" stopColor="#060B1F" stopOpacity="0" />
+            <stop offset="0" stopColor="#8EA2FF" stopOpacity=".55" />
+            <stop offset="1" stopColor="#C9B8FF" stopOpacity="0" />
           </linearGradient>
           <linearGradient id="a2" x1="1" y1="1" x2="0" y2="0">
-            <stop offset="0" stopColor="#7B3FF2" stopOpacity=".6" />
-            <stop offset="1" stopColor="#3B5BFF" stopOpacity="0" />
+            <stop offset="0" stopColor="#B79CFF" stopOpacity=".6" />
+            <stop offset="1" stopColor="#9FD3FF" stopOpacity="0" />
           </linearGradient>
         </defs>
         <path d="M150 0C280 60 260 140 400 160V0Z" fill="url(#a1)" />

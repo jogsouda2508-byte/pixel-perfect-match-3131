@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import logoUrl from "@/assets/logo.png";
 import {
   Home,
   Search,
@@ -13,26 +14,15 @@ import { UnreadBadge, useChatUnread } from "@/lib/use-chat-unread";
 
 export function Logo({ size = 96 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" aria-label="Ediraa logo">
-      <defs>
-        <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#3B5BFF" />
-          <stop offset="1" stopColor="#7B3FF2" />
-        </linearGradient>
-      </defs>
-      <path
-        d="M22 58h52c1-22-13-36-31-36-19 0-31 14-31 33 0 20 14 33 33 33 12 0 22-5 28-14l-12-6c-4 5-9 8-16 8-10 0-18-6-20-18Zm1-12c2-9 10-14 19-14s16 5 18 14Z"
-        fill="url(#lg)"
-      />
-      <path
-        d="M62 30 88 8M74 7h15v15"
-        stroke="#3BB0FF"
-        strokeWidth="6"
-        fill="none"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+    <img
+      src={logoUrl}
+      width={size}
+      height={size}
+      alt="Ediraa logo"
+      decoding="async"
+      className="select-none object-contain dark:invert"
+      draggable={false}
+    />
   );
 }
 

@@ -227,10 +227,13 @@ function AccountCard({ profile }: { profile: Profile }) {
 }
 
 function PasswordCard() {
+  const { user } = useAuth();
   const [pw, setPw] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [linkSent, setLinkSent] = useState(false);
   const strength = passwordStrength(pw);
 
   const submit = async (e: FormEvent) => {
@@ -242,10 +245,29 @@ function PasswordCard() {
     setBusy(true);
     const { error: err } = await supabase.auth.updateUser({ password: pw });
     setBusy(false);
-    if (err) return setError(friendlyAuthError(err));
+    if (err) {
+      const m = (err.message ?? "").toLowerCase();
+      // Supabase can demand a fresh login / email confirmation before changing the password.
+      if (m.includes("reauthenticat") || m.includes("recent"))
+        return setError("For security, please use “Email me a reset link” below.");
+      return setError(friendlyAuthError(err));
+    }
     setPw("");
     setConfirm("");
     toast.success("Password updated");
+  };
+
+  const emailLink = async () => {
+    if (!user?.email) return setError("No email is linked to this account.");
+    setSending(true);
+    setError(undefined);
+    const { error: err } = await supabase.auth.resetPasswordForEmail(user.email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setSending(false);
+    if (err) return setError(friendlyAuthError(err));
+    setLinkSent(true);
+    toast.success(`Reset link sent to ${user.email}`);
   };
 
   return (
@@ -282,6 +304,16 @@ function PasswordCard() {
       >
         {busy && <Loader2 className="h-4 w-4 animate-spin" />}Update password
       </button>
+      <div className="border-t border-border pt-3 text-center">
+        <button
+          type="button"
+          onClick={emailLink}
+          disabled={sending || linkSent}
+          className="text-sm font-medium text-primary disabled:opacity-60"
+        >
+          {sending ? "Sending…" : linkSent ? "Link sent — check your inbox" : "Email me a reset link instead"}
+        </button>
+      </div>
     </form>
   );
 }

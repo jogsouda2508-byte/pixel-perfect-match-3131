@@ -24,10 +24,10 @@ function WelcomePage() {
         <p className="mt-3 text-sm text-muted-foreground">Connect, share, and grow together.</p>
         <div className="mt-9 flex w-full flex-col gap-3">
           <Button asChild size="lg" className="min-h-12 rounded-full">
-            <Link to="/signup">Sign Up</Link>
+            <Link to="/signup" preload="render">Sign Up</Link>
           </Button>
           <Button asChild size="lg" variant="outline" className="min-h-12 rounded-full">
-            <Link to="/login">Log In</Link>
+            <Link to="/login" preload="render">Log In</Link>
           </Button>
         </div>
         <nav
