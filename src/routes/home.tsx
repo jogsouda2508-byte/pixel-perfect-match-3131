@@ -91,7 +91,7 @@ function HomePage() {
         <header className="flex flex-wrap items-center justify-between gap-y-3 md:flex-nowrap md:gap-4 lg:min-h-16 2xl:min-h-[4.5rem]">
           {/* The name lives in the side menu on desktop; keep it on phones, which have no side menu. */}
           <h1 className="order-1 text-2xl font-bold md:hidden">Ediraa</h1>
-          <div className="order-3 flex w-full gap-2 overflow-x-auto md:order-1 md:w-auto md:min-w-0 md:flex-1">
+          <div className="scrollbar-white order-3 flex w-full gap-2 overflow-x-auto md:order-1 md:w-auto md:min-w-0 md:flex-1">
             {TABS.map((t) => (
               <Pill key={t.key} active={tab === t.key} onClick={() => setTab(t.key)}>
                 {t.label}
