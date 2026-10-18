@@ -4,7 +4,7 @@ import { Home, Search, MessageSquare, User, BadgeCheck, Video } from "lucide-rea
 import type { ReactNode } from "react";
 import { ComposerLauncher } from "@/components/composer";
 import { UnreadBadge, useChatUnread } from "@/lib/use-chat-unread";
-
+ 
 export function Logo({ size = 96, className = "" }: { size?: number; className?: string }) {
   return (
     <img
@@ -18,7 +18,42 @@ export function Logo({ size = 96, className = "" }: { size?: number; className?:
     />
   );
 }
-
+ 
+/**
+ * "Gicco" on the first line, "chat" directly underneath. Text only: the Logo
+ * component above is deliberately not touched.
+ */
+export function BrandName({ compact = false }: { compact?: boolean }) {
+  return (
+    <span className="flex min-w-0 flex-col items-start" translate="no">
+      <span
+        className={`bg-gradient-to-r from-[#2B1B8F] via-[#4F36D6] to-[#6A33E0] bg-clip-text font-extrabold leading-[0.95] tracking-tight text-transparent dark:from-[#B9C0FF] dark:via-[#B79CFF] dark:to-[#D2B4FF] ${compact ? "text-[19px]" : "text-[26px]"}`}
+      >
+        Gicco
+      </span>
+      <span
+        className={`font-semibold leading-none tracking-[0.2em] text-[#5B3FD9] dark:text-[#C9B8FF] ${compact ? "mt-0.5 text-[10px]" : "mt-1 text-xs"}`}
+      >
+        chat
+      </span>
+    </span>
+  );
+}
+ 
+/** The existing logo next to the name, on a soft lavender surface. */
+export function BrandLockup({ compact = false }: { compact?: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-2xl bg-gradient-to-br from-[#F3EFFF] to-[#E6E0FF] ring-1 ring-[#D9D0FF]/70 dark:from-[#2A2150] dark:to-[#1F1A42] dark:ring-white/10 ${compact ? "gap-2 px-2.5 py-1.5" : "gap-3 px-3 py-2.5"}`}
+    >
+      <span aria-hidden="true" className="shrink-0">
+        <Logo size={compact ? 28 : 40} />
+      </span>
+      <BrandName compact={compact} />
+    </span>
+  );
+}
+ 
 export function Avatar({
   src,
   size = 40,
@@ -58,11 +93,11 @@ export function Avatar({
     </div>
   );
 }
-
+ 
 export const Verified = () => (
   <BadgeCheck className="inline h-4 w-4 fill-primary text-background" />
 );
-
+ 
 export function Pill({
   active,
   children,
@@ -84,7 +119,7 @@ export function Pill({
     </button>
   );
 }
-
+ 
 export function UserRow({
   name,
   username,
@@ -140,7 +175,7 @@ export function UserRow({
     </div>
   );
 }
-
+ 
 const items = [
   { to: "/home", label: "Home", icon: Home },
   { to: "/videos", label: "Reels", icon: Video },
@@ -148,7 +183,7 @@ const items = [
   { to: "/discover", label: "Search", icon: Search },
   { to: "/profile", label: "Profile", icon: User },
 ] as const;
-
+ 
 export function BottomNav() {
   return (
     <>
@@ -163,7 +198,7 @@ export function BottomNav() {
     </>
   );
 }
-
+ 
 function NavItem({
   to,
   label,
@@ -195,14 +230,13 @@ function NavItem({
     </Link>
   );
 }
-
+ 
 export function SideNav() {
   const chatUnread = useChatUnread();
   return (
     <aside className="sticky top-6 hidden h-fit flex-col gap-2 md:flex">
-      <div className="mb-4 flex items-center gap-2 px-3 lg:min-h-16 2xl:min-h-[4.5rem]">
-        <Logo size={48} className="h-12 w-12 shrink-0" />
-        <span className="whitespace-nowrap text-xl font-bold">Gicco chat</span>
+      <div className="mb-4 px-1">
+        <BrandLockup />
       </div>
       {items.map((i) => (
         <Link
@@ -226,3 +260,16 @@ export function SideNav() {
     </aside>
   );
 }
+ 
+
+
+
+
+
+
+
+
+
+
+
+

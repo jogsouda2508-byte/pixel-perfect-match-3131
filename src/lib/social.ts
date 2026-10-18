@@ -1,9 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
+import { removeStoryVideoFile } from "@/lib/story-video";
 import type {
   Audience,
   CommentRow,
   FeedRow,
   GroupListRow,
+  LocalityRow,
   NotificationRow,
   PersonRow,
   PostRow,
@@ -54,14 +56,26 @@ export async function fetchFeed(args: {
   tab: FeedTab;
   search?: string;
   before?: string | null;
+  /** Local tab only: the locality the person picked (else their profile location is used). */
+  location?: string | null;
 }): Promise<FeedRow[]> {
+  const location = args.tab === "local" ? args.location?.trim() : "";
   const { data, error } = await supabase.rpc("get_feed", {
     p_tab: args.tab,
     p_search: args.search?.trim() ? args.search.trim() : null,
     p_limit: FEED_PAGE_SIZE,
     p_before: args.before ?? null,
+    // Only sent when set, so the other tabs keep working on an older database.
+    ...(location ? { p_location: location } : {}),
   });
   if (error) fail("Loading the feed", error);
+  return data ?? [];
+}
+
+/** Profile locations people use, most common first (for the Local tab's picker). */
+export async function fetchLocalities(limit = 20): Promise<LocalityRow[]> {
+  const { data, error } = await supabase.rpc("get_localities", { p_limit: limit });
+  if (error) fail("Loading localities", error);
   return data ?? [];
 }
 
@@ -214,19 +228,43 @@ export async function markNotificationsSeen(userId: string): Promise<void> {
 }
 
 // -------------------------------------------------------------------- stories
+export type StoryItem = {
+  id: string;
+  media_type: "image" | "video";
+  /** set for image stories */
+  image_url: string | null;
+  /** set for video stories */
+  video_url: string | null;
+  /** all segments of one video upload share this id (null for images) */
+  upload_id: string | null;
+  segment_index: number;
+  segment_count: number;
+  /** the part of video_url, in seconds, that this story plays */
+  segment_start: number;
+  segment_end: number | null;
+  created_at: string;
+};
+
 export type StoryGroup = {
   authorId: string;
   name: string;
   username: string;
   avatar: string | null;
-  items: { id: string; image_url: string; created_at: string }[];
+  items: StoryItem[];
   latest: string;
 };
 
 type StoryWithAuthor = {
   id: string;
   author_id: string;
-  image_url: string;
+  image_url: string | null;
+  media_type: "image" | "video" | null;
+  video_url: string | null;
+  upload_id: string | null;
+  segment_index: number | null;
+  segment_count: number | null;
+  segment_start: number | null;
+  segment_end: number | null;
   created_at: string;
   author: { full_name: string; username: string; avatar_url: string | null } | null;
 };
@@ -236,10 +274,11 @@ export async function fetchStories(meId: string): Promise<StoryGroup[]> {
   const { data, error } = await supabase
     .from("stories")
     .select(
-      "id, author_id, image_url, created_at, author:profiles(full_name, username, avatar_url)",
+      "id, author_id, image_url, media_type, video_url, upload_id, segment_index, segment_count, segment_start, segment_end, created_at, author:profiles(full_name, username, avatar_url)",
     )
     .gt("created_at", cutoff)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: true })
+    .order("segment_index", { ascending: true });
   if (error) fail("Loading stories", error);
 
   const groups = new Map<string, StoryGroup>();
@@ -252,7 +291,18 @@ export async function fetchStories(meId: string): Promise<StoryGroup[]> {
       items: [],
       latest: s.created_at,
     };
-    g.items.push({ id: s.id, image_url: s.image_url, created_at: s.created_at });
+    g.items.push({
+      id: s.id,
+      media_type: s.media_type ?? "image",
+      image_url: s.image_url,
+      video_url: s.video_url,
+      upload_id: s.upload_id,
+      segment_index: s.segment_index ?? 0,
+      segment_count: s.segment_count ?? 1,
+      segment_start: s.segment_start ?? 0,
+      segment_end: s.segment_end,
+      created_at: s.created_at,
+    });
     g.latest = s.created_at;
     groups.set(s.author_id, g);
   }
@@ -268,9 +318,19 @@ export async function createStory(authorId: string, file: File): Promise<void> {
   if (error) fail("Creating the story", error);
 }
 
-export async function deleteStory(storyId: string): Promise<void> {
-  const { error } = await supabase.from("stories").delete().eq("id", storyId);
+/**
+ * Deletes a story. For a video, every segment of the same upload goes together
+ * (they share one file), and the file itself is removed afterwards.
+ */
+export async function deleteStory(
+  item: Pick<StoryItem, "id" | "upload_id" | "video_url">,
+): Promise<void> {
+  const query = supabase.from("stories").delete();
+  const { error } = item.upload_id
+    ? await query.eq("upload_id", item.upload_id)
+    : await query.eq("id", item.id);
   if (error) fail("Deleting the story", error);
+  if (item.video_url) await removeStoryVideoFile(item.video_url);
 }
 
 // ------------------------------------------------------------- other profiles

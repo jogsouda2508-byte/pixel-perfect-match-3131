@@ -2,10 +2,20 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { Search, Bell, Loader2 } from "lucide-react";
-import { Avatar, BottomNav, Pill, SideNav, UserRow, Verified } from "@/components/ediraa";
+import {
+  Avatar,
+  BottomNav,
+  BrandLockup,
+  Pill,
+  SideNav,
+  UserRow,
+  Verified,
+} from "@/components/ediraa";
+import { LocalityPicker } from "@/components/locality-picker";
 import { PostCard } from "@/components/post-card";
 import { Stories } from "@/components/stories";
 import { useAuth } from "@/lib/auth";
+import { useLocality } from "@/lib/use-locality";
 import {
   FEED_PAGE_SIZE,
   fetchFeed,
@@ -43,8 +53,8 @@ const TABS: { label: string; key: FeedTab }[] = [
 
 const EMPTY: Record<FeedTab, string> = {
   for_you: "No posts yet. Be the first to share something!",
-  following: "Posts from people you follow will show up here. Follow a few people to get started.",
-  local: "No local posts yet. Make sure your profile has a location to see posts from your area.",
+  following: "Posts from people you follow will appear here.",
+  local: "No posts from this area yet.",
   business: "No business posts yet.",
 };
 
@@ -54,14 +64,19 @@ function HomePage() {
   const myName = profile?.full_name || profile?.username || "";
   const [tab, setTab] = useState<FeedTab>("for_you");
   const meId = user?.id ?? "";
+  // Local tab: the picked locality, else the profile's own. Never a global feed.
+  const [pickedLocality, setPickedLocality] = useLocality(meId);
+  const profileLocation = profile?.location?.trim() || null;
+  const activeLocality = pickedLocality ?? profileLocation;
+  const localNeedsSetup = tab === "local" && !activeLocality;
 
   const feed = useInfiniteQuery({
-    queryKey: ["feed", tab, meId],
-    queryFn: ({ pageParam }) => fetchFeed({ tab, before: pageParam }),
+    queryKey: ["feed", tab, meId, tab === "local" ? (pickedLocality ?? "") : ""],
+    queryFn: ({ pageParam }) => fetchFeed({ tab, before: pageParam, location: pickedLocality }),
     initialPageParam: null as string | null,
     getNextPageParam: (last) =>
       last.length === FEED_PAGE_SIZE ? (last[last.length - 1]?.created_at ?? null) : undefined,
-    enabled: !!meId,
+    enabled: !!meId && !localNeedsSetup,
   });
   const posts = feed.data?.pages.flat() ?? [];
 
@@ -90,7 +105,10 @@ function HomePage() {
       <main className="min-w-0 space-y-4">
         <header className="flex flex-wrap items-center justify-between gap-y-3 md:flex-nowrap md:gap-4 lg:min-h-16 2xl:min-h-[4.5rem]">
           {/* The name lives in the side menu on desktop; keep it on phones, which have no side menu. */}
-          <h1 className="order-1 text-2xl font-bold md:hidden">Gicco chat</h1>
+          <h1 className="order-1 md:hidden">
+            <span className="sr-only">Gicco chat</span>
+            <BrandLockup compact />
+          </h1>
           <div className="scrollbar-white order-3 flex w-full gap-2 overflow-x-auto md:order-1 md:w-auto md:min-w-0 md:flex-1">
             {TABS.map((t) => (
               <Pill key={t.key} active={tab === t.key} onClick={() => setTab(t.key)}>
@@ -130,7 +148,7 @@ function HomePage() {
             </Link>
           </div>
         </header>
-        <Stories onLocalHub={() => setTab("local")} />
+        <Stories />
         <section className="glass-card p-3">
           <Link
             to="/create"
@@ -141,7 +159,16 @@ function HomePage() {
           </Link>
         </section>
 
-        {feed.isLoading && (
+        {tab === "local" && (
+          <LocalityPicker
+            active={activeLocality}
+            profileLocation={profileLocation}
+            selected={pickedLocality}
+            onSelect={setPickedLocality}
+          />
+        )}
+
+        {feed.isLoading && !localNeedsSetup && (
           <div className="grid place-items-center py-10">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
@@ -157,9 +184,21 @@ function HomePage() {
             </button>
           </div>
         )}
-        {feed.isSuccess && posts.length === 0 && (
+        {feed.isSuccess && !localNeedsSetup && posts.length === 0 && (
           <div className="glass-card p-6 text-center text-sm text-muted-foreground">
-            {EMPTY[tab]}
+            {tab === "local" && activeLocality
+              ? `No posts from ${activeLocality} yet.`
+              : EMPTY[tab]}
+            {tab === "following" && (
+              <div className="mt-4">
+                <Link
+                  to="/discover"
+                  className="rounded-full border border-primary px-5 py-2 font-semibold text-primary"
+                >
+                  Find people to follow
+                </Link>
+              </div>
+            )}
             {tab === "for_you" && (
               <div className="mt-4">
                 <Link
