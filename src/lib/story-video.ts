@@ -1,10 +1,13 @@
 import { supabase } from "@/integrations/supabase/client";
-import { STORY_VIDEO_MIGRATION_HINT, isMissingColumnError } from "@/lib/db-errors";
+import {
+  STORY_LENGTH_MIGRATION_HINT,
+  STORY_VIDEO_MIGRATION_HINT,
+  isMissingColumnError,
+  isStoryLengthConstraintError,
+} from "@/lib/db-errors";
 import { storagePathFromPublicUrl, uploadVideoFile, validateVideoFile } from "@/lib/videos";
 
-/** One story segment is never longer than this. */
-export const STORY_SEGMENT_SECONDS = 15;
-/** A story upload (all its segments together) is never longer than this. */
+/** A video story is never longer than this. */
 export const STORY_MAX_SECONDS = 60;
 /** The limits the person can pick before publishing. */
 export const STORY_DURATION_OPTIONS = [15, 30, 45, 60] as const;
@@ -12,9 +15,8 @@ export type StoryDurationOption = (typeof STORY_DURATION_OPTIONS)[number];
 
 /**
  * Containers often report a hair more than the nominal length (a "15 second"
- * clip is frequently 15.03 s). Anything within this many seconds of the limit,
- * or of a whole number of segments, is treated as that length instead of
- * creating a useless 0.03 s segment or rejecting the clip.
+ * clip is frequently 15.03 s). Anything within this many seconds of the limit
+ * is treated as that length instead of rejecting the clip.
  */
 export const DURATION_TOLERANCE_SECONDS = 0.25;
 
@@ -40,8 +42,12 @@ export function suggestedLimit(durationSeconds: number): StoryDurationOption | n
 }
 
 /**
- * Splits a video into sequential 15-second segments (max 4 = 60 s).
- * A video longer than the chosen limit is REJECTED, never silently cut short.
+ * Plans ONE story for the whole video: a 26 s clip on the 30 s limit is a single
+ * 26 s story (it is never split into 15 s parts). A video longer than the chosen
+ * limit is REJECTED, never silently cut short.
+ *
+ * The result is still a list with one entry, because story rows (and older
+ * stories that were saved in parts) are described by their start/end seconds.
  */
 export function planStorySegments(durationSeconds: number, limitSeconds: number): SegmentPlan {
   if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
@@ -63,23 +69,10 @@ export function planStorySegments(durationSeconds: number, limitSeconds: number)
     };
   }
 
-  const total = Math.min(durationSeconds, STORY_MAX_SECONDS);
-  const count = Math.max(
-    1,
-    Math.ceil((total - DURATION_TOLERANCE_SECONDS) / STORY_SEGMENT_SECONDS),
-  );
-  const segments: StorySegment[] = [];
-  for (let i = 0; i < count; i++) {
-    const start = i * STORY_SEGMENT_SECONDS;
-    const end = Math.min(start + STORY_SEGMENT_SECONDS, total);
-    segments.push({
-      index: i,
-      start: round3(start),
-      end: round3(end),
-      duration: round3(end - start),
-    });
-  }
-  return { ok: true, segments };
+  // The whole clip. Capped at the chosen limit only to absorb the container rounding
+  // tolerance above (15.03 s on the 15 s limit is stored as 15 s).
+  const total = round3(Math.min(durationSeconds, limitSeconds));
+  return { ok: true, segments: [{ index: 0, start: 0, end: total, duration: total }] };
 }
 
 /** Reads a video file's length in the browser, without uploading anything. */
@@ -141,8 +134,8 @@ export async function inspectStoryVideo(
 }
 
 /**
- * Uploads the video once and creates one story row per 15 s segment.
- * Returns how many segments were created. Cleans the file up if saving fails.
+ * Uploads the video once and creates ONE story row for the whole clip.
+ * Returns how many stories were created (always 1). Cleans the file up if saving fails.
  */
 export async function createVideoStory(args: {
   authorId: string;
@@ -179,7 +172,11 @@ export async function createVideoStory(args: {
     if (error) {
       console.error("Saving the story failed", error);
       throw new Error(
-        isMissingColumnError(error) ? STORY_VIDEO_MIGRATION_HINT : "Couldn't save your story. Please try again.",
+        isMissingColumnError(error)
+          ? STORY_VIDEO_MIGRATION_HINT
+          : isStoryLengthConstraintError(error)
+            ? STORY_LENGTH_MIGRATION_HINT
+            : "Couldn't save your story. Please try again.",
       );
     }
     args.onProgress(100);

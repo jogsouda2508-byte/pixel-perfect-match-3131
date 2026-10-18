@@ -1,0 +1,35 @@
+EDIRAA - ONE SINGLE VIDEO STORY + STORY VIEWERS & LIKES
+=======================================================
+HOW TO APPLY
+1. Copy the src/ and supabase/ folders from this zip into your project root, choose "Replace".
+   (APPLY-THIS.txt is not part of the app.)
+2. Supabase -> SQL Editor -> run:
+     supabase/migrations/20261020000000_story_single_video_views_likes.sql
+   (needs the earlier migrations already run; safe to run more than once).
+   !! Do this BEFORE posting a 26s story. Without it the database still rejects any
+      single story longer than 15s, and the app will tell you to run this file.
+3. npm run dev   (no new packages)
+
+WHAT CHANGED
+1. One video = one story. A 26s video with the 30s limit is now ONE 26s story (no 2 x 15s).
+   The dialog says "Posted as 1 story." A video longer than the limit you pick is still rejected.
+   Stories that were already posted in 15s parts keep playing as before.
+2. Story viewers + likes
+   - Watching someone else's story records you as a viewer (once per story).
+   - Viewers get a heart button on the story. Tap again to unlike.
+   - On YOUR story, the bottom shows eye + heart counts. Tap it to open the viewers list:
+     who viewed (newest first) and a red heart next to everyone who liked it.
+     The story pauses while the list is open.
+   - If the SQL above has not been run, the eye/heart buttons are simply hidden and
+     stories keep working.
+
+FILES
+  src/lib/story-video.ts, src/components/story-video-dialog.tsx   (single story)
+  src/components/stories.tsx, src/lib/social.ts                   (viewers + likes)
+  src/lib/db-errors.ts, src/integrations/supabase/types.ts        (helpers / types)
+  src/test/story-video.test.ts, src/test/stories-row.test.tsx     (updated tests)
+  supabase/migrations/20261020000000_story_single_video_views_likes.sql  (NEW)
+
+NOT VERIFIED HERE
+npm could not reach the package registry in my sandbox, so I could not run tsc / eslint / vitest /
+build. Please run:  npm run lint && npm test && npm run build

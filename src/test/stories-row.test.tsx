@@ -12,6 +12,10 @@ const h = vi.hoisted(() => ({
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
   createVideoStory: vi.fn(),
+  recordView: vi.fn(),
+  engagement: vi.fn(),
+  viewers: vi.fn(),
+  like: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -29,6 +33,10 @@ vi.mock("@/lib/social", async (importOriginal) => {
       return h.groups;
     },
     createStory: h.createStory,
+    recordStoryView: h.recordView,
+    fetchStoryEngagement: h.engagement,
+    fetchStoryViewers: h.viewers,
+    setStoryLike: h.like,
   };
 });
 vi.mock("@/lib/story-video", async (importOriginal) => {
@@ -80,6 +88,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   h.groups = [];
   h.gate = Promise.resolve();
+  h.recordView.mockResolvedValue(undefined);
+  h.engagement.mockResolvedValue({ views: 0, likes: 0, likedByMe: false });
+  h.viewers.mockResolvedValue([]);
+  h.like.mockResolvedValue(undefined);
 });
 
 describe("story row", () => {
@@ -317,7 +329,7 @@ describe("picking a video story", () => {
     expect(screen.queryByText("Add video story")).toBeNull();
   });
 
-  it("shows the 15/30/45/60 selector, preselects the smallest that fits, and previews the split", async () => {
+  it("shows the 15/30/45/60 selector, preselects the smallest that fits, and says it posts as ONE story", async () => {
     h.inspect.mockResolvedValue({ ok: true, durationSeconds: 40 });
     await pickVideo();
     await screen.findByText("Add video story");
@@ -325,8 +337,27 @@ describe("picking a video story", () => {
     const radios = screen.getAllByRole("radio");
     expect(radios.map((r) => r.textContent)).toEqual(["15s", "30s", "45s", "60s"]);
     expect(screen.getByRole("radio", { name: "45s" })).toHaveAttribute("aria-checked", "true");
-    expect(screen.getByText(/3 stories of up to 15s each/)).toBeInTheDocument();
+    expect(screen.getByText("Posted as 1 story.")).toBeInTheDocument();
+    expect(screen.queryByText(/stories of up to 15s/)).toBeNull();
     expect(screen.getByRole("button", { name: "Publish" })).toBeEnabled();
+  });
+
+  it("lets a 26 second video be published as one story on the 30 second limit", async () => {
+    h.inspect.mockResolvedValue({ ok: true, durationSeconds: 26 });
+    h.createVideoStory.mockResolvedValue(1);
+    await pickVideo();
+    await screen.findByText("Add video story");
+
+    expect(screen.getByRole("radio", { name: "30s" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByText("Posted as 1 story.")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    await waitFor(() =>
+      expect(h.createVideoStory).toHaveBeenCalledWith(
+        expect.objectContaining({ durationSeconds: 26, limitSeconds: 30 }),
+      ),
+    );
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("Story added"));
   });
 
   it("blocks publishing when the chosen limit is shorter than the video", async () => {
@@ -400,5 +431,100 @@ describe("viewing a video story", () => {
     expect(screen.getByRole("dialog").querySelector("img")?.getAttribute("src")).toBe(
       "https://img/1.jpg",
     );
+  });
+
+  it("plays one long story from 0 to its end (a 26 s clip is not split)", async () => {
+    h.groups = [
+      group("b", "bob", [{ ...seg("s1", 0, 0, 26), segment_count: 1 }]),
+    ];
+    wrap(<Stories />);
+    fireEvent.click(await screen.findByRole("button", { name: /View bob Name's story/ }));
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.querySelector("video")?.getAttribute("src")).toMatch(/f\.mp4#t=0$/);
+    expect(dialog.querySelectorAll('[aria-hidden="true"] > div')).toHaveLength(1); // one bar
+    expect(screen.queryByRole("button", { name: "Next" })).toBeNull();
+  });
+});
+
+describe("story viewers and likes", () => {
+  const person = (id: string, name: string, liked: boolean) => ({
+    userId: id,
+    name,
+    username: name.toLowerCase().replace(/\s+/g, ""),
+    avatar: null,
+    viewedAt: new Date().toISOString(),
+    liked,
+    likedAt: liked ? new Date().toISOString() : null,
+  });
+
+  it("records a view when I watch someone else's story", async () => {
+    h.groups = [group("a", "alice", [img("1")])];
+    wrap(<Stories />);
+    fireEvent.click(await screen.findByRole("button", { name: /View alice Name's story/ }));
+    await waitFor(() => expect(h.recordView).toHaveBeenCalledWith("1"));
+  });
+
+  it("does not record a view on my own story", async () => {
+    h.groups = [group("me", "me", [img("m1")])];
+    wrap(<Stories />);
+    fireEvent.click(await screen.findByRole("button", { name: "View your story" }));
+    await screen.findByRole("button", { name: /^Viewers:/ });
+    expect(h.recordView).not.toHaveBeenCalled();
+  });
+
+  it("lets me like someone else's story", async () => {
+    h.groups = [group("a", "alice", [img("1")])];
+    wrap(<Stories />);
+    fireEvent.click(await screen.findByRole("button", { name: /View alice Name's story/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Like story" }));
+    await waitFor(() => expect(h.like).toHaveBeenCalledWith("1", true));
+  });
+
+  it("shows a story I already liked as liked, and unliking sends false", async () => {
+    h.groups = [group("a", "alice", [img("1")])];
+    h.engagement.mockResolvedValue({ views: 1, likes: 1, likedByMe: true });
+    wrap(<Stories />);
+    fireEvent.click(await screen.findByRole("button", { name: /View alice Name's story/ }));
+    const unlike = await screen.findByRole("button", { name: "Unlike story" });
+    expect(unlike).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(unlike);
+    await waitFor(() => expect(h.like).toHaveBeenCalledWith("1", false));
+  });
+
+  it("does not offer a like button on my own story", async () => {
+    h.groups = [group("me", "me", [img("m1")])];
+    wrap(<Stories />);
+    fireEvent.click(await screen.findByRole("button", { name: "View your story" }));
+    await screen.findByRole("button", { name: /^Viewers:/ });
+    expect(screen.queryByRole("button", { name: "Like story" })).toBeNull();
+  });
+
+  it("shows my story's view and like counts and lists who viewed it, with hearts for likes", async () => {
+    h.groups = [group("me", "me", [img("m1")])];
+    h.engagement.mockResolvedValue({ views: 2, likes: 1, likedByMe: false });
+    h.viewers.mockResolvedValue([person("u1", "Asha K", true), person("u2", "Ravi P", false)]);
+    wrap(<Stories />);
+    fireEvent.click(await screen.findByRole("button", { name: "View your story" }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Viewers: 2 views, 1 like" }));
+    const sheet = await screen.findByRole("dialog", { name: "Story viewers" });
+    expect(await within(sheet).findByText("Asha K")).toBeInTheDocument();
+    expect(within(sheet).getByText("Ravi P")).toBeInTheDocument();
+    expect(within(sheet).getByText("2 viewers")).toBeInTheDocument();
+    expect(within(sheet).getByText("1 like")).toBeInTheDocument();
+    // only the person who liked it has a heart
+    expect(within(sheet).getAllByRole("img", { name: "Liked your story" })).toHaveLength(1);
+
+    fireEvent.click(within(sheet).getByRole("button", { name: "Close viewers" }));
+    expect(screen.queryByRole("dialog", { name: "Story viewers" })).toBeNull();
+  });
+
+  it("says so when nobody has viewed my story yet", async () => {
+    h.groups = [group("me", "me", [img("m1")])];
+    wrap(<Stories />);
+    fireEvent.click(await screen.findByRole("button", { name: "View your story" }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Viewers:/ }));
+    expect(await screen.findByText("No views yet.")).toBeInTheDocument();
   });
 });

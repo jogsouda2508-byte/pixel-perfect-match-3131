@@ -71,6 +71,34 @@ export type StoryRow = {
   duration_seconds: number | null;
 };
 
+/** One row of `story_views`: someone who viewed a story, and whether they liked it */
+export type StoryViewRow = {
+  story_id: string;
+  viewer_id: string;
+  viewed_at: string;
+  liked: boolean;
+  liked_at: string | null;
+};
+
+/** One row of `get_story_viewers` (only the story's author gets rows) */
+export type StoryViewerRow = {
+  viewer_id: string;
+  full_name: string;
+  username: string;
+  avatar_url: string | null;
+  viewed_at: string;
+  liked: boolean;
+  liked_at: string | null;
+};
+
+/** One row of `get_story_engagement` */
+export type StoryEngagementRow = {
+  story_id: string;
+  view_count: number;
+  like_count: number;
+  liked_by_me: boolean;
+};
+
 /** One row of `get_localities` */
 export type LocalityRow = { locality: string; people: number };
 
@@ -316,6 +344,27 @@ export type Database = {
           },
         ];
       };
+      story_views: {
+        Row: StoryViewRow;
+        Insert: { story_id: string; viewer_id: string; liked?: boolean; liked_at?: string | null };
+        Update: { liked?: boolean; liked_at?: string | null };
+        Relationships: [
+          {
+            foreignKeyName: "story_views_story_id_fkey";
+            columns: ["story_id"];
+            isOneToOne: false;
+            referencedRelation: "stories";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "story_views_viewer_id_fkey";
+            columns: ["viewer_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       saved_posts: {
         Row: { user_id: string; post_id: string; created_at: string };
         Insert: { user_id: string; post_id: string };
@@ -386,6 +435,13 @@ export type Database = {
         };
         Returns: FeedRow[];
       };
+      record_story_view: { Args: { p_story_id: string }; Returns: undefined };
+      set_story_like: { Args: { p_story_id: string; p_liked: boolean }; Returns: boolean };
+      get_story_engagement: {
+        Args: { p_story_ids: string[] };
+        Returns: StoryEngagementRow[];
+      };
+      get_story_viewers: { Args: { p_story_id: string }; Returns: StoryViewerRow[] };
       get_localities: { Args: { p_limit: number }; Returns: LocalityRow[] };
       get_people: {
         Args: {

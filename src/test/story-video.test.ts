@@ -52,35 +52,37 @@ describe("planStorySegments", () => {
     });
   });
 
-  it("splits a 40 second clip into 15 + 15 + 10 second segments, in order", () => {
+  it("keeps a 26 second clip on the 30 second limit as ONE 26 second story", () => {
+    const plan = planStorySegments(26, 30);
+    expect(plan).toEqual({
+      ok: true,
+      segments: [{ index: 0, start: 0, end: 26, duration: 26 }],
+    });
+  });
+
+  it("keeps a 40 second clip as ONE story, never split into 15 second parts", () => {
     const plan = planStorySegments(40, 45);
-    if (!plan.ok) throw new Error(plan.error);
-    expect(plan.segments.map((s) => [s.index, s.start, s.end, s.duration])).toEqual([
-      [0, 0, 15, 15],
-      [1, 15, 30, 15],
-      [2, 30, 40, 10],
-    ]);
+    expect(plan).toEqual({
+      ok: true,
+      segments: [{ index: 0, start: 0, end: 40, duration: 40 }],
+    });
   });
 
-  it("gives a full 60 second clip four 15 second segments and never more", () => {
+  it("keeps a full 60 second clip as one 60 second story", () => {
     const plan = planStorySegments(60, 60);
-    if (!plan.ok) throw new Error(plan.error);
-    expect(plan.segments).toHaveLength(4);
-    expect(plan.segments.at(-1)).toMatchObject({ start: 45, end: 60, duration: 15 });
-    expect(plan.segments.every((s) => s.duration <= 15)).toBe(true);
+    expect(plan).toEqual({
+      ok: true,
+      segments: [{ index: 0, start: 0, end: 60, duration: 60 }],
+    });
   });
 
-  it("covers the whole clip with no gaps or overlaps", () => {
+  it("always plans exactly one story covering the whole clip", () => {
     for (const d of [1, 14.9, 15, 16, 29.5, 30, 31, 44, 45, 59.9, 60]) {
       const plan = planStorySegments(d, 60);
       if (!plan.ok) throw new Error(`${d}: ${plan.error}`);
-      let cursor = 0;
-      for (const s of plan.segments) {
-        expect(s.start).toBeCloseTo(cursor, 5);
-        expect(s.duration).toBeGreaterThan(0.2);
-        cursor = s.end;
-      }
-      expect(cursor).toBeCloseTo(d, 5);
+      expect(plan.segments).toHaveLength(1);
+      expect(plan.segments[0]?.start).toBe(0);
+      expect(plan.segments[0]?.end).toBeCloseTo(d, 5);
     }
   });
 
@@ -130,25 +132,45 @@ describe("createVideoStory", () => {
     onProgress: vi.fn(),
   });
 
-  it("uploads once and saves one ordered row per segment, sharing one upload id", async () => {
-    const args = { ...base(), durationSeconds: 40, limitSeconds: 45 };
-    await expect(createVideoStory(args)).resolves.toBe(3);
+  it("uploads once and saves ONE story row for the whole clip", async () => {
+    const args = { ...base(), durationSeconds: 26, limitSeconds: 30 };
+    await expect(createVideoStory(args)).resolves.toBe(1);
 
     expect(uploadVideoFile).toHaveBeenCalledTimes(1);
     const rows = insert.mock.calls[0]?.[0] as Record<string, unknown>[];
-    expect(rows).toHaveLength(3);
-    expect(rows.map((r) => r["segment_index"])).toEqual([0, 1, 2]);
-    expect(rows.map((r) => r["segment_count"])).toEqual([3, 3, 3]);
-    expect(rows.map((r) => [r["segment_start"], r["segment_end"], r["duration_seconds"]])).toEqual([
-      [0, 15, 15],
-      [15, 30, 15],
-      [30, 40, 10],
-    ]);
-    expect(new Set(rows.map((r) => r["upload_id"])).size).toBe(1);
-    expect(rows.every((r) => r["author_id"] === "user-1" && r["media_type"] === "video")).toBe(
-      true,
-    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      author_id: "user-1",
+      media_type: "video",
+      segment_index: 0,
+      segment_count: 1,
+      segment_start: 0,
+      segment_end: 26,
+      duration_seconds: 26,
+    });
     expect(args.onProgress).toHaveBeenLastCalledWith(100);
+  });
+
+  it("saves a 40 second clip as one 40 second row, not 15 second parts", async () => {
+    await expect(
+      createVideoStory({ ...base(), durationSeconds: 40, limitSeconds: 45 }),
+    ).resolves.toBe(1);
+    const rows = insert.mock.calls[0]?.[0] as Record<string, unknown>[];
+    expect(rows).toHaveLength(1);
+    expect([rows[0]?.["segment_start"], rows[0]?.["segment_end"]]).toEqual([0, 40]);
+  });
+
+  it("explains the missing database update when the story length rule still says 15 seconds", async () => {
+    insert.mockResolvedValue({
+      error: {
+        code: "23514",
+        message: 'new row for relation "stories" violates check constraint "stories_media_check"',
+      },
+    });
+    await expect(
+      createVideoStory({ ...base(), durationSeconds: 26, limitSeconds: 30 }),
+    ).rejects.toThrow(/20261020000000_story_single_video_views_likes\.sql/);
+    expect(remove).toHaveBeenCalledWith(["user-1/abc.mp4"]);
   });
 
   it("explains the missing database update (and removes the uploaded file) when the video columns don't exist", async () => {

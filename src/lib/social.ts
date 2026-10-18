@@ -12,11 +12,13 @@ import type {
   Profile,
   ProfileUpdate,
   SavedFeedRow,
+  StoryEngagementRow,
+  StoryViewerRow,
   TrendingRow,
 } from "@/integrations/supabase/types";
 import type { PlaceSelection } from "@/lib/places";
 import { locationColumns, saveTags, withPostExtras } from "@/lib/post-extras";
-import { isMissingColumnError } from "@/lib/db-errors";
+import { isMissingColumnError, isMissingFunctionError, isMissingTableError } from "@/lib/db-errors";
 
 export type FeedTab = "for_you" | "following" | "local" | "business";
 export const FEED_PAGE_SIZE = 10;
@@ -402,6 +404,96 @@ export async function deleteStory(
     : await query.eq("id", item.id);
   if (error) fail("Deleting the story", error);
   if (item.video_url) await removeStoryVideoFile(item.video_url);
+}
+
+// ------------------------------------------------- story viewers + likes
+/** The story views/likes SQL (20261020000000_story_single_video_views_likes.sql) hasn't been run. */
+function storyViewsMissing(error: { code?: string | null; message?: string | null }): boolean {
+  return isMissingFunctionError(error) || isMissingTableError(error);
+}
+
+export type StoryEngagement = {
+  /** how many people viewed it (the real total only when it is my story) */
+  views: number;
+  /** how many of them liked it (the real total only when it is my story) */
+  likes: number;
+  /** whether I liked it */
+  likedByMe: boolean;
+};
+
+export type StoryViewerPerson = {
+  userId: string;
+  name: string;
+  username: string;
+  avatar: string | null;
+  viewedAt: string;
+  liked: boolean;
+  likedAt: string | null;
+};
+
+/**
+ * Remembers that I viewed a story (once per person per story). Never throws: a failure
+ * here must not interrupt watching a story. Does nothing on my own story.
+ */
+export async function recordStoryView(storyId: string): Promise<void> {
+  const { error } = await supabase.rpc("record_story_view", { p_story_id: storyId });
+  if (error) {
+    if (storyViewsMissing(error)) {
+      console.warn(
+        "Story views are not set up; run 20261020000000_story_single_video_views_likes.sql in Supabase.",
+      );
+    } else {
+      console.error("Recording the story view failed", error);
+    }
+  }
+}
+
+/** Likes or unlikes a story as me. */
+export async function setStoryLike(storyId: string, liked: boolean): Promise<void> {
+  const { error } = await supabase.rpc("set_story_like", {
+    p_story_id: storyId,
+    p_liked: liked,
+  });
+  if (error) fail("Updating the story like", error);
+}
+
+/**
+ * Views, likes and "liked by me" for one story. Resolves to null when the database
+ * update hasn't been run yet, so the app simply hides the views / like buttons
+ * instead of showing an error.
+ */
+export async function fetchStoryEngagement(storyId: string): Promise<StoryEngagement | null> {
+  const { data, error } = await supabase.rpc("get_story_engagement", {
+    p_story_ids: [storyId],
+  });
+  if (error) {
+    if (storyViewsMissing(error)) return null;
+    fail("Loading story views", error);
+  }
+  const row = ((data ?? []) as StoryEngagementRow[])[0];
+  return {
+    views: Number(row?.view_count ?? 0),
+    likes: Number(row?.like_count ?? 0),
+    likedByMe: row?.liked_by_me ?? false,
+  };
+}
+
+/** Who viewed my story, newest first, and who liked it. Only works for my own stories. */
+export async function fetchStoryViewers(storyId: string): Promise<StoryViewerPerson[]> {
+  const { data, error } = await supabase.rpc("get_story_viewers", { p_story_id: storyId });
+  if (error) {
+    if (storyViewsMissing(error)) return [];
+    fail("Loading story viewers", error);
+  }
+  return ((data ?? []) as StoryViewerRow[]).map((r) => ({
+    userId: r.viewer_id,
+    name: r.full_name || r.username,
+    username: r.username,
+    avatar: r.avatar_url,
+    viewedAt: r.viewed_at,
+    liked: r.liked,
+    likedAt: r.liked_at,
+  }));
 }
 
 // ------------------------------------------------------------- other profiles

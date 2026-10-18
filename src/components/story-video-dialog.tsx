@@ -13,7 +13,6 @@ import {
 import { Progress } from "@/components/ui/progress";
 import {
   STORY_DURATION_OPTIONS,
-  STORY_SEGMENT_SECONDS,
   createVideoStory,
   planStorySegments,
   suggestedLimit,
@@ -21,7 +20,8 @@ import {
 
 /**
  * Shown after a video is picked for a story: choose the length limit
- * (15 / 30 / 45 / 60 s), see how it will be split into 15 s parts, then publish.
+ * (15 / 30 / 45 / 60 s), then publish. The video is posted as ONE story
+ * (a 26 s clip on the 30 s limit stays a single 26 s story).
  * A video longer than the chosen limit is rejected with a clear message,
  * never silently cut.
  */
@@ -58,7 +58,7 @@ export function StoryVideoDialog({
     const controller = new AbortController();
     abortRef.current = controller;
     try {
-      const parts = await createVideoStory({
+      await createVideoStory({
         authorId,
         file,
         durationSeconds,
@@ -66,7 +66,7 @@ export function StoryVideoDialog({
         signal: controller.signal,
         onProgress: setProgress,
       });
-      toast.success(parts > 1 ? `Story added in ${parts} parts` : "Story added");
+      toast.success("Story added");
       // wait for the refreshed list so my new story is already there when the dialog closes
       await qc.invalidateQueries({ queryKey: ["stories"] });
       onClose();
@@ -132,11 +132,7 @@ export function StoryVideoDialog({
             className={`mt-2 text-xs ${plan.ok ? "text-muted-foreground" : "text-destructive"}`}
             role={plan.ok ? undefined : "alert"}
           >
-            {plan.ok
-              ? plan.segments.length === 1
-                ? "Posted as 1 story."
-                : `Posted as ${plan.segments.length} stories of up to ${STORY_SEGMENT_SECONDS}s each, in order.`
-              : plan.error}
+            {plan.ok ? "Posted as 1 story." : plan.error}
           </p>
         </div>
 

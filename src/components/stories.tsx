@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Loader2, Plus, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Eye, Heart, Loader2, Plus, Trash2, X } from "lucide-react";
 import { Avatar } from "@/components/ediraa";
 import { StoryVideoDialog } from "@/components/story-video-dialog";
 import { useAuth } from "@/lib/auth";
@@ -9,7 +9,12 @@ import {
   createStory,
   deleteStory,
   fetchStories,
+  fetchStoryEngagement,
+  fetchStoryViewers,
+  recordStoryView,
+  setStoryLike,
   validateImage,
+  type StoryEngagement,
   type StoryGroup,
   type StoryItem,
 } from "@/lib/social";
@@ -260,8 +265,13 @@ function StoryViewer({
   const qc = useQueryClient();
   const [i, setI] = useState(0);
   const [fraction, setFraction] = useState(0);
+  // The owner's "who viewed" list. The story is paused while it is open.
+  const [viewersOpen, setViewersOpen] = useState(false);
+  const viewersOpenRef = useRef(false);
+  viewersOpenRef.current = viewersOpen;
   const item = group.items[i];
   const last = group.items.length - 1;
+  const isMine = group.authorId === meId;
   const del = useMutation({
     mutationFn: (s: StoryItem) => deleteStory(s),
     onSuccess: () => {
@@ -273,6 +283,7 @@ function StoryViewer({
 
   const go = (next: number) => {
     setFraction(0);
+    setViewersOpen(false);
     setI(next);
   };
   const advance = () => (i < last ? go(i + 1) : onClose());
@@ -280,15 +291,22 @@ function StoryViewer({
   advanceRef.current = advance;
 
   // Photo stories run on a timer (like Instagram): fill the bar over 5s, then go to the next one.
+  // The elapsed time is kept in a ref so pausing (viewers list open) resumes where it stopped.
   const itemIsPhoto = !!item && !(item.media_type === "video" && !!item.video_url);
   const itemId = item?.id;
+  const elapsedRef = useRef(0);
   useEffect(() => {
-    if (!itemIsPhoto) return;
+    elapsedRef.current = 0;
+  }, [itemId]);
+  useEffect(() => {
+    if (!itemIsPhoto || viewersOpen) return;
     const DURATION_MS = 5000;
-    const startedAt = performance.now();
+    const startedAt = performance.now() - elapsedRef.current;
     let raf = 0;
     const tick = (now: number) => {
-      const f = Math.min(1, (now - startedAt) / DURATION_MS);
+      const elapsed = now - startedAt;
+      elapsedRef.current = elapsed;
+      const f = Math.min(1, elapsed / DURATION_MS);
       setFraction(f);
       if (f >= 1) {
         advanceRef.current();
@@ -298,12 +316,14 @@ function StoryViewer({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [itemId, itemIsPhoto]);
+  }, [itemId, itemIsPhoto, viewersOpen]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      else if (e.key === "ArrowRight" && i < last) go(i + 1);
+      if (e.key === "Escape") {
+        if (viewersOpenRef.current) setViewersOpen(false);
+        else onClose();
+      } else if (e.key === "ArrowRight" && i < last) go(i + 1);
       else if (e.key === "ArrowLeft" && i > 0) go(i - 1);
     };
     window.addEventListener("keydown", onKey);
@@ -311,9 +331,53 @@ function StoryViewer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [i, last]);
 
+  // Someone else's story: remember that I viewed it (once per story; failures are silent).
+  useEffect(() => {
+    if (!itemId || isMine) return;
+    void recordStoryView(itemId);
+  }, [itemId, isMine]);
+
+  // Views / likes for the story on screen. Resolves to null when the database update
+  // for story likes hasn't been run yet, in which case the buttons below stay hidden.
+  const engagementKey = ["story-engagement", itemId] as const;
+  const engagement = useQuery({
+    queryKey: engagementKey,
+    queryFn: () => fetchStoryEngagement(itemId ?? ""),
+    enabled: !!itemId,
+    retry: false,
+    // my own story: keep the counts fresh while I watch it
+    refetchInterval: isMine ? 10_000 : false,
+  });
+  const like = useMutation({
+    mutationFn: (args: { storyId: string; liked: boolean }) =>
+      setStoryLike(args.storyId, args.liked),
+    onMutate: async (args) => {
+      const key = ["story-engagement", args.storyId] as const;
+      await qc.cancelQueries({ queryKey: key });
+      const before = qc.getQueryData<StoryEngagement | null>(key);
+      if (before) {
+        qc.setQueryData<StoryEngagement | null>(key, {
+          ...before,
+          likedByMe: args.liked,
+          likes: Math.max(0, before.likes + (args.liked ? 1 : -1)),
+        });
+      }
+      return { key, before };
+    },
+    onError: (_e, _args, ctx) => {
+      if (ctx) qc.setQueryData(ctx.key, ctx.before);
+      toast.error("Couldn't update your like.");
+    },
+    onSettled: (_d, _e, args) => {
+      void qc.invalidateQueries({ queryKey: ["story-engagement", args.storyId] });
+      void qc.invalidateQueries({ queryKey: ["story-viewers", args.storyId] });
+    },
+  });
+
   if (!item) return null;
   const isVideo = item.media_type === "video" && !!item.video_url;
   const partOfMany = isVideo && item.segment_count > 1;
+  const stats = engagement.data ?? null;
 
   return (
     <div
@@ -339,7 +403,7 @@ function StoryViewer({
           <p className="truncate text-sm font-semibold">{group.name}</p>
           <p className="text-xs text-white/70">{timeAgo(item.created_at)}</p>
         </div>
-        {group.authorId === meId && (
+        {isMine && (
           <button
             onClick={onAdd}
             aria-label="Add another to your story"
@@ -348,7 +412,7 @@ function StoryViewer({
             <Plus className="h-5 w-5" />
           </button>
         )}
-        {group.authorId === meId && (
+        {isMine && (
           <button
             onClick={() => del.mutate(item)}
             disabled={del.isPending}
@@ -364,7 +428,13 @@ function StoryViewer({
       </div>
       <div className="relative flex min-h-0 flex-1 items-center justify-center">
         {isVideo ? (
-          <StoryVideo key={item.id} item={item} onProgress={setFraction} onDone={advance} />
+          <StoryVideo
+            key={item.id}
+            item={item}
+            paused={viewersOpen}
+            onProgress={setFraction}
+            onDone={advance}
+          />
         ) : (
           <img src={item.image_url ?? ""} alt="" className="max-h-full max-w-full object-contain" />
         )}
@@ -387,6 +457,117 @@ function StoryViewer({
           </button>
         )}
       </div>
+
+      {/* Bottom bar: my story shows who viewed / liked it; someone else's has a like button. */}
+      {stats && (
+        <div className="flex items-center gap-3 px-4 pb-4 pt-3">
+          {isMine ? (
+            <button
+              type="button"
+              onClick={() => setViewersOpen(true)}
+              aria-label={`Viewers: ${stats.views} ${stats.views === 1 ? "view" : "views"}, ${stats.likes} ${stats.likes === 1 ? "like" : "likes"}`}
+              className="flex min-h-11 items-center gap-4 rounded-full bg-white/10 px-4 text-sm font-medium hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            >
+              <span className="flex items-center gap-1.5">
+                <Eye className="h-5 w-5" aria-hidden="true" />
+                {stats.views}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Heart className="h-5 w-5" aria-hidden="true" />
+                {stats.likes}
+              </span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => like.mutate({ storyId: item.id, liked: !stats.likedByMe })}
+              aria-pressed={stats.likedByMe}
+              aria-label={stats.likedByMe ? "Unlike story" : "Like story"}
+              className="ml-auto grid h-11 w-11 place-items-center rounded-full bg-white/10 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            >
+              <Heart
+                className={`h-6 w-6 ${stats.likedByMe ? "fill-red-500 text-red-500" : ""}`}
+                aria-hidden="true"
+              />
+            </button>
+          )}
+        </div>
+      )}
+
+      {isMine && viewersOpen && (
+        <StoryViewersSheet storyId={item.id} onClose={() => setViewersOpen(false)} />
+      )}
+    </div>
+  );
+}
+
+/** My own story: everyone who viewed it, newest first, with a heart on the ones who liked it. */
+function StoryViewersSheet({ storyId, onClose }: { storyId: string; onClose: () => void }) {
+  const {
+    data: viewers = [],
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ["story-viewers", storyId],
+    queryFn: () => fetchStoryViewers(storyId),
+    refetchInterval: 10_000,
+  });
+  const likes = viewers.filter((v) => v.liked).length;
+
+  return (
+    <div
+      role="dialog"
+      aria-label="Story viewers"
+      className="absolute inset-x-0 bottom-0 z-10 flex max-h-[70%] flex-col rounded-t-2xl bg-neutral-900 text-white shadow-2xl"
+    >
+      <div className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold">
+            {viewers.length} {viewers.length === 1 ? "viewer" : "viewers"}
+          </p>
+          <p className="text-xs text-white/70">
+            {likes} {likes === 1 ? "like" : "likes"}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close viewers"
+          className="rounded-full p-2 hover:bg-white/10"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {isLoading ? (
+          <p className="p-6 text-center text-sm text-white/70">Loading…</p>
+        ) : isError ? (
+          <p role="alert" className="p-6 text-center text-sm text-white/70">
+            Couldn't load your viewers.
+          </p>
+        ) : viewers.length === 0 ? (
+          <p className="p-6 text-center text-sm text-white/70">No views yet.</p>
+        ) : (
+          <ul>
+            {viewers.map((v) => (
+              <li key={v.userId} className="flex items-center gap-3 px-4 py-2.5">
+                <Avatar src={v.avatar} name={v.name} size={40} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold">{v.name}</p>
+                  <p className="truncate text-xs text-white/70">
+                    @{v.username} · {timeAgo(v.viewedAt)}
+                  </p>
+                </div>
+                {v.liked && (
+                  <span role="img" aria-label="Liked your story" className="shrink-0">
+                    <Heart className="h-5 w-5 fill-red-500 text-red-500" aria-hidden="true" />
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
@@ -394,10 +575,13 @@ function StoryViewer({
 /** Plays only [segment_start, segment_end] of the uploaded file, then moves on. */
 function StoryVideo({
   item,
+  paused,
   onProgress,
   onDone,
 }: {
   item: StoryItem;
+  /** true while the owner's viewers list is open */
+  paused: boolean;
   onProgress: (fraction: number) => void;
   onDone: () => void;
 }) {
@@ -405,6 +589,18 @@ function StoryVideo({
   const doneRef = useRef(false);
   const start = item.segment_start;
   const end = item.segment_end ?? Number.POSITIVE_INFINITY;
+
+  // Pause while the viewers list is open, resume when it closes.
+  useEffect(() => {
+    const v = ref.current;
+    if (!v) return;
+    if (paused) {
+      v.pause();
+    } else if (!doneRef.current && v.paused && v.readyState >= 1) {
+      const p = v.play() as Promise<void> | undefined;
+      p?.catch(() => {});
+    }
+  }, [paused]);
 
   // Frame-accurate stop: `timeupdate` is too coarse (about 4 times a second).
   useEffect(() => {
