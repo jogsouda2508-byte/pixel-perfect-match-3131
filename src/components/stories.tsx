@@ -15,15 +15,15 @@ import {
 } from "@/lib/social";
 import { inspectStoryVideo } from "@/lib/story-video";
 import { timeAgo } from "@/lib/time";
-
+ 
 const AVATAR = 64;
 const VIDEO_EXTENSIONS = ["mp4", "webm", "mov"];
-
+ 
 function isVideoFile(file: File): boolean {
   if (file.type) return file.type.startsWith("video/");
   return VIDEO_EXTENSIONS.includes(file.name.split(".").pop()?.toLowerCase() ?? "");
 }
-
+ 
 export function Stories() {
   const { user, profile } = useAuth();
   const qc = useQueryClient();
@@ -31,7 +31,7 @@ export function Stories() {
   const [viewing, setViewing] = useState<StoryGroup | null>(null);
   const [video, setVideo] = useState<{ file: File; durationSeconds: number } | null>(null);
   const [checking, setChecking] = useState(false);
-
+ 
   const meId = user?.id ?? "";
   const myName = profile?.full_name || profile?.username || "";
   const { data: groups = [] } = useQuery({
@@ -42,7 +42,7 @@ export function Stories() {
   // Your own story lives on the first "Create Story" item, so it is never listed twice.
   const myGroup = groups.find((g) => g.authorId === meId) ?? null;
   const others = groups.filter((g) => g.authorId !== meId);
-
+ 
   const upload = useMutation({
     mutationFn: (file: File) => createStory(meId, file),
     onSuccess: () => {
@@ -51,7 +51,7 @@ export function Stories() {
     },
     onError: (e: Error) => toast.error(e.message || "Couldn't add your story."),
   });
-
+ 
   const onPick = async (file: File | undefined) => {
     if (!file) return;
     if (isVideoFile(file)) {
@@ -72,10 +72,10 @@ export function Stories() {
     }
     upload.mutate(file);
   };
-
+ 
   const busy = upload.isPending || checking;
   const pick = () => fileRef.current?.click();
-
+ 
   return (
     <>
       <div
@@ -93,7 +93,7 @@ export function Stories() {
             e.target.value = "";
           }}
         />
-
+ 
         <div role="listitem" className="relative w-[72px] shrink-0 snap-start">
           <StoryButton
             label="Create Story"
@@ -116,7 +116,7 @@ export function Stories() {
             )}
           </button>
         </div>
-
+ 
         {others.map((g) => (
           <div role="listitem" key={g.authorId} className="w-[72px] shrink-0 snap-start">
             <StoryButton
@@ -129,7 +129,7 @@ export function Stories() {
           </div>
         ))}
       </div>
-
+ 
       {video && (
         <StoryVideoDialog
           file={video.file}
@@ -142,7 +142,7 @@ export function Stories() {
     </>
   );
 }
-
+ 
 function StoryButton({
   label,
   ariaLabel,
@@ -166,7 +166,7 @@ function StoryButton({
     </button>
   );
 }
-
+ 
 function StoryViewer({
   group,
   meId,
@@ -189,13 +189,36 @@ function StoryViewer({
     },
     onError: () => toast.error("Couldn't delete the story."),
   });
-
+ 
   const go = (next: number) => {
     setFraction(0);
     setI(next);
   };
   const advance = () => (i < last ? go(i + 1) : onClose());
-
+  const advanceRef = useRef(advance);
+  advanceRef.current = advance;
+ 
+  // Photo stories run on a timer (like Instagram): fill the bar over 5s, then go to the next one.
+  const itemIsPhoto = !!item && !(item.media_type === "video" && !!item.video_url);
+  const itemId = item?.id;
+  useEffect(() => {
+    if (!itemIsPhoto) return;
+    const DURATION_MS = 5000;
+    const startedAt = performance.now();
+    let raf = 0;
+    const tick = (now: number) => {
+      const f = Math.min(1, (now - startedAt) / DURATION_MS);
+      setFraction(f);
+      if (f >= 1) {
+        advanceRef.current();
+        return;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [itemId, itemIsPhoto]);
+ 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -206,14 +229,14 @@ function StoryViewer({
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [i, last]);
-
+ 
   if (!item) return null;
   const isVideo = item.media_type === "video" && !!item.video_url;
   const partOfMany = isVideo && item.segment_count > 1;
-
+ 
   return (
     <div
-      className="fixed inset-0 z-[100] flex flex-col bg-black/95"
+      className="fixed inset-0 z-[100] flex flex-col bg-black text-white"
       role="dialog"
       aria-label={`${group.name}'s story`}
     >
@@ -223,7 +246,7 @@ function StoryViewer({
             <div
               className="h-full rounded-full bg-white"
               style={{
-                width: `${idx < i ? 100 : idx === i ? (isVideo ? fraction : 1) * 100 : 0}%`,
+                width: `${idx < i ? 100 : idx === i ? fraction * 100 : 0}%`,
               }}
             />
           </div>
@@ -233,8 +256,8 @@ function StoryViewer({
         <Avatar src={group.avatar} name={group.name} size={36} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold">{group.name}</p>
-          <p className="text-xs text-muted-foreground">
-            {timeAgo(item.created_at)} • {i + 1}/{group.items.length}
+          <p className="text-xs text-white/70">
+            {timeAgo(item.created_at)}
           </p>
         </div>
         {group.authorId === meId && (
@@ -279,7 +302,7 @@ function StoryViewer({
     </div>
   );
 }
-
+ 
 /** Plays only [segment_start, segment_end] of the uploaded file, then moves on. */
 function StoryVideo({
   item,
@@ -294,7 +317,7 @@ function StoryVideo({
   const doneRef = useRef(false);
   const start = item.segment_start;
   const end = item.segment_end ?? Number.POSITIVE_INFINITY;
-
+ 
   // Frame-accurate stop: `timeupdate` is too coarse (about 4 times a second).
   useEffect(() => {
     let raf = 0;
@@ -322,7 +345,7 @@ function StoryVideo({
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [start, end]);
-
+ 
   return (
     <video
       ref={ref}
@@ -348,3 +371,4 @@ function StoryVideo({
     />
   );
 }
+ 
