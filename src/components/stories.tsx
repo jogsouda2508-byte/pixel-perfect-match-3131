@@ -15,15 +15,17 @@ import {
 } from "@/lib/social";
 import { inspectStoryVideo } from "@/lib/story-video";
 import { timeAgo } from "@/lib/time";
- 
+
 const AVATAR = 64;
+/** Photos can be picked together; this keeps one upload batch sensible. */
+const MAX_PHOTOS_AT_ONCE = 10;
 const VIDEO_EXTENSIONS = ["mp4", "webm", "mov"];
- 
+
 function isVideoFile(file: File): boolean {
   if (file.type) return file.type.startsWith("video/");
   return VIDEO_EXTENSIONS.includes(file.name.split(".").pop()?.toLowerCase() ?? "");
 }
- 
+
 export function Stories() {
   const { user, profile } = useAuth();
   const qc = useQueryClient();
@@ -31,10 +33,16 @@ export function Stories() {
   const [viewing, setViewing] = useState<StoryGroup | null>(null);
   const [video, setVideo] = useState<{ file: File; durationSeconds: number } | null>(null);
   const [checking, setChecking] = useState(false);
- 
+
   const meId = user?.id ?? "";
   const myName = profile?.full_name || profile?.username || "";
-  const { data: groups = [] } = useQuery({
+  const {
+    data: groups = [],
+    isFetching,
+    isError,
+    error: loadError,
+    refetch,
+  } = useQuery({
     queryKey: ["stories", meId],
     queryFn: () => fetchStories(meId),
     enabled: !!meId,
@@ -42,40 +50,95 @@ export function Stories() {
   // Your own story lives on the first "Create Story" item, so it is never listed twice.
   const myGroup = groups.find((g) => g.authorId === meId) ?? null;
   const others = groups.filter((g) => g.authorId !== meId);
- 
+
   const upload = useMutation({
-    mutationFn: (file: File) => createStory(meId, file),
-    onSuccess: () => {
-      toast.success("Story added");
-      void qc.invalidateQueries({ queryKey: ["stories"] });
+    // One story per photo, uploaded in the order picked. If one fails, the ones before it stay.
+    mutationFn: async (files: File[]) => {
+      let done = 0;
+      try {
+        for (const file of files) {
+          await createStory(meId, file);
+          done += 1;
+        }
+      } catch (e) {
+        const reason = e instanceof Error && e.message ? e.message : "Couldn't add your story.";
+        throw new Error(
+          files.length > 1 ? `Added ${done} of ${files.length} stories. ${reason}` : reason,
+        );
+      }
+      return done;
+    },
+    onSuccess: (count: number) => {
+      toast.success(count > 1 ? `${count} stories added` : "Story added");
     },
     onError: (e: Error) => toast.error(e.message || "Couldn't add your story."),
+    // Returned (not fire-and-forget) so the upload stays "busy" until your new stories are in
+    // the list. Otherwise a quick second tap would find no story yet and open the picker again.
+    onSettled: async () => {
+      await qc.invalidateQueries({ queryKey: ["stories"] });
+    },
   });
- 
-  const onPick = async (file: File | undefined) => {
-    if (!file) return;
-    if (isVideoFile(file)) {
+
+  const onPick = async (picked: File[]) => {
+    if (picked.length === 0) return;
+    if (picked.length > MAX_PHOTOS_AT_ONCE) {
+      toast.error(`Choose up to ${MAX_PHOTOS_AT_ONCE} photos at a time.`);
+      return;
+    }
+    const videos = picked.filter(isVideoFile);
+    if (picked.length > 1 && videos.length > 0) {
+      toast.error("Add videos one at a time. You can pick several photos together.");
+      return;
+    }
+    const [first] = picked;
+    if (picked.length === 1 && first && isVideoFile(first)) {
       setChecking(true);
-      const result = await inspectStoryVideo(file);
+      const result = await inspectStoryVideo(first);
       setChecking(false);
       if (!result.ok) {
         toast.error(result.error);
         return;
       }
-      setVideo({ file, durationSeconds: result.durationSeconds });
+      setVideo({ file: first, durationSeconds: result.durationSeconds });
       return;
     }
-    const problem = validateImage(file);
-    if (problem) {
-      toast.error(problem);
-      return;
+    for (const file of picked) {
+      const problem = validateImage(file);
+      if (problem) {
+        toast.error(picked.length > 1 ? `${file.name}: ${problem}` : problem);
+        return;
+      }
     }
-    upload.mutate(file);
+    upload.mutate(picked);
   };
- 
+
   const busy = upload.isPending || checking;
   const pick = () => fileRef.current?.click();
- 
+  // The list is still loading or refreshing and I have no story in it yet: don't guess.
+  const syncing = !myGroup && isFetching;
+
+  /**
+   * Tapping my own bubble:
+   *  - I already have a story  -> watch it (never the file picker)
+   *  - I have none yet         -> choose a photo / video to add
+   *  - still loading / uploading, or the list failed to load -> do NOT open the picker
+   */
+  const onOwnBubble = () => {
+    if (myGroup) {
+      setViewing(myGroup);
+      return;
+    }
+    if (busy || syncing) return;
+    if (isError) {
+      toast.error("Couldn't load your stories.", {
+        description: loadError instanceof Error ? loadError.message : "Please try again.",
+      });
+      void refetch();
+      return;
+    }
+    pick();
+  };
+
   return (
     <>
       <div
@@ -87,36 +150,41 @@ export function Stories() {
           ref={fileRef}
           type="file"
           accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
+          multiple
           hidden
           onChange={(e) => {
-            void onPick(e.target.files?.[0]);
+            void onPick(Array.from(e.target.files ?? []));
             e.target.value = "";
           }}
         />
- 
+
         <div role="listitem" className="relative w-[72px] shrink-0 snap-start">
           <StoryButton
             label="Create Story"
             ariaLabel={myGroup ? "View your story" : "Create a story"}
-            onClick={myGroup ? () => setViewing(myGroup) : pick}
+            onClick={onOwnBubble}
           >
             <Avatar src={profile?.avatar_url} name={myName} size={AVATAR} ring={!!myGroup} />
           </StoryButton>
-          <button
-            type="button"
-            onClick={pick}
-            disabled={busy}
-            aria-label="Add to your story"
-            className="absolute right-0 top-[44px] grid h-7 w-7 place-items-center rounded-full border-2 border-background bg-primary text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-80"
-          >
-            {busy ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Plus className="h-4 w-4" strokeWidth={3} />
-            )}
-          </button>
+          {/* The "+" only exists while I have NO story. Once I have one, the bubble opens it;
+              adding another one is done from inside the story viewer. */}
+          {!myGroup && (
+            <button
+              type="button"
+              onClick={onOwnBubble}
+              disabled={busy || syncing}
+              aria-label="Add to your story"
+              className="absolute right-0 top-[44px] grid h-7 w-7 place-items-center rounded-full border-2 border-background bg-primary text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-80"
+            >
+              {busy || syncing ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4" strokeWidth={3} />
+              )}
+            </button>
+          )}
         </div>
- 
+
         {others.map((g) => (
           <div role="listitem" key={g.authorId} className="w-[72px] shrink-0 snap-start">
             <StoryButton
@@ -129,7 +197,7 @@ export function Stories() {
           </div>
         ))}
       </div>
- 
+
       {video && (
         <StoryVideoDialog
           file={video.file}
@@ -138,11 +206,21 @@ export function Stories() {
           onClose={() => setVideo(null)}
         />
       )}
-      {viewing && <StoryViewer group={viewing} meId={meId} onClose={() => setViewing(null)} />}
+      {viewing && (
+        <StoryViewer
+          group={viewing}
+          meId={meId}
+          onClose={() => setViewing(null)}
+          onAdd={() => {
+            setViewing(null);
+            pick();
+          }}
+        />
+      )}
     </>
   );
 }
- 
+
 function StoryButton({
   label,
   ariaLabel,
@@ -166,15 +244,18 @@ function StoryButton({
     </button>
   );
 }
- 
+
 function StoryViewer({
   group,
   meId,
   onClose,
+  onAdd,
 }: {
   group: StoryGroup;
   meId: string;
   onClose: () => void;
+  /** add another photo / video to my own story */
+  onAdd: () => void;
 }) {
   const qc = useQueryClient();
   const [i, setI] = useState(0);
@@ -189,7 +270,7 @@ function StoryViewer({
     },
     onError: () => toast.error("Couldn't delete the story."),
   });
- 
+
   const go = (next: number) => {
     setFraction(0);
     setI(next);
@@ -197,7 +278,7 @@ function StoryViewer({
   const advance = () => (i < last ? go(i + 1) : onClose());
   const advanceRef = useRef(advance);
   advanceRef.current = advance;
- 
+
   // Photo stories run on a timer (like Instagram): fill the bar over 5s, then go to the next one.
   const itemIsPhoto = !!item && !(item.media_type === "video" && !!item.video_url);
   const itemId = item?.id;
@@ -218,7 +299,7 @@ function StoryViewer({
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [itemId, itemIsPhoto]);
- 
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -229,11 +310,11 @@ function StoryViewer({
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [i, last]);
- 
+
   if (!item) return null;
   const isVideo = item.media_type === "video" && !!item.video_url;
   const partOfMany = isVideo && item.segment_count > 1;
- 
+
   return (
     <div
       className="fixed inset-0 z-[100] flex flex-col bg-black text-white"
@@ -256,10 +337,17 @@ function StoryViewer({
         <Avatar src={group.avatar} name={group.name} size={36} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold">{group.name}</p>
-          <p className="text-xs text-white/70">
-            {timeAgo(item.created_at)}
-          </p>
+          <p className="text-xs text-white/70">{timeAgo(item.created_at)}</p>
         </div>
+        {group.authorId === meId && (
+          <button
+            onClick={onAdd}
+            aria-label="Add another to your story"
+            className="rounded-full p-2 hover:bg-white/10"
+          >
+            <Plus className="h-5 w-5" />
+          </button>
+        )}
         {group.authorId === meId && (
           <button
             onClick={() => del.mutate(item)}
@@ -302,7 +390,7 @@ function StoryViewer({
     </div>
   );
 }
- 
+
 /** Plays only [segment_start, segment_end] of the uploaded file, then moves on. */
 function StoryVideo({
   item,
@@ -317,7 +405,7 @@ function StoryVideo({
   const doneRef = useRef(false);
   const start = item.segment_start;
   const end = item.segment_end ?? Number.POSITIVE_INFINITY;
- 
+
   // Frame-accurate stop: `timeupdate` is too coarse (about 4 times a second).
   useEffect(() => {
     let raf = 0;
@@ -345,7 +433,7 @@ function StoryVideo({
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [start, end]);
- 
+
   return (
     <video
       ref={ref}
@@ -371,4 +459,3 @@ function StoryVideo({
     />
   );
 }
- 

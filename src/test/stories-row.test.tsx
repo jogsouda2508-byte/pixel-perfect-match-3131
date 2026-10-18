@@ -1,13 +1,16 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StoryGroup, StoryItem } from "@/lib/social";
 
 const h = vi.hoisted(() => ({
   groups: [] as unknown[],
+  gate: Promise.resolve() as Promise<void>,
+  createStory: vi.fn(),
   inspect: vi.fn(),
   toastError: vi.fn(),
+  toastSuccess: vi.fn(),
   createVideoStory: vi.fn(),
 }));
 
@@ -19,13 +22,20 @@ vi.mock("@/lib/auth", () => ({
 }));
 vi.mock("@/lib/social", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/social")>();
-  return { ...actual, fetchStories: async () => h.groups };
+  return {
+    ...actual,
+    fetchStories: async () => {
+      await h.gate;
+      return h.groups;
+    },
+    createStory: h.createStory,
+  };
 });
 vi.mock("@/lib/story-video", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/story-video")>();
   return { ...actual, inspectStoryVideo: h.inspect, createVideoStory: h.createVideoStory };
 });
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: h.toastError } }));
+vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
 
 import { Stories } from "@/components/stories";
 
@@ -69,6 +79,7 @@ function wrap(ui: ReactNode) {
 beforeEach(() => {
   vi.clearAllMocks();
   h.groups = [];
+  h.gate = Promise.resolve();
 });
 
 describe("story row", () => {
@@ -119,10 +130,168 @@ describe("story row", () => {
     ).toBeInTheDocument();
   });
 
-  it("still lets me add a story when I already have one", async () => {
+  it("does not show the + badge once I have a story", async () => {
     h.groups = [group("me", "me", [img("m1")])];
     wrap(<Stories />);
-    await screen.findByRole("button", { name: "Add to your story" });
+    await screen.findByRole("button", { name: "View your story" });
+    expect(screen.queryByRole("button", { name: "Add to your story" })).toBeNull();
+  });
+});
+
+/** Taps are ignored for the first moments while stories load; wait until they have. */
+const loaded = () =>
+  waitFor(() => expect(screen.getByRole("button", { name: "Add to your story" })).toBeEnabled());
+
+describe("tapping my own Create Story bubble", () => {
+  let pickerOpened: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    pickerOpened = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {});
+  });
+  afterEach(() => pickerOpened.mockRestore());
+
+  it("opens the file picker when I have no story yet", async () => {
+    wrap(<Stories />);
+    await loaded();
+    fireEvent.click(screen.getByRole("button", { name: "Create a story" }));
+    expect(pickerOpened).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens the + badge's picker when I have no story yet", async () => {
+    wrap(<Stories />);
+    await loaded();
+    fireEvent.click(screen.getByRole("button", { name: "Add to your story" }));
+    expect(pickerOpened).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows my story, and never the file picker, once I have one", async () => {
+    h.groups = [group("me", "me", [img("m1")])];
+    wrap(<Stories />);
+    fireEvent.click(await screen.findByRole("button", { name: "View your story" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(pickerOpened).not.toHaveBeenCalled();
+  });
+
+  it("does not open the picker while my stories are still loading", async () => {
+    let release: () => void = () => {};
+    h.gate = new Promise<void>((r) => (release = r));
+    h.groups = [group("me", "me", [img("m1")])];
+    wrap(<Stories />);
+    fireEvent.click(await screen.findByRole("button", { name: "Create a story" }));
+    expect(pickerOpened).not.toHaveBeenCalled();
+
+    release();
+    fireEvent.click(await screen.findByRole("button", { name: "View your story" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(pickerOpened).not.toHaveBeenCalled();
+  });
+
+  it("does not open the picker when loading my stories failed", async () => {
+    h.gate = Promise.reject(new Error("network"));
+    h.gate.catch(() => {});
+    wrap(<Stories />);
+    await loaded(); // the request has failed by now
+    fireEvent.click(screen.getByRole("button", { name: "Create a story" }));
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith(
+        expect.stringMatching(/Couldn't load your stories/),
+        expect.objectContaining({ description: "network" }), // the real reason is shown too
+      ),
+    );
+    expect(pickerOpened).not.toHaveBeenCalled();
+  });
+
+  it("after adding a photo story, the very next tap shows it instead of the picker", async () => {
+    h.createStory.mockImplementation(async () => {
+      h.groups = [group("me", "me", [img("new")])];
+    });
+    const { container } = wrap(<Stories />);
+    await screen.findByRole("button", { name: "Create a story" });
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const photo = new File([new Uint8Array(10)], "pic.jpg", { type: "image/jpeg" });
+    fireEvent.change(input, { target: { files: [photo] } });
+
+    // the moment the upload finishes my story must already be in the list
+    const mine = await screen.findByRole("button", { name: "View your story" });
+    fireEvent.click(mine);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(pickerOpened).not.toHaveBeenCalled();
+  });
+
+  it("lets me add another story from inside my own story viewer", async () => {
+    h.groups = [group("me", "me", [img("m1")])];
+    wrap(<Stories />);
+    fireEvent.click(await screen.findByRole("button", { name: "View your story" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add another to your story" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(pickerOpened).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not offer 'add another' on someone else's story", async () => {
+    h.groups = [group("a", "alice", [img("1")])];
+    wrap(<Stories />);
+    fireEvent.click(await screen.findByRole("button", { name: /View alice Name's story/ }));
+    expect(screen.queryByRole("button", { name: "Add another to your story" })).toBeNull();
+  });
+});
+
+describe("adding several stories", () => {
+  const photo = (name: string, type = "image/jpeg") =>
+    new File([new Uint8Array(10)], name, { type });
+  const pick = async (...files: File[]) => {
+    const { container } = wrap(<Stories />);
+    await screen.findByText("Create Story");
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(input.multiple).toBe(true);
+    fireEvent.change(input, { target: { files } });
+  };
+
+  it("adds one story per photo, in the order they were picked", async () => {
+    const order: string[] = [];
+    h.createStory.mockImplementation(async (_id: string, f: File) => void order.push(f.name));
+    await pick(photo("a.jpg"), photo("b.jpg"), photo("c.png", "image/png"));
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("3 stories added"));
+    expect(order).toEqual(["a.jpg", "b.jpg", "c.png"]);
+  });
+
+  it("still says 'Story added' for a single photo", async () => {
+    h.createStory.mockResolvedValue(undefined);
+    await pick(photo("a.jpg"));
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("Story added"));
+  });
+
+  it("uploads nothing when any chosen photo is not allowed", async () => {
+    await pick(photo("a.jpg"), photo("doc.pdf", "application/pdf"));
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith(expect.stringMatching(/doc\.pdf/)),
+    );
+    expect(h.createStory).not.toHaveBeenCalled();
+  });
+
+  it("asks for videos one at a time when photos and a video are mixed", async () => {
+    await pick(photo("a.jpg"), photo("clip.mp4", "video/mp4"));
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith(expect.stringMatching(/videos one at a time/i)),
+    );
+    expect(h.createStory).not.toHaveBeenCalled();
+  });
+
+  it("limits one batch to 10 photos", async () => {
+    await pick(...Array.from({ length: 11 }, (_, i) => photo(`p${i}.jpg`)));
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith(expect.stringMatching(/up to 10/)),
+    );
+    expect(h.createStory).not.toHaveBeenCalled();
+  });
+
+  it("reports how many were added when one fails, and keeps the earlier ones", async () => {
+    h.createStory
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("Storage is full"));
+    await pick(photo("a.jpg"), photo("b.jpg"), photo("c.jpg"));
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith("Added 1 of 3 stories. Storage is full"),
+    );
+    expect(h.createStory).toHaveBeenCalledTimes(2); // stopped at the failure
   });
 });
 
@@ -216,12 +385,12 @@ describe("viewing a video story", () => {
     const dialog = screen.getByRole("dialog");
     const first = dialog.querySelector("video")!;
     expect(first.getAttribute("src")).toMatch(/f\.mp4#t=0$/);
-    expect(dialog).toHaveTextContent("1/2");
+    expect(dialog.querySelectorAll('[aria-hidden="true"] > div')).toHaveLength(2); // one bar per part
 
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     const second = dialog.querySelector("video")!;
     expect(second.getAttribute("src")).toMatch(/f\.mp4#t=15$/);
-    expect(dialog).toHaveTextContent("2/2");
+    expect(dialog.querySelectorAll('[aria-hidden="true"] > div')).toHaveLength(2);
   });
 
   it("still shows image stories as before", async () => {

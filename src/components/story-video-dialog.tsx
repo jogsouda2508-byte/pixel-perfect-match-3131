@@ -67,7 +67,8 @@ export function StoryVideoDialog({
         onProgress: setProgress,
       });
       toast.success(parts > 1 ? `Story added in ${parts} parts` : "Story added");
-      void qc.invalidateQueries({ queryKey: ["stories"] });
+      // wait for the refreshed list so my new story is already there when the dialog closes
+      await qc.invalidateQueries({ queryKey: ["stories"] });
       onClose();
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") return;

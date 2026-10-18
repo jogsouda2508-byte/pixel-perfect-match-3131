@@ -1,22 +1,56 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => {
-  const state = { storyRows: [] as unknown[], deleteCalls: [] as [string, string][] };
+  const state = {
+    storyRows: [] as unknown[],
+    deleteCalls: [] as [string, string][],
+    /** error returned when the FULL (video-column) story select is used */
+    fullError: null as null | { code?: string; message: string },
+    selects: [] as string[],
+    profileLookups: [] as string[][],
+  };
   const rpc = vi.fn();
   const remove = vi.fn();
-  const from = vi.fn(() => ({
-    select: () => ({
-      gt: () => ({
-        order: () => ({ order: () => Promise.resolve({ data: state.storyRows, error: null }) }),
+  const from = vi.fn((table: string) => {
+    if (table === "profiles") {
+      return {
+        select: () => ({
+          in: (_col: string, ids: string[]) => {
+            state.profileLookups.push(ids);
+            return Promise.resolve({
+              data: ids.map((id) => ({
+                id,
+                full_name: "Bob B",
+                username: "bobby",
+                avatar_url: null,
+              })),
+              error: null,
+            });
+          },
+        }),
+      };
+    }
+    return {
+      select: (cols: string) => ({
+        gt: () => ({
+          order: () => ({
+            order: () => {
+              state.selects.push(cols);
+              if (cols.includes("media_type") && state.fullError)
+                return Promise.resolve({ data: null, error: state.fullError });
+              return Promise.resolve({ data: state.storyRows, error: null });
+            },
+          }),
+        }),
       }),
-    }),
-    delete: () => ({
-      eq: (col: string, val: string) => {
-        state.deleteCalls.push([col, val]);
-        return Promise.resolve({ error: null });
-      },
-    }),
-  }));
+      delete: () => ({
+        eq: (col: string, val: string) => {
+          state.deleteCalls.push([col, val]);
+          return Promise.resolve({ error: null });
+        },
+      }),
+    };
+  });
   return { state, rpc, remove, from };
 });
 
@@ -32,6 +66,9 @@ beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation(() => {});
   h.state.storyRows = [];
   h.state.deleteCalls = [];
+  h.state.fullError = null;
+  h.state.selects = [];
+  h.state.profileLookups = [];
   h.rpc.mockResolvedValue({ data: [], error: null });
   h.remove.mockResolvedValue({ error: null });
 });
@@ -130,6 +167,64 @@ describe("fetchStories", () => {
       [0, 0, 15],
       [1, 15, 22.5],
     ]);
+  });
+});
+
+describe("fetchStories author lookup", () => {
+  it("never embeds profiles in the stories query (an embed breaks when the database has two relationships)", async () => {
+    h.state.storyRows = [
+      row({ id: "1", author_id: "b", image_url: "u1" }),
+      row({ id: "2", author_id: "c", image_url: "u2" }),
+      row({ id: "3", author_id: "b", image_url: "u3" }),
+    ];
+    const groups = await fetchStories("me");
+    expect(h.state.selects[0]).not.toContain("profiles");
+    expect(h.state.profileLookups).toEqual([["b", "c"]]); // each author once, in a separate query
+    expect(groups[0]).toMatchObject({ name: "Bob B", username: "bobby" });
+  });
+
+  it("does not ask for authors when there are no stories", async () => {
+    await expect(fetchStories("me")).resolves.toEqual([]);
+    expect(h.state.profileLookups).toEqual([]);
+  });
+});
+
+describe("fetchStories before the video-story migration was run", () => {
+  it("falls back to photo stories instead of failing (Postgres: column does not exist)", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    h.state.fullError = { code: "42703", message: "column stories.media_type does not exist" };
+    h.state.storyRows = [
+      {
+        id: "p1",
+        author_id: "me",
+        image_url: "https://img/1",
+        created_at: "2026-10-18T10:00:00Z",
+        author,
+      },
+    ];
+    const [g] = await fetchStories("me");
+    expect(g?.items[0]).toMatchObject({
+      id: "p1",
+      media_type: "image",
+      image_url: "https://img/1",
+    });
+    expect(h.state.selects).toHaveLength(2);
+    expect(h.state.selects[1]).not.toContain("media_type");
+  });
+
+  it("also recognises PostgREST's schema-cache message", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    h.state.fullError = {
+      code: "PGRST204",
+      message: "Could not find the 'media_type' column of 'stories'",
+    };
+    await expect(fetchStories("me")).resolves.toEqual([]);
+  });
+
+  it("does NOT hide other failures (permissions, network...)", async () => {
+    h.state.fullError = { code: "42501", message: "permission denied for table stories" };
+    await expect(fetchStories("me")).rejects.toThrow(/permission denied/);
+    expect(h.state.selects).toHaveLength(1);
   });
 });
 

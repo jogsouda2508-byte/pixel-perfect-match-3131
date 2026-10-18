@@ -151,6 +151,16 @@ describe("createVideoStory", () => {
     expect(args.onProgress).toHaveBeenLastCalledWith(100);
   });
 
+  it("explains the missing database update (and removes the uploaded file) when the video columns don't exist", async () => {
+    insert.mockResolvedValue({
+      error: { code: "42703", message: "column stories.upload_id does not exist" },
+    });
+    await expect(
+      createVideoStory({ ...base(), durationSeconds: 10, limitSeconds: 15 }),
+    ).rejects.toThrow(/20261019000000_story_videos_local_feed\.sql/);
+    expect(remove).toHaveBeenCalledWith(["user-1/abc.mp4"]);
+  });
+
   it("rejects a too-long clip BEFORE uploading anything", async () => {
     await expect(
       createVideoStory({ ...base(), durationSeconds: 50, limitSeconds: 30 }),

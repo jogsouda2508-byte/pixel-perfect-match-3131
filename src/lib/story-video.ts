@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { STORY_VIDEO_MIGRATION_HINT, isMissingColumnError } from "@/lib/db-errors";
 import { storagePathFromPublicUrl, uploadVideoFile, validateVideoFile } from "@/lib/videos";
 
 /** One story segment is never longer than this. */
@@ -177,7 +178,9 @@ export async function createVideoStory(args: {
     );
     if (error) {
       console.error("Saving the story failed", error);
-      throw new Error("Couldn't save your story. Please try again.");
+      throw new Error(
+        isMissingColumnError(error) ? STORY_VIDEO_MIGRATION_HINT : "Couldn't save your story. Please try again.",
+      );
     }
     args.onProgress(100);
     return plan.segments.length;

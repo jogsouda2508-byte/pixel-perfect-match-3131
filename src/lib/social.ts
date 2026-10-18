@@ -16,6 +16,7 @@ import type {
 } from "@/integrations/supabase/types";
 import type { PlaceSelection } from "@/lib/places";
 import { locationColumns, saveTags, withPostExtras } from "@/lib/post-extras";
+import { isMissingColumnError } from "@/lib/db-errors";
 
 export type FeedTab = "for_you" | "following" | "local" | "business";
 export const FEED_PAGE_SIZE = 10;
@@ -301,20 +302,58 @@ type StoryWithAuthor = {
   author: { full_name: string; username: string; avatar_url: string | null } | null;
 };
 
+// The story rows are read WITHOUT embedding profiles: if the database ever has more than one
+// foreign key between stories and profiles, PostgREST refuses an embed ("more than one
+// relationship was found"). Authors are loaded with a second, simple query instead.
+const STORY_COLUMNS_FULL =
+  "id, author_id, image_url, media_type, video_url, upload_id, segment_index, segment_count, segment_start, segment_end, created_at";
+// What exists before the video-story migration: photo stories only.
+const STORY_COLUMNS_BASIC = "id, author_id, image_url, created_at";
+
+type StoryAuthor = { full_name: string; username: string; avatar_url: string | null };
+
 export async function fetchStories(meId: string): Promise<StoryGroup[]> {
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const { data, error } = await supabase
+  const full = await supabase
     .from("stories")
-    .select(
-      "id, author_id, image_url, media_type, video_url, upload_id, segment_index, segment_count, segment_start, segment_end, created_at, author:profiles(full_name, username, avatar_url)",
-    )
+    .select(STORY_COLUMNS_FULL)
     .gt("created_at", cutoff)
     .order("created_at", { ascending: true })
     .order("segment_index", { ascending: true });
-  if (error) fail("Loading stories", error);
+
+  let rows: unknown = full.data;
+  if (full.error) {
+    // The video-story columns are missing (migration not run yet): keep photo stories
+    // working instead of showing nothing. Any other error is a real failure.
+    if (!isMissingColumnError(full.error)) fail("Loading stories", full.error);
+    console.warn(
+      "Video-story columns are missing; run 20261019000000_story_videos_local_feed.sql in Supabase.",
+    );
+    const basic = await supabase
+      .from("stories")
+      .select(STORY_COLUMNS_BASIC)
+      .gt("created_at", cutoff)
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true });
+    if (basic.error) fail("Loading stories", basic.error);
+    rows = basic.data;
+  }
+
+  const storyRows = (rows ?? []) as Omit<StoryWithAuthor, "author">[];
+  const authors = new Map<string, StoryAuthor>();
+  const authorIds = [...new Set(storyRows.map((r) => r.author_id))];
+  if (authorIds.length > 0) {
+    const { data: people, error: peopleError } = await supabase
+      .from("profiles")
+      .select("id, full_name, username, avatar_url")
+      .in("id", authorIds);
+    if (peopleError) fail("Loading story authors", peopleError);
+    for (const p of (people ?? []) as (StoryAuthor & { id: string })[]) authors.set(p.id, p);
+  }
 
   const groups = new Map<string, StoryGroup>();
-  for (const s of (data ?? []) as unknown as StoryWithAuthor[]) {
+  for (const row of storyRows) {
+    const s: StoryWithAuthor = { ...row, author: authors.get(row.author_id) ?? null };
     const g = groups.get(s.author_id) ?? {
       authorId: s.author_id,
       name: s.author?.full_name || s.author?.username || "",
