@@ -274,7 +274,7 @@ export async function fetchStories(meId: string): Promise<StoryGroup[]> {
   const { data, error } = await supabase
     .from("stories")
     .select(
-      "id, author_id, image_url, media_type, video_url, upload_id, segment_index, segment_count, segment_start, segment_end, created_at, author:profiles(full_name, username, avatar_url)",
+      "id, author_id, image_url, media_type, video_url, upload_id, segment_index, segment_count, segment_start, segment_end, created_at, author:profiles!stories_author_id_fkey(full_name, username, avatar_url)",
     )
     .gt("created_at", cutoff)
     .order("created_at", { ascending: true })

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Loader2, Plus, Trash2, X } from "lucide-react";
 import { Avatar } from "@/components/ediraa";
+import { StoryActions } from "@/components/story-actions";
 import { StoryVideoDialog } from "@/components/story-video-dialog";
 import { useAuth } from "@/lib/auth";
 import {
@@ -96,7 +97,7 @@ export function Stories() {
  
         <div role="listitem" className="relative w-[72px] shrink-0 snap-start">
           <StoryButton
-            label="Create Story"
+            label={profile?.username || "Your story"}
             ariaLabel={myGroup ? "View your story" : "Create a story"}
             onClick={myGroup ? () => setViewing(myGroup) : pick}
           >
@@ -179,6 +180,8 @@ function StoryViewer({
   const qc = useQueryClient();
   const [i, setI] = useState(0);
   const [fraction, setFraction] = useState(0);
+  // Paused while the person types a reply or reads comments.
+  const [paused, setPaused] = useState(false);
   const item = group.items[i];
   const last = group.items.length - 1;
   const del = useMutation({
@@ -201,13 +204,19 @@ function StoryViewer({
   // Photo stories run on a timer (like Instagram): fill the bar over 5s, then go to the next one.
   const itemIsPhoto = !!item && !(item.media_type === "video" && !!item.video_url);
   const itemId = item?.id;
+  const elapsedRef = useRef(0);
   useEffect(() => {
-    if (!itemIsPhoto) return;
+    elapsedRef.current = 0;
+  }, [itemId]);
+  useEffect(() => {
+    if (!itemIsPhoto || paused) return;
     const DURATION_MS = 5000;
-    const startedAt = performance.now();
+    let last = performance.now();
     let raf = 0;
     const tick = (now: number) => {
-      const f = Math.min(1, (now - startedAt) / DURATION_MS);
+      elapsedRef.current += now - last;
+      last = now;
+      const f = Math.min(1, elapsedRef.current / DURATION_MS);
       setFraction(f);
       if (f >= 1) {
         advanceRef.current();
@@ -217,10 +226,16 @@ function StoryViewer({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [itemId, itemIsPhoto]);
+  }, [itemId, itemIsPhoto, paused]);
  
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // While typing, arrow keys move the cursor and Escape just leaves the box.
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) {
+        if (e.key === "Escape") el.blur();
+        return;
+      }
       if (e.key === "Escape") onClose();
       else if (e.key === "ArrowRight" && i < last) go(i + 1);
       else if (e.key === "ArrowLeft" && i > 0) go(i - 1);
@@ -276,7 +291,13 @@ function StoryViewer({
       </div>
       <div className="relative flex min-h-0 flex-1 items-center justify-center">
         {isVideo ? (
-          <StoryVideo key={item.id} item={item} onProgress={setFraction} onDone={advance} />
+          <StoryVideo
+            key={item.id}
+            item={item}
+            paused={paused}
+            onProgress={setFraction}
+            onDone={advance}
+          />
         ) : (
           <img src={item.image_url ?? ""} alt="" className="max-h-full max-w-full object-contain" />
         )}
@@ -299,6 +320,13 @@ function StoryViewer({
           </button>
         )}
       </div>
+      <StoryActions
+        storyId={item.id}
+        authorId={group.authorId}
+        authorName={group.username || group.name}
+        meId={meId}
+        onPausedChange={setPaused}
+      />
     </div>
   );
 }
@@ -306,10 +334,12 @@ function StoryViewer({
 /** Plays only [segment_start, segment_end] of the uploaded file, then moves on. */
 function StoryVideo({
   item,
+  paused,
   onProgress,
   onDone,
 }: {
   item: StoryItem;
+  paused: boolean;
   onProgress: (fraction: number) => void;
   onDone: () => void;
 }) {
@@ -317,6 +347,13 @@ function StoryVideo({
   const doneRef = useRef(false);
   const start = item.segment_start;
   const end = item.segment_end ?? Number.POSITIVE_INFINITY;
+ 
+  useEffect(() => {
+    const v = ref.current;
+    if (!v) return;
+    if (paused) v.pause();
+    else if (v.readyState > 0 && !doneRef.current) void v.play().catch(() => {});
+  }, [paused]);
  
   // Frame-accurate stop: `timeupdate` is too coarse (about 4 times a second).
   useEffect(() => {
@@ -372,3 +409,5 @@ function StoryVideo({
   );
 }
  
+
+

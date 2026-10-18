@@ -124,7 +124,7 @@ export type GroupListRow = GroupRow & {
 
 /** One row of `get_notifications` */
 export type NotificationRow = {
-  kind: "like" | "comment" | "follow" | "share";
+  kind: "like" | "comment" | "follow" | "share" | "story_like" | "story_comment" | "story_mention";
   actor_id: string;
   actor_name: string;
   actor_username: string;
