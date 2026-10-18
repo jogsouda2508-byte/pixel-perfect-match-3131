@@ -29,6 +29,20 @@ export type PostRow = {
   video_url: string | null;
   thumbnail_url: string | null;
   duration_seconds: number | null;
+  /** Optional location (needs 20261019000000_post_location_tags.sql). Rows from a database
+   *  that has not run it omit these, so treat missing as "no location". */
+  location_place_id?: string | null;
+  location_name?: string | null;
+  location_address?: string | null;
+  location_city?: string | null;
+};
+
+/** A person tagged in a post (id is the stable reference; the rest is display data). */
+export type TaggedPerson = {
+  id: string;
+  username: string;
+  full_name: string;
+  avatar_url: string | null;
 };
 
 export type CommentRow = {
@@ -81,6 +95,12 @@ export type FeedRow = {
   video_url: string | null;
   thumbnail_url: string | null;
   duration_seconds: number | null;
+  /** Filled in by the app after the feed loads (see lib/post-extras.ts). */
+  location_place_id?: string | null;
+  location_name?: string | null;
+  location_address?: string | null;
+  location_city?: string | null;
+  tagged_people?: TaggedPerson[];
 };
 
 export type VideoFeedRow = FeedRow & {
@@ -124,7 +144,7 @@ export type GroupListRow = GroupRow & {
 
 /** One row of `get_notifications` */
 export type NotificationRow = {
-  kind: "like" | "comment" | "follow" | "share";
+  kind: "like" | "comment" | "follow" | "share" | "tag";
   actor_id: string;
   actor_name: string;
   actor_username: string;
@@ -200,6 +220,10 @@ export type Database = {
           video_url?: string | null;
           thumbnail_url?: string | null;
           duration_seconds?: number | null;
+          location_place_id?: string | null;
+          location_name?: string | null;
+          location_address?: string | null;
+          location_city?: string | null;
         };
         Update: {
           content?: string;
@@ -224,6 +248,34 @@ export type Database = {
         Insert: { post_id: string; user_id: string };
         Update: { created_at?: string };
         Relationships: [];
+      };
+      post_tags: {
+        Row: { post_id: string; tagged_user_id: string; tagged_by: string; created_at: string };
+        Insert: never;
+        Update: never;
+        Relationships: [
+          {
+            foreignKeyName: "post_tags_post_id_fkey";
+            columns: ["post_id"];
+            isOneToOne: false;
+            referencedRelation: "posts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "post_tags_tagged_user_id_fkey";
+            columns: ["tagged_user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "post_tags_tagged_by_fkey";
+            columns: ["tagged_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       post_comments: {
         Row: CommentRow;
@@ -360,6 +412,10 @@ export type Database = {
       get_video_feed: {
         Args: { p_limit: number; p_offset: number };
         Returns: VideoFeedRow[];
+      };
+      set_post_tags: {
+        Args: { p_post_id: string; p_user_ids: string[] };
+        Returns: number;
       };
       is_conversation_member: { Args: { conv: string }; Returns: boolean };
       get_or_create_dm: { Args: { other_user: string }; Returns: string };

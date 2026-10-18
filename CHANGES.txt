@@ -1,50 +1,30 @@
-EDIRAA - PROFILE LINKS + MORE-PAGE FEATURES
-============================================
-
+EDIRAA - PROFILE LINKS + LOCATION + TAG PEOPLE
+==============================================
 HOW TO APPLY
-1. Unzip this folder.
-2. Copy everything inside it (src/ and supabase/) into your project root and choose "Replace".
-   You can delete this CHANGES.txt afterwards - it is not part of the app.
-3. Supabase -> SQL Editor -> paste supabase/migrations/20261013000000_saved_groups.sql -> Run.
-   (Needed for Saved Posts and Groups. Safe to run more than once.)
-4. npm run dev   (no new packages are needed)
-   The dev server regenerates src/routeTree.gen.ts by itself; the copy in this zip is
-   already up to date.
+1. Unzip, copy src/ and supabase/ into your project root, choose "Replace". (CHANGES.txt is not part of the app.)
+2. Supabase -> SQL Editor -> run supabase/migrations/20261019000000_post_location_tags.sql
+   (needs the earlier migrations already run; safe to run more than once).
+3. npm run dev   (no new packages, no API keys needed)
 
-These files are based on the main branch of your GitHub repo (latest commit "Removed mock data").
-If you changed any of the REPLACED files locally after that, merge by hand instead of overwriting.
+WHAT'S IN IT
+- Profile links: avatars/names open /u/<username> (stories, notifications, post cards, people rows);
+  profile page has a working "Tagged" tab.
+- Location: searchable picker (Photon / OpenStreetMap, no key), dialog on desktop, bottom sheet on mobile;
+  debounced, cancels stale requests, handles empty/error/rate-limit; "Use my current location" is optional.
+  Saved with the post: place id, name, address, city (never coordinates).
+- Tag People: searches real accounts (get_people), multi-select, Cancel/Done, max 20, load more.
+  Tags are written only by the database function set_post_tags, which checks you own the post and that each
+  person can see it (Friends / Local Community rules). Tagged people get a "tagged you" notification.
+- Post display: location + "with @a and N others" on feed posts and videos.
+- New in this round: if the database skips someone (e.g. non-friend on a Friends post) you now get a
+  "couldn't tag everyone" notice instead of a silent success. Added src/test/post-extras.test.ts.
 
-1) OTHER PEOPLE'S PROFILES (the bug)
-   Cause: only /profile existed and it always showed YOUR profile; nothing linked to anyone else.
-   - NEW  src/routes/u.$username.tsx        page for /u/<username>
-   - NEW  src/components/profile-view.tsx   one profile screen shared by /profile and /u/<username>
-          (Follow / Following button, post grid, tappable Followers / Following lists)
-   - EDIT src/routes/profile.tsx            now uses the shared profile view
-   - EDIT src/components/ediraa.tsx         UserRow: avatar + name link to the profile
-   - EDIT src/components/post-card.tsx      post author + commenters link to the profile
-   - EDIT src/routes/home.tsx, discover.tsx suggestion / search rows link to the profile
-   - EDIT src/routes/notifications.tsx      actor avatar + name link to the profile
-   - EDIT src/components/auth-gate.tsx      /u/<username> and the new pages need login
-   - EDIT src/lib/social.ts                 profile lookup, follow lists, etc.
+- Round 2 (UI): Create Post page and the photo/video "Details" step now share ONE block:
+  row 1 = Location | Tag People, row 2 = Add Hashtag. Chosen items turn violet and show the place / avatars
+  with an X to remove; tap to edit. Hashtags typed in the caption appear as chips. "Add Hashtag" inserts # and
+  focuses the caption in both places. Fixed: hashtags in Indian scripts were cut after the first letter.
+  If you still see "Location tagging is coming soon", the new files have not been copied in / dev server not restarted.
 
-2) "MORE" PAGE - everything was a dead button, now each one works
-   - Edit Profile / Settings & Privacy -> NEW src/routes/settings.tsx
-       change photo, name, bio, location; change password; log out
-   - Saved Posts   -> NEW src/routes/saved.tsx + bookmark icon on every post
-                      NEW src/lib/use-saved.ts
-   - Groups        -> NEW src/routes/groups.tsx + src/components/groups-panel.tsx
-                      create / join / leave / delete; also shown in Discover -> Groups
-   - Business Page -> NEW src/routes/business.tsx
-                      switch personal <-> business account, business badge, list of businesses
-   - Help & Support-> NEW src/routes/help.tsx  (FAQ + contact button)
-   - Invite Friends-> share sheet / copy-link (in src/routes/more.tsx)
-   - NEW  src/components/page-shell.tsx     shared page layout
-   - EDIT src/routes/more.tsx
-   - EDIT src/integrations/supabase/types.ts, src/routeTree.gen.ts, src/test/auth.test.ts, src/lib/use-follow.ts
-   - NEW  supabase/migrations/20261013000000_saved_groups.sql
-
-TO DO BEFORE YOU SHIP
-   - src/routes/help.tsx: set SUPPORT_EMAIL (it is a placeholder, support@example.com).
-
-NOT BUILT (still "coming soon")
-   Messages, Reels, Tagged posts, Video posts, and group posts/chat.
+NOT VERIFIED HERE
+npm could not install packages in my sandbox (registry blocked), so I could not run tsc / eslint / vitest / build.
+Please run:  npm run lint && npm test && npm run build

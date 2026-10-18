@@ -1,5 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Audience, PostRow, VideoFeedRow } from "@/integrations/supabase/types";
+import type { PlaceSelection } from "@/lib/places";
+import { locationColumns, saveTags, withPostExtras } from "@/lib/post-extras";
 
 export const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
 export const MAX_VIDEO_SECONDS = 60;
@@ -182,7 +184,11 @@ export async function uploadVideoPost(args: {
   durationSeconds: number;
   signal: AbortSignal;
   onProgress: (progress: number) => void;
-}): Promise<PostRow> {
+  /** Optional place picked in the location picker. */
+  location?: PlaceSelection | null | undefined;
+  /** Optional ids of the people tagged in this video. */
+  taggedUserIds?: string[] | undefined;
+}): Promise<PostRow & { tagsFailed: boolean }> {
   const fileProblem = validateVideoFile(args.file);
   if (fileProblem) throw new Error(fileProblem);
   const durationProblem = validateVideoDuration(args.durationSeconds);
@@ -220,12 +226,15 @@ export async function uploadVideoPost(args: {
         video_url: uploadedVideo.publicUrl,
         thumbnail_url: thumbnailUrl,
         duration_seconds: args.durationSeconds,
+        ...locationColumns(args.location),
       })
       .select("*")
       .single();
     if (postError) storageError("publish the video", postError);
     args.onProgress(100);
-    return post;
+    // saveTags never throws, so a tagging problem can't trigger the file clean-up below.
+    const tagsFailed = !(await saveTags(post.id, args.taggedUserIds ?? []));
+    return { ...post, tagsFailed };
   } catch (error) {
     if (videoPath) {
       const { error: cleanupError } = await supabase.storage.from("videos").remove([videoPath]);
@@ -245,7 +254,7 @@ export async function fetchVideoFeed(offset: number): Promise<VideoFeedRow[]> {
     p_offset: offset,
   });
   if (error) storageError("load videos", error);
-  return data ?? [];
+  return withPostExtras(data ?? []);
 }
 
 export async function fetchVideoById(
@@ -289,7 +298,7 @@ export async function fetchVideoById(
   if (errorResult) storageError("load this video", errorResult);
   if (!author.data) return null;
 
-  return {
+  const row: VideoFeedRow = {
     ...post,
     // the query filters on media_type = 'video' and rejects rows without a video_url above
     media_type: "video",
@@ -304,6 +313,8 @@ export async function fetchVideoById(
     liked_by_me: !!liked.data,
     is_following: (follows.count ?? 0) > 0,
   };
+  const [withExtras] = await withPostExtras([row]);
+  return withExtras ?? row;
 }
 
 export async function fetchUserVideos(userId: string): Promise<PostRow[]> {

@@ -5,7 +5,6 @@ import {
   Camera,
   Image as ImageIcon,
   Loader2,
-  MapPin,
   Plus,
   Upload,
   Users,
@@ -22,6 +21,8 @@ import {
   validateVideoDuration,
   validateVideoFile,
 } from "@/lib/videos";
+import { EMPTY_EXTRAS, PostExtrasFields, type PostExtrasValue } from "@/components/post-extras-fields";
+import { appendHashtagMark, extractHashtags } from "@/lib/post-extras";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -41,9 +42,15 @@ const videoAccept = "video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov";
 export function ComposerLauncher({
   variant,
   videoLabel = false,
+  extras,
+  onExtrasChange,
 }: {
   variant: LauncherVariant;
   videoLabel?: boolean;
+  /** Optional: let a parent page own the chosen location/tags (e.g. Create Post), so they
+   *  carry over when a photo or video is attached. Without it the composer keeps its own. */
+  extras?: PostExtrasValue | undefined;
+  onExtrasChange?: ((next: PostExtrasValue) => void) | undefined;
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -58,6 +65,7 @@ export function ComposerLauncher({
   const [thumbnail, setThumbnail] = useState<File | null>(null);
   const [caption, setCaption] = useState("");
   const [audience, setAudience] = useState<Audience>("Public");
+  const [localExtras, setLocalExtras] = useState<PostExtrasValue>(EMPTY_EXTRAS);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -65,9 +73,13 @@ export function ComposerLauncher({
   const imageInput = useRef<HTMLInputElement>(null);
   const videoInput = useRef<HTMLInputElement>(null);
   const previewVideo = useRef<HTMLVideoElement>(null);
+  const captionInput = useRef<HTMLTextAreaElement>(null);
   const toastIdRef = useRef<string | null>(null);
   const uploadingRef = useRef(false);
   const hasOpenDraft = !!file && composerOpen;
+  // Location and tagged people are NOT reset when a different photo/video is chosen.
+  const postExtras = extras ?? localExtras;
+  const setPostExtras = onExtrasChange ?? setLocalExtras;
 
   useBlocker({
     shouldBlockFn: () => hasOpenDraft && !window.confirm("Discard this media and its caption?"),
@@ -134,6 +146,8 @@ export function ComposerLauncher({
     setCaption("");
     setFileError("");
     setStep(1);
+    // Only discard extras this composer owns; a parent page keeps its own.
+    if (!onExtrasChange) setLocalExtras(EMPTY_EXTRAS);
   };
 
   const validateAndContinue = async () => {
@@ -171,6 +185,8 @@ export function ComposerLauncher({
     const currentFile = file;
     const currentThumbnail = thumbnail;
     const currentDuration = duration;
+    const currentLocation = postExtras.location;
+    const currentTaggedIds = postExtras.tagged.map((person) => person.id);
     if (!currentFile || !profile || uploadingRef.current) return;
     if (kind === "video" && (!currentThumbnail || currentDuration === null)) return;
 
@@ -199,6 +215,7 @@ export function ComposerLauncher({
 
     try {
       let postedId: string | undefined;
+      let tagsFailed = false;
       if (postedKind === "video") {
         const post = await uploadVideoPost({
           authorId: profile.id,
@@ -209,8 +226,11 @@ export function ComposerLauncher({
           durationSeconds: currentDuration!,
           signal: controller.signal,
           onProgress: updateProgress,
+          location: currentLocation,
+          taggedUserIds: currentTaggedIds,
         });
         postedId = post.id;
+        tagsFailed = post.tagsFailed;
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ["video-feed"] }),
           queryClient.invalidateQueries({ queryKey: ["feed"] }),
@@ -218,12 +238,16 @@ export function ComposerLauncher({
           queryClient.invalidateQueries({ queryKey: ["user-posts"] }),
         ]);
       } else {
-        await createPost({
+        const created = await createPost({
           authorId: profile.id,
           content: caption.trim(),
           audience,
           image: currentFile,
+          location: currentLocation,
+          taggedUserIds: currentTaggedIds,
         });
+        postedId = created.id;
+        tagsFailed = created.tagsFailed;
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ["feed"] }),
           queryClient.invalidateQueries({ queryKey: ["user-posts"] }),
@@ -231,7 +255,8 @@ export function ComposerLauncher({
           queryClient.invalidateQueries({ queryKey: ["trending"] }),
         ]);
       }
-      toast.success("Posted", {
+      void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      toast.success(tagsFailed ? "Posted, but we couldn't tag everyone" : "Posted", {
         id: toastId,
         action: {
           label: "View",
@@ -248,6 +273,7 @@ export function ComposerLauncher({
       setCaption("");
       setStep(1);
       setFileError("");
+      setPostExtras(EMPTY_EXTRAS);
       toastIdRef.current = null;
     } catch (error) {
       const wasCancelled = error instanceof DOMException && error.name === "AbortError";
@@ -505,6 +531,7 @@ export function ComposerLauncher({
                 )}
                 <div className="min-w-0 flex-1">
                   <textarea
+                    ref={captionInput}
                     value={caption}
                     onChange={(event) => setCaption(event.currentTarget.value.slice(0, 500))}
                     placeholder="Write a caption..."
@@ -519,14 +546,16 @@ export function ComposerLauncher({
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => toast("Location tagging is coming soon.")}
-                className="flex min-h-12 items-center gap-3 border-y border-border px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <MapPin className="h-5 w-5" aria-hidden="true" />
-                Add location
-              </button>
+              <PostExtrasFields
+                value={postExtras}
+                onChange={setPostExtras}
+                audience={audience}
+                hashtags={extractHashtags(caption)}
+                onAddHashtag={() => {
+                  setCaption((value) => appendHashtagMark(value, 500));
+                  captionInput.current?.focus();
+                }}
+              />
 
               <div className="space-y-2">
                 <p className="text-sm font-semibold">Audience</p>

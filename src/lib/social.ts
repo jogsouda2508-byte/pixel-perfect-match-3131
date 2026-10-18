@@ -14,6 +14,8 @@ import type {
   SavedFeedRow,
   TrendingRow,
 } from "@/integrations/supabase/types";
+import type { PlaceSelection } from "@/lib/places";
+import { locationColumns, saveTags, withPostExtras } from "@/lib/post-extras";
 
 export type FeedTab = "for_you" | "following" | "local" | "business";
 export const FEED_PAGE_SIZE = 10;
@@ -69,7 +71,7 @@ export async function fetchFeed(args: {
     ...(location ? { p_location: location } : {}),
   });
   if (error) fail("Loading the feed", error);
-  return data ?? [];
+  return withPostExtras(data ?? []);
 }
 
 /** Profile locations people use, most common first (for the Local tab's picker). */
@@ -84,15 +86,28 @@ export async function createPost(args: {
   content: string;
   audience: Audience;
   image: File | null;
-}): Promise<void> {
+  /** Optional place picked in the location picker (never raw device coordinates). */
+  location?: PlaceSelection | null | undefined;
+  /** Optional ids of the people tagged in this post. */
+  taggedUserIds?: string[] | undefined;
+}): Promise<{ id: string; tagsFailed: boolean }> {
   const image_url = args.image ? await uploadImage(args.authorId, "posts", args.image) : null;
-  const { error } = await supabase.from("posts").insert({
-    author_id: args.authorId,
-    content: args.content,
-    audience: args.audience,
-    image_url,
-  });
+  const { data, error } = await supabase
+    .from("posts")
+    .insert({
+      author_id: args.authorId,
+      content: args.content,
+      audience: args.audience,
+      image_url,
+      ...locationColumns(args.location),
+    })
+    .select("id")
+    .single();
   if (error) fail("Creating the post", error);
+  // The post exists now. Tags are saved by a permission-checked database function; if that
+  // step fails the post stays published and the caller is told so it can say so.
+  const tagsFailed = !(await saveTags(data.id, args.taggedUserIds ?? []));
+  return { id: data.id, tagsFailed };
 }
 
 export async function deletePost(postId: string): Promise<void> {
@@ -109,6 +124,23 @@ export async function fetchUserPosts(userId: string): Promise<PostRow[]> {
     .limit(60);
   if (error) fail("Loading your posts", error);
   return data ?? [];
+}
+
+/**
+ * Posts this person is tagged in. Row-level security on `posts` still applies through the join,
+ * so a viewer only ever sees tagged posts they are allowed to see.
+ */
+export async function fetchTaggedPosts(userId: string): Promise<PostRow[]> {
+  const { data, error } = await supabase
+    .from("post_tags")
+    .select("created_at, post:posts!inner(*)")
+    .eq("tagged_user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(60);
+  if (error) fail("Loading tagged posts", error);
+  return ((data ?? []) as unknown as { post: PostRow | null }[])
+    .map((row) => row.post)
+    .filter((post): post is PostRow => !!post);
 }
 
 // ---------------------------------------------------------------------- likes
@@ -450,7 +482,7 @@ export async function fetchSavedPosts(before?: string | null): Promise<SavedFeed
     p_before: before ?? null,
   });
   if (error) fail("Loading saved posts", error);
-  return data ?? [];
+  return withPostExtras(data ?? []);
 }
 
 // --------------------------------------------------------------------- groups
@@ -531,7 +563,7 @@ export async function fetchPostById(postId: string, userId: string): Promise<Fee
   if (failed) fail("Loading this post", failed);
   if (!author.data) return null;
 
-  return {
+  const row: FeedRow = {
     ...post,
     media_type: post.media_type ?? "image",
     author_name: author.data.full_name,
@@ -542,4 +574,6 @@ export async function fetchPostById(postId: string, userId: string): Promise<Fee
     comment_count: comments.count ?? 0,
     liked_by_me: !!liked.data,
   };
+  const [withExtras] = await withPostExtras([row]);
+  return withExtras ?? row;
 }
