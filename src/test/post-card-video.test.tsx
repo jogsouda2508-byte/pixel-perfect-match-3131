@@ -103,7 +103,7 @@ describe("PostCard video posts", () => {
     const unsaved = screen.getByRole("button", { name: "Save video" });
     expect(unsaved).toHaveAttribute("aria-pressed", "false");
     expect(screen.queryByRole("button", { name: "Save post" })).toBeNull();
-    expect(unsaved.querySelector("svg")?.getAttribute("class")).not.toMatch(/fill-warning/);
+    expect(unsaved.querySelector("svg")?.getAttribute("class")).not.toMatch(/fill-amber-400/);
 
     saveState.saved = true;
     rerender(
@@ -113,7 +113,7 @@ describe("PostCard video posts", () => {
     );
     const saved = screen.getByRole("button", { name: "Remove video from saved" });
     expect(saved).toHaveAttribute("aria-pressed", "true");
-    expect(saved.querySelector("svg")?.getAttribute("class")).toMatch(/fill-warning/);
+    expect(saved.querySelector("svg")?.getAttribute("class")).toMatch(/fill-amber-400/);
   });
 
   it("keeps the image and uses the same star save button for image posts", () => {
@@ -123,7 +123,7 @@ describe("PostCard video posts", () => {
     expect(container.querySelector("img[src='https://cdn.example/media/i.jpg']")).not.toBeNull();
     const save = screen.getByRole("button", { name: "Save post" });
     expect(save).toBeInTheDocument();
-    expect(save.querySelector("svg")?.getAttribute("class")).not.toMatch(/fill-warning/);
+    expect(save.querySelector("svg")?.getAttribute("class")).not.toMatch(/fill-amber-400/);
     expect(screen.queryByRole("button", { name: "Save video" })).toBeNull();
   });
 
@@ -132,7 +132,7 @@ describe("PostCard video posts", () => {
     renderCard(post({ image_url: "https://cdn.example/media/i.jpg" }));
     const saved = screen.getByRole("button", { name: "Remove from saved" });
     expect(saved).toHaveAttribute("aria-pressed", "true");
-    expect(saved.querySelector("svg")?.getAttribute("class")).toMatch(/fill-warning/);
+    expect(saved.querySelector("svg")?.getAttribute("class")).toMatch(/fill-amber-400/);
   });
 
   it("uses the star on plain text posts", () => {

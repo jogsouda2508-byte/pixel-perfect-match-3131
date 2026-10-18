@@ -6,7 +6,6 @@ import {
   Download,
   Heart,
   Loader2,
-  Maximize,
   MessageCircle,
   MoreHorizontal,
   Play,
@@ -235,19 +234,6 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
     setCurrentTime(video.currentTime);
   };
 
-  const enterFullscreen = async (post: VideoFeedRow) => {
-    const video = videoRefs.current.get(post.id) as
-      (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | undefined;
-    if (!video) return;
-    try {
-      if (video.requestFullscreen) await video.requestFullscreen();
-      else if (video.webkitEnterFullscreen) video.webkitEnterFullscreen();
-      else toast.error("Full screen isn't supported in this browser.");
-    } catch {
-      toast.error("Couldn't open full screen.");
-    }
-  };
-
   const download = async (post: VideoFeedRow) => {
     if (downloading[post.id]) return;
     setDownloading((state) => ({ ...state, [post.id]: true }));
@@ -330,7 +316,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
       <SideNav />
       <section
         ref={containerRef}
-        aria-label="Videos"
+        aria-label="Reels"
         className="h-[100dvh] min-h-0 snap-y snap-mandatory overflow-y-auto overscroll-contain bg-black"
       >
         {items.map((post, index) => {
@@ -454,7 +440,6 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
               )}
               <header className="absolute inset-x-0 top-0 z-10 flex items-center justify-end bg-gradient-to-b from-black/65 to-transparent p-3 pt-[max(env(safe-area-inset-top),0.75rem)]">
                 <div className="flex items-center gap-2">
-                  <ComposerLauncher variant="video" />
                   <button
                     type="button"
                     onClick={toggleMute}
@@ -563,14 +548,6 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => void enterFullscreen(post)}
-                  aria-label="Full screen"
-                  className="grid h-12 w-12 place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                >
-                  <Maximize className="h-6 w-6" aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
                   onClick={() => void saved.toggle(post.id)}
                   disabled={saved.isPending(post.id)}
                   aria-label={saved.isSaved(post.id) ? "Remove video from saved" : "Save video"}
@@ -578,7 +555,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                   className="grid h-12 w-12 place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
                 >
                   <Star
-                    className={`h-6 w-6 ${saved.isSaved(post.id) ? "fill-warning text-warning" : ""}`}
+                    className={`h-6 w-6 ${saved.isSaved(post.id) ? "fill-amber-400 text-amber-500" : ""}`}
                     aria-hidden="true"
                   />
                 </button>
@@ -615,7 +592,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
         {feed.isError && (
           <div className="grid min-h-40 place-items-center bg-black p-5 text-white" role="alert">
             <div className="space-y-3 text-center">
-              <p className="text-sm">Couldn't load more videos.</p>
+              <p className="text-sm">Couldn't load more reels.</p>
               <Button type="button" variant="secondary" onClick={() => void feed.fetchNextPage()}>
                 Retry
               </Button>
@@ -675,7 +652,7 @@ function VideoFeedError({ onRetry }: { onRetry: () => void }) {
       <section className="grid h-[100dvh] place-items-center bg-background p-6 text-center text-foreground">
         <div className="space-y-4">
           <AlertCircle className="mx-auto h-10 w-10" />
-          <p className="text-sm">Couldn't load videos.</p>
+          <p className="text-sm">Couldn't load reels.</p>
           <Button type="button" variant="secondary" onClick={onRetry}>
             Retry
           </Button>
@@ -695,9 +672,9 @@ function VideoFeedEmpty() {
           <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-primary/10 text-primary">
             <Camera className="h-8 w-8" aria-hidden="true" />
           </div>
-          <h1 className="text-xl font-semibold">No videos yet</h1>
+          <h1 className="text-xl font-semibold">No reels yet</h1>
           <p className="text-sm text-muted-foreground">
-            Be the first to share a short video with your community.
+            Be the first to share a short reel with your community.
           </p>
           <ComposerLauncher variant="video" videoLabel />
         </div>
@@ -800,7 +777,7 @@ function VideoComments({
 
 function CommentItem({ comment }: { comment: CommentView }) {
   const author = comment.author;
-  const displayName = author?.full_name || author?.username || "Ediraa user";
+  const displayName = author?.full_name || author?.username || "Gicco chat user";
   return (
     <div className="flex items-start gap-3">
       <Avatar src={author?.avatar_url} name={displayName} size={36} />

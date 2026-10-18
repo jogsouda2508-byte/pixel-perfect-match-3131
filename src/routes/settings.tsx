@@ -15,8 +15,8 @@ import { passwordSchema, passwordStrength } from "@/lib/validation";
 export const Route = createFileRoute("/settings")({
   head: () => ({
     meta: [
-      { title: "Settings & Privacy — Ediraa" },
-      { name: "description", content: "Edit your profile and manage your Ediraa account." },
+      { title: "Settings & Privacy — Gicco chat" },
+      { name: "description", content: "Edit your profile and manage your Gicco chat account." },
     ],
   }),
   component: SettingsPage,

@@ -42,9 +42,23 @@ export type CommentRow = {
 export type StoryRow = {
   id: string;
   author_id: string;
-  image_url: string;
+  /** null for video stories */
+  image_url: string | null;
   created_at: string;
+  media_type: "image" | "video";
+  video_url: string | null;
+  /** all segments of one video upload share this id */
+  upload_id: string | null;
+  segment_index: number;
+  segment_count: number;
+  /** the part of video_url (in seconds) that this story plays */
+  segment_start: number;
+  segment_end: number | null;
+  duration_seconds: number | null;
 };
+
+/** One row of `get_localities` */
+export type LocalityRow = { locality: string; people: number };
 
 /** One row of `get_feed` */
 export type FeedRow = {
@@ -227,8 +241,19 @@ export type Database = {
       };
       stories: {
         Row: StoryRow;
-        Insert: { author_id: string; image_url: string };
-        Update: { image_url?: string };
+        Insert: {
+          author_id: string;
+          image_url?: string | null;
+          media_type?: "image" | "video";
+          video_url?: string | null;
+          upload_id?: string | null;
+          segment_index?: number;
+          segment_count?: number;
+          segment_start?: number;
+          segment_end?: number | null;
+          duration_seconds?: number | null;
+        };
+        Update: { image_url?: string | null };
         Relationships: [
           {
             foreignKeyName: "stories_author_id_fkey";
@@ -299,9 +324,17 @@ export type Database = {
       is_username_available: { Args: { p_username: string }; Returns: boolean };
       get_login_email: { Args: { p_username: string }; Returns: string | null };
       get_feed: {
-        Args: { p_tab: string; p_search: string | null; p_limit: number; p_before: string | null };
+        Args: {
+          p_tab: string;
+          p_search: string | null;
+          p_limit: number;
+          p_before: string | null;
+          /** the picked locality for the Local tab; omit to use the profile's own location */
+          p_location?: string;
+        };
         Returns: FeedRow[];
       };
+      get_localities: { Args: { p_limit: number }; Returns: LocalityRow[] };
       get_people: {
         Args: {
           p_query: string | null;

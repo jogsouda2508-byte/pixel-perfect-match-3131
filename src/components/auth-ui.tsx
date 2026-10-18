@@ -38,9 +38,9 @@ export function AuthShell({
         <path d="M0 800V680C140 780 300 730 400 580V800Z" fill="url(#a2)" />
       </svg>
       <div className="relative w-full max-w-md">
-        <Link to="/" className="mx-auto flex w-fit items-center gap-2" aria-label="Ediraa home">
+        <Link to="/" className="mx-auto flex w-fit items-center gap-2" aria-label="Gicco chat home">
           <Logo size={56} className="lg:h-16 lg:w-16" />
-          <span className="text-2xl font-bold">Ediraa</span>
+          <span className="text-2xl font-bold">Gicco chat</span>
         </Link>
         <div className="glass-card mt-6 p-6">
           <h1 className="text-2xl font-bold">{title}</h1>

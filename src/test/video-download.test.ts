@@ -13,12 +13,12 @@ describe("video download helpers", () => {
     expect(videoExtension("https://x.test/file")).toBe("mp4");
   });
   it("builds a sensible, safe filename", () => {
-    expect(videoFilename("123-abc", url)).toBe("ediraa-video-123-abc.webm");
-    expect(videoFilename("../evil/id", "https://x.test/a.mp4")).toBe("ediraa-video-evilid.mp4");
+    expect(videoFilename("123-abc", url)).toBe("gicco-chat-video-123-abc.webm");
+    expect(videoFilename("../evil/id", "https://x.test/a.mp4")).toBe("gicco-chat-video-evilid.mp4");
   });
   it("adds the download parameter without dropping the path", () => {
-    const result = forcedDownloadUrl(url, "ediraa-video-1.webm");
+    const result = forcedDownloadUrl(url, "gicco-chat-video-1.webm");
     expect(result).toContain("/videos/u1/abc.webm");
-    expect(new URL(result).searchParams.get("download")).toBe("ediraa-video-1.webm");
+    expect(new URL(result).searchParams.get("download")).toBe("gicco-chat-video-1.webm");
   });
 });

@@ -9,8 +9,8 @@ import { FEED_PAGE_SIZE, fetchSavedPosts } from "@/lib/social";
 export const Route = createFileRoute("/saved")({
   head: () => ({
     meta: [
-      { title: "Saved Posts — Ediraa" },
-      { name: "description", content: "Posts you've saved on Ediraa." },
+      { title: "Saved Posts — Gicco chat" },
+      { name: "description", content: "Posts you've saved on Gicco chat." },
     ],
   }),
   component: SavedPage,

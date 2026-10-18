@@ -36,10 +36,10 @@ export function videoExtension(url: string, mimeType?: string | null): string {
   return (base && MIME_EXTENSIONS[base]) || "mp4";
 }
 
-/** e.g. ediraa-video-3f2a….mp4 */
+/** e.g. gicco-chat-video-3f2a….mp4 */
 export function videoFilename(videoId: string, url: string, mimeType?: string | null): string {
   const safeId = videoId.replace(/[^a-zA-Z0-9_-]/g, "");
-  return `ediraa-video-${safeId || "download"}.${videoExtension(url, mimeType)}`;
+  return `gicco-chat-video-${safeId || "download"}.${videoExtension(url, mimeType)}`;
 }
 
 function saveBlob(blob: Blob, filename: string) {

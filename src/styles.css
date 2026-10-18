@@ -241,3 +241,30 @@
   max-width: 100%;
   height: min(380px, 55dvh);
 }
+
+/* White scrollbar for one horizontally scrollable row (the Home feed category tabs).
+   Opt-in via the class, so other scrolling areas (Stories, Discover and Notifications tabs)
+   keep the default look. Thickness is left untouched, so layout and spacing do not change.
+   Scrolling still works by touch, trackpad, mouse wheel and keyboard. */
+.scrollbar-white {
+  scrollbar-color: #ffffff #ffffff; /* thumb, track: Chrome 121+ (desktop + Android), Firefox */
+}
+.dark .scrollbar-white {
+  /* Match the dark page background instead, so no bright line shows in dark mode. */
+  scrollbar-color: var(--background) var(--background);
+}
+@supports not (scrollbar-color: auto) {
+  /* Older Chromium / Safari */
+  .scrollbar-white::-webkit-scrollbar,
+  .scrollbar-white::-webkit-scrollbar-track,
+  .scrollbar-white::-webkit-scrollbar-thumb,
+  .scrollbar-white::-webkit-scrollbar-corner {
+    background: #ffffff;
+  }
+  .dark .scrollbar-white::-webkit-scrollbar,
+  .dark .scrollbar-white::-webkit-scrollbar-track,
+  .dark .scrollbar-white::-webkit-scrollbar-thumb,
+  .dark .scrollbar-white::-webkit-scrollbar-corner {
+    background: var(--background);
+  }
+}

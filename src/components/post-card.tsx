@@ -165,9 +165,9 @@ export function PostCard({
                 : "Save post"
           }
           aria-pressed={isSaved}
-          className={`grid h-9 w-9 place-items-center rounded-full hover:bg-elevated disabled:opacity-60 ${isSaved ? "text-warning" : "text-muted-foreground"}`}
+          className={`grid h-9 w-9 place-items-center rounded-full hover:bg-elevated disabled:opacity-60 ${isSaved ? "text-amber-500" : "text-muted-foreground"}`}
         >
-          <Star className={`h-5 w-5 ${isSaved ? "fill-warning" : ""}`} aria-hidden="true" />
+          <Star className={`h-5 w-5 ${isSaved ? "fill-amber-400" : ""}`} aria-hidden="true" />
         </button>
         {mine && (
           <DropdownMenu>
