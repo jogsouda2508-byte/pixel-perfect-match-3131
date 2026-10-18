@@ -28,7 +28,7 @@ type DisplayMessage = MessageRow & { status?: "sending" | "failed" };
 
 export const Route = createFileRoute("/chat/$id")({
   head: () => ({
-    meta: [{ title: "Conversation — Ediraa" }],
+    meta: [{ title: "Conversation — Gicco chat" }],
   }),
   component: ConversationPage,
 });

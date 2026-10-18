@@ -14,8 +14,8 @@ const SUPPORT_EMAIL = "support@example.com";
 export const Route = createFileRoute("/help")({
   head: () => ({
     meta: [
-      { title: "Help & Support — Ediraa" },
-      { name: "description", content: "Answers to common questions about using Ediraa." },
+      { title: "Help & Support — Gicco chat" },
+      { name: "description", content: "Answers to common questions about using Gicco chat." },
     ],
   }),
   component: HelpPage,
@@ -32,7 +32,7 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: "Who can see my posts?",
-    a: "That depends on the audience you pick when posting. Public posts are visible to every Ediraa user. Friends posts are visible to people you follow who also follow you. Local Community posts are visible to people whose profile location matches yours.",
+    a: "That depends on the audience you pick when posting. Public posts are visible to every Gicco chat user. Friends posts are visible to people you follow who also follow you. Local Community posts are visible to people whose profile location matches yours.",
   },
   {
     q: "How long do stories last?",
@@ -72,7 +72,7 @@ function HelpPage() {
           Tell us what's going wrong and we'll get back to you.
         </p>
         <a
-          href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Ediraa support request")}`}
+          href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Gicco chat support request")}`}
           className="mx-auto inline-flex items-center gap-2 rounded-full bg-gradient-brand px-6 py-3 text-sm font-semibold text-primary-foreground"
         >
           <Mail className="h-4 w-4" />

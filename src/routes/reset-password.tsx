@@ -9,7 +9,7 @@ import { AuthShell, PasswordField, PrimaryButton } from "@/components/auth-ui";
 import { Spinner } from "@/components/auth-gate";
 
 export const Route = createFileRoute("/reset-password")({
-  head: () => ({ meta: [{ title: "Reset Password — Ediraa" }] }),
+  head: () => ({ meta: [{ title: "Reset Password — Gicco chat" }] }),
   component: ResetPasswordPage,
 });
 

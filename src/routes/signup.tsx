@@ -25,10 +25,10 @@ import { PhoneAuth } from "@/components/phone-auth";
 export const Route = createFileRoute("/signup")({
   head: () => ({
     meta: [
-      { title: "Create Account — Ediraa" },
+      { title: "Create Account — Gicco chat" },
       {
         name: "description",
-        content: "Join Ediraa to connect, share and grow your local network.",
+        content: "Join Gicco chat to connect, share and grow your local network.",
       },
     ],
   }),
@@ -245,7 +245,7 @@ function SignUpPage() {
   return isGoogleSignupPending(user, profile) ? <GoogleCompleteSignup /> : <SignUpForm />;
 }
 
-/** Shown when someone taps "Continue with Google" but has no Ediraa account yet. */
+/** Shown when someone taps "Continue with Google" but has no Gicco chat account yet. */
 function GoogleCompleteSignup() {
   const { user, profile, refreshProfile, signOut } = useAuth();
   const navigate = useNavigate();
@@ -318,7 +318,7 @@ function GoogleCompleteSignup() {
   return (
     <AuthShell
       title="Finish signing up"
-      subtitle="You don't have an Ediraa account yet. Create one to continue."
+      subtitle="You don't have an Gicco chat account yet. Create one to continue."
       footer={
         <button
           type="button"

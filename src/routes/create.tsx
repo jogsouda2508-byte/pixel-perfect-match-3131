@@ -12,10 +12,10 @@ import type { Audience } from "@/integrations/supabase/types";
 export const Route = createFileRoute("/create")({
   head: () => ({
     meta: [
-      { title: "Create Post — Ediraa" },
-      { name: "description", content: "Share an update with your Ediraa network." },
-      { property: "og:title", content: "Create Post — Ediraa" },
-      { property: "og:description", content: "Share an update with your Ediraa network." },
+      { title: "Create Post — Gicco chat" },
+      { name: "description", content: "Share an update with your Gicco chat network." },
+      { property: "og:title", content: "Create Post — Gicco chat" },
+      { property: "og:description", content: "Share an update with your Gicco chat network." },
     ],
   }),
   component: CreatePostPage,

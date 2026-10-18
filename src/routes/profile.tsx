@@ -5,10 +5,10 @@ import { useAuth } from "@/lib/auth";
 export const Route = createFileRoute("/profile")({
   head: () => ({
     meta: [
-      { title: "Profile — Ediraa" },
-      { name: "description", content: "Your posts, reels and tagged photos on Ediraa." },
-      { property: "og:title", content: "Profile — Ediraa" },
-      { property: "og:description", content: "Your posts, reels and tagged photos on Ediraa." },
+      { title: "Profile — Gicco chat" },
+      { name: "description", content: "Your posts, reels and tagged photos on Gicco chat." },
+      { property: "og:title", content: "Profile — Gicco chat" },
+      { property: "og:description", content: "Your posts, reels and tagged photos on Gicco chat." },
     ],
   }),
   component: ProfilePage,

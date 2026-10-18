@@ -9,7 +9,7 @@ import { fetchPostById } from "@/lib/social";
 
 export const Route = createFileRoute("/post/$id")({
   head: () => ({
-    meta: [{ title: "Post — Ediraa" }],
+    meta: [{ title: "Post — Gicco chat" }],
   }),
   validateSearch: (search: Record<string, unknown>): { comments?: boolean } =>
     search["comments"] === true || search["comments"] === "true" ? { comments: true } : {},

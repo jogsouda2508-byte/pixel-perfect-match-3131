@@ -92,9 +92,9 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
   };
 
   const reelsContent = (
-    <section aria-label="Videos" className="mt-3">
+    <section aria-label="Reels" className="mt-3">
       {videos.isLoading && (
-        <div className="grid grid-cols-3 gap-1.5" aria-label="Loading videos">
+        <div className="grid grid-cols-3 gap-1.5" aria-label="Loading reels">
           {[0, 1, 2, 3, 4, 5].map((item) => (
             <div key={item} className="aspect-[9/16] animate-pulse rounded-lg bg-elevated" />
           ))}
@@ -102,12 +102,12 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
       )}
       {videos.isError && (
         <p className="glass-card p-6 text-center text-sm text-destructive">
-          Couldn't load videos. Please try again.
+          Couldn't load reels. Please try again.
         </p>
       )}
       {videos.isSuccess && videos.data.length === 0 && (
         <p className="glass-card p-6 text-center text-sm text-muted-foreground">
-          {isMe ? "You haven't shared any videos yet." : "No videos to show yet."}
+          {isMe ? "You haven't shared any reels yet." : "No reels to show yet."}
         </p>
       )}
       <div className="grid grid-cols-3 gap-1.5">

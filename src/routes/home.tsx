@@ -19,15 +19,15 @@ import { useFollow } from "@/lib/use-follow";
 export const Route = createFileRoute("/home")({
   head: () => ({
     meta: [
-      { title: "Home Feed — Ediraa" },
+      { title: "Home Feed — Gicco chat" },
       {
         name: "description",
-        content: "Stories, posts and local updates from your Ediraa network.",
+        content: "Stories, posts and local updates from your Gicco chat network.",
       },
-      { property: "og:title", content: "Home Feed — Ediraa" },
+      { property: "og:title", content: "Home Feed — Gicco chat" },
       {
         property: "og:description",
-        content: "Stories, posts and local updates from your Ediraa network.",
+        content: "Stories, posts and local updates from your Gicco chat network.",
       },
     ],
   }),
@@ -90,7 +90,7 @@ function HomePage() {
       <main className="min-w-0 space-y-4">
         <header className="flex flex-wrap items-center justify-between gap-y-3 md:flex-nowrap md:gap-4 lg:min-h-16 2xl:min-h-[4.5rem]">
           {/* The name lives in the side menu on desktop; keep it on phones, which have no side menu. */}
-          <h1 className="order-1 text-2xl font-bold md:hidden">Ediraa</h1>
+          <h1 className="order-1 text-2xl font-bold md:hidden">Gicco chat</h1>
           <div className="scrollbar-white order-3 flex w-full gap-2 overflow-x-auto md:order-1 md:w-auto md:min-w-0 md:flex-1">
             {TABS.map((t) => (
               <Pill key={t.key} active={tab === t.key} onClick={() => setTab(t.key)}>
@@ -226,7 +226,7 @@ function HomePage() {
             ))}
           </div>
           <p className="mt-4 flex items-center gap-1 text-xs text-muted-foreground">
-            Ediraa Official <Verified />
+            Gicco chat Official <Verified />
           </p>
         </section>
       </aside>

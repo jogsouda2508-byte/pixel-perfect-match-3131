@@ -11,7 +11,7 @@ export function Logo({ size = 96, className = "" }: { size?: number; className?:
       src={logoUrl}
       width={size}
       height={size}
-      alt="Ediraa logo"
+      alt="Gicco chat logo"
       decoding="async"
       className={`select-none object-contain dark:invert ${className}`}
       draggable={false}
@@ -143,7 +143,7 @@ export function UserRow({
 
 const items = [
   { to: "/home", label: "Home", icon: Home },
-  { to: "/videos", label: "Videos", icon: Video },
+  { to: "/videos", label: "Reels", icon: Video },
   { to: "/chat", label: "Chat", icon: MessageSquare },
   { to: "/discover", label: "Search", icon: Search },
   { to: "/profile", label: "Profile", icon: User },
@@ -200,9 +200,9 @@ export function SideNav() {
   const chatUnread = useChatUnread();
   return (
     <aside className="sticky top-6 hidden h-fit flex-col gap-2 md:flex">
-      <div className="mb-4 flex items-center gap-2 px-3">
-        <Logo size={56} className="lg:h-16 lg:w-16 2xl:h-[4.5rem] 2xl:w-[4.5rem]" />
-        <span className="text-2xl font-bold 2xl:text-3xl">Ediraa</span>
+      <div className="mb-4 flex items-center gap-2 px-3 lg:min-h-16 2xl:min-h-[4.5rem]">
+        <Logo size={48} className="h-12 w-12 shrink-0" />
+        <span className="whitespace-nowrap text-xl font-bold">Gicco chat</span>
       </div>
       {items.map((i) => (
         <Link

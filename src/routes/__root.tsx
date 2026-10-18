@@ -81,8 +81,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Ediraa" },
-      { name: "description", content: "Ediraa social network" },
+      { title: "Gicco chat" },
+      { name: "description", content: "Gicco chat social network" },
       { name: "author", content: "Lovable" },
       
       

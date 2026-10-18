@@ -13,7 +13,7 @@ export const Route = createFileRoute("/verify")({
     if (typeof search["phone"] === "string" && search["phone"]) out.phone = search["phone"];
     return out;
   },
-  head: () => ({ meta: [{ title: "Verify — Ediraa" }] }),
+  head: () => ({ meta: [{ title: "Verify — Gicco chat" }] }),
   component: VerifyPage,
 });
 

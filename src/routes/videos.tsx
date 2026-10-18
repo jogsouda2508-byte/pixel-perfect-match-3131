@@ -8,8 +8,8 @@ export const Route = createFileRoute("/videos")({
   },
   head: () => ({
     meta: [
-      { title: "Videos — Ediraa" },
-      { name: "description", content: "Watch short videos shared by your Ediraa community." },
+      { title: "Reels — Gicco chat" },
+      { name: "description", content: "Watch short reels shared by your Gicco chat community." },
     ],
   }),
   component: VideosPage,

@@ -8,7 +8,7 @@ import { emailSchema } from "@/lib/validation";
 import { AuthShell, PrimaryButton, TextField } from "@/components/auth-ui";
 
 export const Route = createFileRoute("/forgot-password")({
-  head: () => ({ meta: [{ title: "Forgot Password — Ediraa" }] }),
+  head: () => ({ meta: [{ title: "Forgot Password — Gicco chat" }] }),
   component: ForgotPasswordPage,
 });
 

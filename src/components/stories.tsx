@@ -116,7 +116,7 @@ function StoryBubble({
       style={{ width: STORY_SIZE + 12 }}
     >
       {children}
-      <span className="w-full truncate text-center text-xs">{label}</span>
+      <span className="line-clamp-2 w-full break-words text-center text-xs leading-tight">{label}</span>
     </button>
   );
 }

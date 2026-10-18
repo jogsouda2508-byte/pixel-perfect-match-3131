@@ -9,7 +9,7 @@ import { Avatar } from "@/components/ediraa";
 import { AuthShell, PrimaryButton, inputClass } from "@/components/auth-ui";
 
 export const Route = createFileRoute("/onboarding")({
-  head: () => ({ meta: [{ title: "Set up your profile — Ediraa" }] }),
+  head: () => ({ meta: [{ title: "Set up your profile — Gicco chat" }] }),
   component: OnboardingPage,
 });
 
