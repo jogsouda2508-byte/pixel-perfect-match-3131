@@ -42,12 +42,20 @@ const kindIcon = {
   ),
   follow: <UserPlus className="h-3.5 w-3.5 text-primary-foreground" />,
   share: <Send className="h-3.5 w-3.5 text-primary-foreground" />,
+  story_like: <Heart className="h-3.5 w-3.5 fill-primary-foreground text-primary-foreground" />,
+  story_comment: (
+    <MessageSquare className="h-3.5 w-3.5 fill-primary-foreground text-primary-foreground" />
+  ),
+  story_mention: <Send className="h-3.5 w-3.5 text-primary-foreground" />,
 } as const;
 const kindColor = {
   like: "bg-destructive",
   comment: "bg-primary",
   follow: "bg-success",
   share: "bg-primary",
+  story_like: "bg-destructive",
+  story_comment: "bg-primary",
+  story_mention: "bg-primary",
 } as const;
 
 function describe(n: NotificationRow) {
@@ -55,6 +63,9 @@ function describe(n: NotificationRow) {
   if (n.kind === "comment") return `commented: ${n.snippet ?? ""}`;
   if (n.kind === "share")
     return n.snippet === "video" ? "shared a video with you" : "shared a post with you";
+  if (n.kind === "story_like") return "liked your story";
+  if (n.kind === "story_comment") return `commented on your story: ${n.snippet ?? ""}`;
+  if (n.kind === "story_mention") return "mentioned you in a story";
   return "started following you";
 }
 
@@ -80,7 +91,13 @@ function NotificationsPage() {
   }, [meId, qc]);
 
   const kind = tabKind[tab];
-  const visible = (list.data ?? []).filter((n) => !kind || n.kind === kind);
+  const visible = (list.data ?? []).filter(
+    (n) =>
+      !kind ||
+      n.kind === kind ||
+      (kind === "like" && n.kind === "story_like") ||
+      (kind === "comment" && n.kind === "story_comment"),
+  );
 
   return (
     <div className="mx-auto max-w-[1480px] px-4 sm:px-6 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]">
