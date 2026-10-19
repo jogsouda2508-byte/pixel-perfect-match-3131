@@ -268,3 +268,55 @@
     background: var(--background);
   }
 }
+
+/* Story like: one big heart pops in the middle of the story, bounces once and fades out.
+   Used by the StoryHeartBurst overlay in components/stories.tsx (~900 ms). */
+@keyframes story-heart-pop {
+  0% {
+    transform: scale(0.2);
+    opacity: 0;
+  }
+  18% {
+    transform: scale(1.35);
+    opacity: 1;
+  }
+  32% {
+    transform: scale(0.92);
+    opacity: 1;
+  }
+  46% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  60% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.18);
+    opacity: 0;
+  }
+}
+@keyframes story-heart-fade {
+  0% {
+    opacity: 0;
+  }
+  25%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.story-heart-pop {
+  animation: story-heart-pop 900ms ease-out both;
+  will-change: transform, opacity;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* No movement: the heart just fades in and out. */
+  .story-heart-pop {
+    animation: story-heart-fade 700ms ease-out both;
+    will-change: opacity;
+  }
+}

@@ -10,6 +10,7 @@ import {
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Profile } from "@/integrations/supabase/types";
+import { removePushOnLogout } from "@/lib/push";
 import { friendlyAuthError } from "@/lib/auth-errors";
 
 type Result = { error: string | null };
@@ -145,6 +146,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    // Stop this device getting the signed-out person's notifications (needs the session, so
+    // it runs first; it never throws and never blocks logging out).
+    await removePushOnLogout();
     await supabase.auth.signOut();
     setProfile(null);
   }, []);

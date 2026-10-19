@@ -13,6 +13,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { AuthProvider } from "../lib/auth";
 import { AuthGate } from "../components/auth-gate";
+import { PushPrompt } from "../components/push-prompt";
 import { Toaster } from "../components/ui/sonner";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 
@@ -84,6 +85,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "Gicco chat" },
       { name: "description", content: "Gicco chat social network" },
       { name: "author", content: "Lovable" },
+      { name: "theme-color", content: "#15121f" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-title", content: "Gicco" },
       
       
       { property: "og:type", content: "website" },
@@ -96,6 +100,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         href: appCss,
       },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "manifest", href: "/manifest.webmanifest" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" },
     ],
   }),
@@ -128,6 +134,7 @@ function RootComponent() {
         <AuthGate>
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
           <Outlet />
+          <PushPrompt />
         </AuthGate>
         <Toaster theme="dark" position="top-center" />
       </AuthProvider>

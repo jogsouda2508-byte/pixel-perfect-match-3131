@@ -27,7 +27,16 @@ export function GroupAvatar({
       </span>
     );
   }
-  const photo = Math.round(size * 0.68);
+  // One member: show their photo at the full size, like a one-to-one chat avatar.
+  if (shown.length === 1 && !(total && total > 1)) {
+    const only = shown[0]!;
+    return (
+      <span className="shrink-0" style={{ width: size, height: size }} aria-hidden="true">
+        <Avatar src={only.avatar_url} name={only.name || "Member"} size={size} />
+      </span>
+    );
+  }
+  const photo = Math.round(size * 0.78);
   const step = Math.round(photo * 0.62);
   const extra = Math.max(0, (total ?? shown.length) - shown.length);
   const slots = shown.length + (extra > 0 ? 1 : 0);

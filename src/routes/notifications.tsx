@@ -28,15 +28,17 @@ export const Route = createFileRoute("/notifications")({
 });
 
 const tabs = ["All", "Likes", "Comments", "Follows"] as const;
-const tabKind: Record<(typeof tabs)[number], NotificationRow["kind"] | null> = {
+// Which notification kinds each tab shows (null = all). "Likes" covers post AND story likes.
+const tabKinds: Record<(typeof tabs)[number], readonly NotificationRow["kind"][] | null> = {
   All: null,
-  Likes: "like",
-  Comments: "comment",
-  Follows: "follow",
+  Likes: ["like", "story_like"],
+  Comments: ["comment"],
+  Follows: ["follow"],
 };
 
 const kindIcon = {
   like: <Heart className="h-3.5 w-3.5 fill-primary-foreground text-primary-foreground" />,
+  story_like: <Heart className="h-3.5 w-3.5 fill-primary-foreground text-primary-foreground" />,
   comment: (
     <MessageSquare className="h-3.5 w-3.5 fill-primary-foreground text-primary-foreground" />
   ),
@@ -45,6 +47,7 @@ const kindIcon = {
 } as const;
 const kindColor = {
   like: "bg-destructive",
+  story_like: "bg-destructive",
   comment: "bg-primary",
   follow: "bg-success",
   share: "bg-primary",
@@ -52,6 +55,7 @@ const kindColor = {
 
 function describe(n: NotificationRow) {
   if (n.kind === "like") return "liked your post";
+  if (n.kind === "story_like") return "liked your story";
   if (n.kind === "comment") return `commented: ${n.snippet ?? ""}`;
   if (n.kind === "share")
     return n.snippet === "video" ? "shared a video with you" : "shared a post with you";
@@ -79,8 +83,8 @@ function NotificationsPage() {
       .catch(() => {});
   }, [meId, qc]);
 
-  const kind = tabKind[tab];
-  const visible = (list.data ?? []).filter((n) => !kind || n.kind === kind);
+  const kinds = tabKinds[tab];
+  const visible = (list.data ?? []).filter((n) => !kinds || kinds.includes(n.kind));
 
   return (
     <div className="mx-auto max-w-[1480px] px-4 sm:px-6 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]">

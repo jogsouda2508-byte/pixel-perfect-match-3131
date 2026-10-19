@@ -4,9 +4,7 @@ import type {
   Audience,
   CommentRow,
   FeedRow,
-  GroupInviteRow,
   GroupListRow,
-  GroupMemberRow,
   LocalityRow,
   NotificationRow,
   PersonRow,
@@ -25,19 +23,9 @@ import { isMissingColumnError, isMissingFunctionError, isMissingTableError } fro
 export type FeedTab = "for_you" | "following" | "local" | "business";
 export const FEED_PAGE_SIZE = 10;
 
-/** Database error codes (raised by the group functions) in plain words. */
-const FRIENDLY_ERRORS: Record<string, string> = {
-  private_group: "This group is private. You need an invitation to join.",
-  no_invite: "This invitation was withdrawn.",
-  admins_only: "Only the group admin can do that.",
-  admin_cannot_leave: "Admins can't leave. Delete the group instead.",
-  not_member: "You're not a member of this group.",
-  group_not_found: "This group no longer exists.",
-};
-
 function fail(action: string, error: { message: string }): never {
   console.error(`${action} failed`, error);
-  throw new Error(FRIENDLY_ERRORS[error.message] ?? (error.message || `${action} failed`));
+  throw new Error(error.message || `${action} failed`);
 }
 
 // ---------------------------------------------------------------- media upload
@@ -460,13 +448,22 @@ export async function recordStoryView(storyId: string): Promise<void> {
   }
 }
 
-/** Likes or unlikes a story as me. */
+/**
+ * Likes or unlikes a story as me. Safe to repeat: the database keeps at most one like per
+ * person per story, so asking for the same state twice changes nothing (and never notifies
+ * the owner twice). Throws when the story can't be liked (expired, hidden, deleted, or mine),
+ * so the caller can put the heart back.
+ */
 export async function setStoryLike(storyId: string, liked: boolean): Promise<void> {
-  const { error } = await supabase.rpc("set_story_like", {
+  const { data, error } = await supabase.rpc("set_story_like", {
     p_story_id: storyId,
     p_liked: liked,
   });
   if (error) fail("Updating the story like", error);
+  // NULL = the database found no story I'm allowed to like
+  if (data === null || data === undefined) {
+    fail("Updating the story like", { message: "This story isn't available any more." });
+  }
 }
 
 /**
@@ -643,79 +640,29 @@ export async function fetchGroups(args: {
   return data ?? [];
 }
 
-/** One group as visible to me (null if it doesn't exist or is private and I'm not involved). */
-export async function fetchGroup(groupId: string): Promise<GroupListRow | null> {
-  const { data, error } = await supabase.rpc("get_groups", {
-    p_query: null,
-    p_mine_only: false,
-    p_limit: 1,
-    p_group: groupId,
-  });
-  if (error) fail("Loading the group", error);
-  return data?.[0] ?? null;
-}
-
-/** Creates the group, its chat room and one pending invitation per invitee. */
-export async function createGroup(
-  name: string,
-  description: string,
-  isPrivate = false,
-  invitees: string[] = [],
-): Promise<string> {
+export async function createGroup(name: string, description: string): Promise<string> {
   const { data, error } = await supabase.rpc("create_group", {
     p_name: name.trim(),
     p_description: description.trim(),
-    p_is_private: isPrivate,
-    p_invitees: invitees,
   });
   if (error) fail("Creating the group", error);
   return data as string;
 }
 
-/** Join a public group, or leave one. Both go through database functions. */
 export async function setGroupMembership(
   groupId: string,
-  _userId: string,
+  userId: string,
   join: boolean,
 ): Promise<void> {
   const { error } = join
-    ? await supabase.rpc("join_group", { p_group: groupId })
-    : await supabase.rpc("leave_group", { p_group: groupId });
+    ? await supabase
+        .from("group_members")
+        .upsert(
+          { group_id: groupId, user_id: userId },
+          { onConflict: "group_id,user_id", ignoreDuplicates: true },
+        )
+    : await supabase.from("group_members").delete().eq("group_id", groupId).eq("user_id", userId);
   if (error) fail(join ? "Joining the group" : "Leaving the group", error);
-}
-
-export async function inviteToGroup(groupId: string, userIds: string[]): Promise<number> {
-  const { data, error } = await supabase.rpc("invite_to_group", {
-    p_group: groupId,
-    p_users: userIds,
-  });
-  if (error) fail("Inviting people", error);
-  return Number(data ?? 0);
-}
-
-export async function respondToGroupInvite(groupId: string, accept: boolean): Promise<void> {
-  const { error } = await supabase.rpc("respond_group_invite", {
-    p_group: groupId,
-    p_accept: accept,
-  });
-  if (error) fail(accept ? "Accepting the invitation" : "Declining the invitation", error);
-}
-
-export async function removeGroupMember(groupId: string, userId: string): Promise<void> {
-  const { error } = await supabase.rpc("remove_group_member", { p_group: groupId, p_user: userId });
-  if (error) fail("Removing the member", error);
-}
-
-export async function fetchMyGroupInvites(): Promise<GroupInviteRow[]> {
-  const { data, error } = await supabase.rpc("get_my_group_invites");
-  if (error) fail("Loading invitations", error);
-  return data ?? [];
-}
-
-export async function fetchGroupMembers(groupId: string): Promise<GroupMemberRow[]> {
-  const { data, error } = await supabase.rpc("get_group_members", { p_group: groupId });
-  if (error) fail("Loading members", error);
-  return data ?? [];
 }
 
 export async function deleteGroup(groupId: string): Promise<void> {

@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Camera, ChevronRight, Loader2, MapPin } from "lucide-react";
 import { Avatar } from "@/components/ediraa";
+import { PushSettingsCard } from "@/components/push-prompt";
 import { PageHeader, PageShell } from "@/components/page-shell";
 import { supabase } from "@/integrations/supabase/client";
 import type { Profile } from "@/integrations/supabase/types";
@@ -36,6 +37,7 @@ function SettingsPage() {
         <>
           <EditProfileCard profile={profile} />
           <AccountCard profile={profile} />
+          <PushSettingsCard />
           <PasswordCard />
           <LogoutButton />
         </>

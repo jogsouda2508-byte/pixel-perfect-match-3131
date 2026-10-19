@@ -78,6 +78,8 @@ export type StoryViewRow = {
   viewed_at: string;
   liked: boolean;
   liked_at: string | null;
+  /** when they FIRST liked it; set by the database, drives the "liked your story" notification */
+  first_liked_at: string | null;
 };
 
 /** One row of `get_story_viewers` (only the story's author gets rows) */
@@ -161,50 +163,18 @@ export type GroupRow = {
   description: string;
   created_by: string;
   created_at: string;
-  is_private: boolean;
 };
-
-/** Up to three members shown as overlapping photos on a group's icon */
-export type MemberPreview = { name: string; avatar_url: string | null };
 
 /** One row of `get_groups` */
 export type GroupListRow = GroupRow & {
   member_count: number;
   is_member: boolean;
   my_role: "admin" | "member" | null;
-  has_invite: boolean;
-  conversation_id: string | null;
-  member_preview: MemberPreview[];
-};
-
-/** One row of `get_my_group_invites` */
-export type GroupInviteRow = {
-  group_id: string;
-  group_name: string;
-  description: string;
-  is_private: boolean;
-  member_count: number;
-  invited_by: string;
-  inviter_name: string;
-  inviter_username: string;
-  inviter_avatar: string | null;
-  created_at: string;
-  member_preview: MemberPreview[];
-};
-
-/** One row of `get_group_members` */
-export type GroupMemberRow = {
-  user_id: string;
-  full_name: string;
-  username: string;
-  avatar_url: string | null;
-  role: "admin" | "member";
-  joined_at: string;
 };
 
 /** One row of `get_notifications` */
 export type NotificationRow = {
-  kind: "like" | "comment" | "follow" | "share" | "tag";
+  kind: "like" | "comment" | "follow" | "share" | "tag" | "story_like";
   actor_id: string;
   actor_name: string;
   actor_username: string;
@@ -221,7 +191,6 @@ export type ConversationRow = {
   created_at: string;
   last_message_at: string | null;
   last_message_preview: string | null;
-  group_id: string | null;
 };
 
 export type ConversationParticipantRow = {
@@ -398,6 +367,26 @@ export type Database = {
           },
         ];
       };
+      push_subscriptions: {
+        Row: {
+          id: string;
+          user_id: string;
+          endpoint: string;
+          p256dh: string;
+          auth: string;
+          user_agent: string | null;
+          created_at: string;
+        };
+        Insert: {
+          user_id: string;
+          endpoint: string;
+          p256dh: string;
+          auth: string;
+          user_agent?: string | null;
+        };
+        Update: never;
+        Relationships: [];
+      };
       saved_posts: {
         Row: { user_id: string; post_id: string; created_at: string };
         Insert: { user_id: string; post_id: string };
@@ -406,7 +395,7 @@ export type Database = {
       };
       groups: {
         Row: GroupRow;
-        Insert: { name: string; description?: string; created_by: string; is_private?: boolean };
+        Insert: { name: string; description?: string; created_by: string };
         Update: { name?: string; description?: string };
         Relationships: [];
       };
@@ -468,8 +457,16 @@ export type Database = {
         };
         Returns: FeedRow[];
       };
+      save_push_subscription: {
+        Args: { p_endpoint: string; p_p256dh: string; p_auth: string; p_user_agent?: string };
+        Returns: undefined;
+      };
       record_story_view: { Args: { p_story_id: string }; Returns: undefined };
-      set_story_like: { Args: { p_story_id: string; p_liked: boolean }; Returns: boolean };
+      set_story_like: {
+        Args: { p_story_id: string; p_liked: boolean };
+        /** the new liked state, or null when the story isn't available to me */
+        Returns: boolean | null;
+      };
       get_story_engagement: {
         Args: { p_story_ids: string[] };
         Returns: StoryEngagementRow[];
@@ -493,26 +490,11 @@ export type Database = {
         Args: { p_limit: number; p_before: string | null };
         Returns: SavedFeedRow[];
       };
-      create_group: {
-        Args: { p_name: string; p_description: string; p_is_private: boolean; p_invitees: string[] };
-        Returns: string;
-      };
+      create_group: { Args: { p_name: string; p_description: string }; Returns: string };
       get_groups: {
-        Args: {
-          p_query: string | null;
-          p_mine_only: boolean;
-          p_limit: number;
-          p_group?: string | null;
-        };
+        Args: { p_query: string | null; p_mine_only: boolean; p_limit: number };
         Returns: GroupListRow[];
       };
-      invite_to_group: { Args: { p_group: string; p_users: string[] }; Returns: number };
-      respond_group_invite: { Args: { p_group: string; p_accept: boolean }; Returns: boolean };
-      join_group: { Args: { p_group: string }; Returns: undefined };
-      leave_group: { Args: { p_group: string }; Returns: undefined };
-      remove_group_member: { Args: { p_group: string; p_user: string }; Returns: undefined };
-      get_my_group_invites: { Args: Record<string, never>; Returns: GroupInviteRow[] };
-      get_group_members: { Args: { p_group: string }; Returns: GroupMemberRow[] };
       get_video_feed: {
         Args: { p_limit: number; p_offset: number };
         Returns: VideoFeedRow[];

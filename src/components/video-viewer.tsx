@@ -706,6 +706,7 @@ function VideoComments({
     mutationFn: (text: string) => addComment(post!.id, currentUser!.id, text),
     onSuccess: async () => {
       setDraft("");
+      onClose(); // close the comment box as soon as the comment is posted
       await queryClient.invalidateQueries({ queryKey: key });
       await queryClient.invalidateQueries({ queryKey: ["video-feed"] });
     },
