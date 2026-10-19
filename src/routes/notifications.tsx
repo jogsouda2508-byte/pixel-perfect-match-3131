@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Heart, Loader2, MessageSquare, Send, UserPlus } from "lucide-react";
+import { ArrowLeft, Heart, Loader2, MessageSquare, Send, UserPlus, Users } from "lucide-react";
 import { Avatar, BottomNav, Pill, SideNav } from "@/components/ediraa";
 import { useAuth } from "@/lib/auth";
 import { fetchNotifications, markNotificationsSeen } from "@/lib/social";
@@ -44,6 +44,7 @@ const kindIcon = {
   ),
   follow: <UserPlus className="h-3.5 w-3.5 text-primary-foreground" />,
   share: <Send className="h-3.5 w-3.5 text-primary-foreground" />,
+  tag: <Users className="h-3.5 w-3.5 text-primary-foreground" />,
 } as const;
 const kindColor = {
   like: "bg-destructive",
@@ -51,11 +52,13 @@ const kindColor = {
   comment: "bg-primary",
   follow: "bg-success",
   share: "bg-primary",
+  tag: "bg-primary",
 } as const;
 
 function describe(n: NotificationRow) {
   if (n.kind === "like") return "liked your post";
   if (n.kind === "story_like") return "liked your story";
+  if (n.kind === "tag") return "tagged you in a post";
   if (n.kind === "comment") return `commented: ${n.snippet ?? ""}`;
   if (n.kind === "share")
     return n.snippet === "video" ? "shared a video with you" : "shared a post with you";

@@ -163,13 +163,46 @@ export type GroupRow = {
   description: string;
   created_by: string;
   created_at: string;
+  is_private: boolean;
 };
+
+/** A group member's name and photo, for the overlapping photos on a group icon. */
+export type MemberPreview = { name: string; avatar_url: string | null };
 
 /** One row of `get_groups` */
 export type GroupListRow = GroupRow & {
   member_count: number;
   is_member: boolean;
   my_role: "admin" | "member" | null;
+  has_invite: boolean;
+  conversation_id: string | null;
+  /** Up to three members, for the overlapping photos on the group icon. */
+  member_preview: MemberPreview[];
+};
+
+/** One row of `get_my_group_invites` */
+export type GroupInviteRow = {
+  group_id: string;
+  group_name: string;
+  description: string;
+  is_private: boolean;
+  member_count: number;
+  invited_by: string;
+  inviter_name: string;
+  inviter_username: string;
+  inviter_avatar: string | null;
+  created_at: string;
+  member_preview: MemberPreview[];
+};
+
+/** One row of `get_group_members` */
+export type GroupMemberRow = {
+  user_id: string;
+  full_name: string;
+  username: string;
+  avatar_url: string | null;
+  role: "admin" | "member";
+  joined_at: string;
 };
 
 /** One row of `get_notifications` */
@@ -191,6 +224,7 @@ export type ConversationRow = {
   created_at: string;
   last_message_at: string | null;
   last_message_preview: string | null;
+  group_id: string | null;
 };
 
 export type ConversationParticipantRow = {
@@ -395,7 +429,7 @@ export type Database = {
       };
       groups: {
         Row: GroupRow;
-        Insert: { name: string; description?: string; created_by: string };
+        Insert: { name: string; description?: string; created_by: string; is_private?: boolean };
         Update: { name?: string; description?: string };
         Relationships: [];
       };
@@ -490,11 +524,31 @@ export type Database = {
         Args: { p_limit: number; p_before: string | null };
         Returns: SavedFeedRow[];
       };
-      create_group: { Args: { p_name: string; p_description: string }; Returns: string };
+      create_group: {
+        Args: {
+          p_name: string;
+          p_description: string;
+          p_is_private: boolean;
+          p_invitees: string[];
+        };
+        Returns: string;
+      };
       get_groups: {
-        Args: { p_query: string | null; p_mine_only: boolean; p_limit: number };
+        Args: {
+          p_query: string | null;
+          p_mine_only: boolean;
+          p_limit: number;
+          p_group?: string | null;
+        };
         Returns: GroupListRow[];
       };
+      invite_to_group: { Args: { p_group: string; p_users: string[] }; Returns: number };
+      respond_group_invite: { Args: { p_group: string; p_accept: boolean }; Returns: boolean };
+      join_group: { Args: { p_group: string }; Returns: undefined };
+      leave_group: { Args: { p_group: string }; Returns: undefined };
+      remove_group_member: { Args: { p_group: string; p_user: string }; Returns: undefined };
+      get_my_group_invites: { Args: Record<string, never>; Returns: GroupInviteRow[] };
+      get_group_members: { Args: { p_group: string }; Returns: GroupMemberRow[] };
       get_video_feed: {
         Args: { p_limit: number; p_offset: number };
         Returns: VideoFeedRow[];
