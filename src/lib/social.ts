@@ -460,22 +460,13 @@ export async function recordStoryView(storyId: string): Promise<void> {
   }
 }
 
-/**
- * Likes or unlikes a story as me. Safe to repeat: the database keeps at most one like per
- * person per story, so asking for the same state twice changes nothing (and never notifies
- * the owner twice). Throws when the story can't be liked (expired, hidden, deleted, or mine),
- * so the caller can put the heart back.
- */
+/** Likes or unlikes a story as me. */
 export async function setStoryLike(storyId: string, liked: boolean): Promise<void> {
-  const { data, error } = await supabase.rpc("set_story_like", {
+  const { error } = await supabase.rpc("set_story_like", {
     p_story_id: storyId,
     p_liked: liked,
   });
   if (error) fail("Updating the story like", error);
-  // NULL = the database found no story I'm allowed to like
-  if (data === null || data === undefined) {
-    fail("Updating the story like", { message: "This story isn't available any more." });
-  }
 }
 
 /**

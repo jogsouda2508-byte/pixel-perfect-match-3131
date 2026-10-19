@@ -78,8 +78,6 @@ export type StoryViewRow = {
   viewed_at: string;
   liked: boolean;
   liked_at: string | null;
-  /** when they FIRST liked it; set by the database, drives the "liked your story" notification */
-  first_liked_at: string | null;
 };
 
 /** One row of `get_story_viewers` (only the story's author gets rows) */
@@ -166,7 +164,7 @@ export type GroupRow = {
   is_private: boolean;
 };
 
-/** A group member's name and photo, for the overlapping photos on a group icon. */
+/** Up to three members shown as overlapping photos on a group's icon */
 export type MemberPreview = { name: string; avatar_url: string | null };
 
 /** One row of `get_groups` */
@@ -176,7 +174,6 @@ export type GroupListRow = GroupRow & {
   my_role: "admin" | "member" | null;
   has_invite: boolean;
   conversation_id: string | null;
-  /** Up to three members, for the overlapping photos on the group icon. */
   member_preview: MemberPreview[];
 };
 
@@ -207,7 +204,7 @@ export type GroupMemberRow = {
 
 /** One row of `get_notifications` */
 export type NotificationRow = {
-  kind: "like" | "comment" | "follow" | "share" | "tag" | "story_like";
+  kind: "like" | "comment" | "follow" | "share" | "tag";
   actor_id: string;
   actor_name: string;
   actor_username: string;
@@ -401,26 +398,6 @@ export type Database = {
           },
         ];
       };
-      push_subscriptions: {
-        Row: {
-          id: string;
-          user_id: string;
-          endpoint: string;
-          p256dh: string;
-          auth: string;
-          user_agent: string | null;
-          created_at: string;
-        };
-        Insert: {
-          user_id: string;
-          endpoint: string;
-          p256dh: string;
-          auth: string;
-          user_agent?: string | null;
-        };
-        Update: never;
-        Relationships: [];
-      };
       saved_posts: {
         Row: { user_id: string; post_id: string; created_at: string };
         Insert: { user_id: string; post_id: string };
@@ -491,16 +468,8 @@ export type Database = {
         };
         Returns: FeedRow[];
       };
-      save_push_subscription: {
-        Args: { p_endpoint: string; p_p256dh: string; p_auth: string; p_user_agent?: string };
-        Returns: undefined;
-      };
       record_story_view: { Args: { p_story_id: string }; Returns: undefined };
-      set_story_like: {
-        Args: { p_story_id: string; p_liked: boolean };
-        /** the new liked state, or null when the story isn't available to me */
-        Returns: boolean | null;
-      };
+      set_story_like: { Args: { p_story_id: string; p_liked: boolean }; Returns: boolean };
       get_story_engagement: {
         Args: { p_story_ids: string[] };
         Returns: StoryEngagementRow[];
@@ -525,12 +494,7 @@ export type Database = {
         Returns: SavedFeedRow[];
       };
       create_group: {
-        Args: {
-          p_name: string;
-          p_description: string;
-          p_is_private: boolean;
-          p_invitees: string[];
-        };
+        Args: { p_name: string; p_description: string; p_is_private: boolean; p_invitees: string[] };
         Returns: string;
       };
       get_groups: {

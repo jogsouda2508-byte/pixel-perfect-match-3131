@@ -169,7 +169,13 @@ export function Stories() {
             ariaLabel={myGroup ? "View your story" : "Create a story"}
             onClick={onOwnBubble}
           >
-            <Avatar src={profile?.avatar_url} name={myName} size={AVATAR} ring={!!myGroup} />
+            <Avatar
+              src={profile?.avatar_url}
+              name={myName}
+              size={AVATAR}
+              ring={!!myGroup}
+              segments={myGroup?.items.length ?? 1}
+            />
           </StoryButton>
           {/* The "+" only exists while I have NO story. Once I have one, the bubble opens it;
               adding another one is done from inside the story viewer. */}
@@ -197,7 +203,7 @@ export function Stories() {
               ariaLabel={`View ${g.name || g.username}'s story`}
               onClick={() => setViewing(g)}
             >
-              <Avatar src={g.avatar} name={g.name} size={AVATAR} ring />
+              <Avatar src={g.avatar} name={g.name} size={AVATAR} ring segments={g.items.length} />
             </StoryButton>
           </div>
         ))}
@@ -269,14 +275,6 @@ function StoryViewer({
   const [viewersOpen, setViewersOpen] = useState(false);
   const viewersOpenRef = useRef(false);
   viewersOpenRef.current = viewersOpen;
-  // The big heart in the middle of the story. Every new number restarts the animation
-  // (0 = nothing showing), so liking another story, or double-tapping again, plays it again.
-  const [burst, setBurst] = useState(0);
-  // The previous tap on the story, to recognise a double tap.
-  const lastTapRef = useRef<{ t: number; x: number; y: number } | null>(null);
-  // Stories whose like request is still on its way: a second request is ignored, so a
-  // double tap (or tapping fast) can never send the same like twice.
-  const likeInFlightRef = useRef<Set<string>>(new Set());
   const item = group.items[i];
   const last = group.items.length - 1;
   const isMine = group.authorId === meId;
@@ -292,8 +290,6 @@ function StoryViewer({
   const go = (next: number) => {
     setFraction(0);
     setViewersOpen(false);
-    setBurst(0);
-    lastTapRef.current = null;
     setI(next);
   };
   const advance = () => (i < last ? go(i + 1) : onClose());
@@ -379,7 +375,6 @@ function StoryViewer({
       toast.error("Couldn't update your like.");
     },
     onSettled: (_d, _e, args) => {
-      likeInFlightRef.current.delete(args.storyId);
       void qc.invalidateQueries({ queryKey: ["story-engagement", args.storyId] });
       void qc.invalidateQueries({ queryKey: ["story-viewers", args.storyId] });
     },
@@ -389,36 +384,6 @@ function StoryViewer({
   const isVideo = item.media_type === "video" && !!item.video_url;
   const partOfMany = isVideo && item.segment_count > 1;
   const stats = engagement.data ?? null;
-
-  // The heart button updates at once (optimistic) and is saved in the background; if saving
-  // fails the heart goes back and a message is shown (see the mutation above).
-  const requestLike = (liked: boolean) => {
-    if (likeInFlightRef.current.has(item.id)) return;
-    likeInFlightRef.current.add(item.id);
-    like.mutate({ storyId: item.id, liked });
-  };
-  const onHeartButton = () => {
-    if (!stats || likeInFlightRef.current.has(item.id)) return;
-    const liked = !stats.likedByMe;
-    if (liked) setBurst((n) => n + 1);
-    requestLike(liked);
-  };
-  // Double tap on the story itself: like it (never unlike) and show the heart. On a story I
-  // already liked it only shows the heart again, so no second like is sent. Taps on the
-  // buttons over the story don't count. There are no swipe / tap-to-navigate zones here.
-  const onStoryTap = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (isMine || !stats || viewersOpen) return;
-    if ((e.target as HTMLElement).closest("button")) return;
-    const now = performance.now();
-    const prev = lastTapRef.current;
-    if (prev && now - prev.t < 300 && Math.hypot(e.clientX - prev.x, e.clientY - prev.y) < 48) {
-      lastTapRef.current = null;
-      setBurst((n) => n + 1);
-      if (!stats.likedByMe) requestLike(true);
-      return;
-    }
-    lastTapRef.current = { t: now, x: e.clientX, y: e.clientY };
-  };
 
   return (
     <div
@@ -467,12 +432,7 @@ function StoryViewer({
           <X className="h-6 w-6" />
         </button>
       </div>
-      <div
-        className="relative flex min-h-0 flex-1 items-center justify-center select-none"
-        // no browser zoom on double tap, so a double tap can mean "like"
-        style={{ touchAction: "manipulation" }}
-        onClick={onStoryTap}
-      >
+      <div className="relative flex min-h-0 flex-1 items-center justify-center">
         {isVideo ? (
           <StoryVideo
             key={item.id}
@@ -502,7 +462,6 @@ function StoryViewer({
             <ChevronRight className="h-6 w-6" />
           </button>
         )}
-        {burst > 0 && <StoryHeartBurst key={burst} onDone={() => setBurst(0)} />}
       </div>
 
       {/* Bottom bar: my story shows who viewed / liked it; someone else's has a like button. */}
@@ -527,7 +486,7 @@ function StoryViewer({
           ) : (
             <button
               type="button"
-              onClick={onHeartButton}
+              onClick={() => like.mutate({ storyId: item.id, liked: !stats.likedByMe })}
               aria-pressed={stats.likedByMe}
               aria-label={stats.likedByMe ? "Unlike story" : "Like story"}
               className="ml-auto grid h-11 w-11 place-items-center rounded-full bg-white/10 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
@@ -544,31 +503,6 @@ function StoryViewer({
       {isMine && viewersOpen && (
         <StoryViewersSheet storyId={item.id} onClose={() => setViewersOpen(false)} />
       )}
-    </div>
-  );
-}
-
-/**
- * The big heart that pops in the middle of a story when it is liked (animation in styles.css,
- * ~900 ms; just a fade when the person prefers reduced motion). It never takes taps, so the
- * story controls stay usable, and its removal timer is cleared if it goes away early.
- */
-function StoryHeartBurst({ onDone }: { onDone: () => void }) {
-  const doneRef = useRef(onDone);
-  doneRef.current = onDone;
-  useEffect(() => {
-    const t = setTimeout(() => doneRef.current(), 1000);
-    return () => clearTimeout(t);
-  }, []);
-  return (
-    <div
-      aria-hidden="true"
-      data-testid="story-heart-burst"
-      className="pointer-events-none absolute inset-0 z-[5] grid place-items-center"
-    >
-      <span className="story-heart-pop select-none text-[96px] leading-none drop-shadow-[0_6px_24px_rgba(0,0,0,0.45)] sm:text-[128px]">
-        ❤️
-      </span>
     </div>
   );
 }
