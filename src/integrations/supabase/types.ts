@@ -164,6 +164,9 @@ export type GroupRow = {
   is_private: boolean;
 };
 
+/** Up to three members shown as overlapping photos on a group's icon */
+export type MemberPreview = { name: string; avatar_url: string | null };
+
 /** One row of `get_groups` */
 export type GroupListRow = GroupRow & {
   member_count: number;
@@ -171,6 +174,7 @@ export type GroupListRow = GroupRow & {
   my_role: "admin" | "member" | null;
   has_invite: boolean;
   conversation_id: string | null;
+  member_preview: MemberPreview[];
 };
 
 /** One row of `get_my_group_invites` */
@@ -185,6 +189,7 @@ export type GroupInviteRow = {
   inviter_username: string;
   inviter_avatar: string | null;
   created_at: string;
+  member_preview: MemberPreview[];
 };
 
 /** One row of `get_group_members` */

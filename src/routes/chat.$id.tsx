@@ -269,7 +269,11 @@ function ConversationDetail({ id }: { id: string }) {
               params={{ id: contact.data.group.id }}
               className="flex min-w-0 items-center gap-3 rounded-lg p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <GroupAvatar size={40} />
+              <GroupAvatar
+                size={40}
+                members={contact.data.group.preview}
+                total={contact.data.group.memberCount}
+              />
               <span className="min-w-0">
                 <span className="block truncate text-sm font-semibold">{name}</span>
                 <span className="block truncate text-xs text-muted-foreground">

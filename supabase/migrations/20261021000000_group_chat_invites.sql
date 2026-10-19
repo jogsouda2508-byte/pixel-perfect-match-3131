@@ -247,6 +247,8 @@ $$;
 
 -- 8. Reads ------------------------------------------------------------
 drop function if exists public.get_groups(text, boolean, int);
+drop function if exists public.get_groups(text, boolean, int, uuid);
+drop function if exists public.get_my_group_invites();
 
 create or replace function public.get_groups(
   p_query     text    default null,
@@ -257,7 +259,7 @@ create or replace function public.get_groups(
 returns table (
   id uuid, name text, description text, created_by uuid, created_at timestamptz,
   is_private boolean, member_count bigint, is_member boolean, my_role text,
-  has_invite boolean, conversation_id uuid
+  has_invite boolean, conversation_id uuid, member_preview jsonb
 )
 language sql stable set search_path = public as $$
   select
@@ -266,7 +268,12 @@ language sql stable set search_path = public as $$
     public.is_group_member(g.id),
     (select m.role from public.group_members m where m.group_id = g.id and m.user_id = auth.uid()),
     exists (select 1 from public.group_invites i where i.group_id = g.id and i.user_id = auth.uid()),
-    (select c.id from public.conversations c where c.group_id = g.id and public.is_group_member(g.id))
+    (select c.id from public.conversations c where c.group_id = g.id and public.is_group_member(g.id)),
+    (select coalesce(jsonb_agg(jsonb_build_object('name', x.full_name, 'avatar_url', x.avatar_url)), '[]'::jsonb)
+     from (select p.full_name, p.avatar_url
+           from public.group_members m join public.profiles p on p.id = m.user_id
+           where m.group_id = g.id
+           order by (m.role = 'admin') desc, m.created_at limit 3) x)
   from public.groups g
   where public.can_see_group(g.id)
     and (p_group is null or g.id = p_group)
@@ -282,12 +289,18 @@ $$;
 create or replace function public.get_my_group_invites()
 returns table (
   group_id uuid, group_name text, description text, is_private boolean, member_count bigint,
-  invited_by uuid, inviter_name text, inviter_username text, inviter_avatar text, created_at timestamptz
+  invited_by uuid, inviter_name text, inviter_username text, inviter_avatar text, created_at timestamptz,
+  member_preview jsonb
 )
 language sql stable set search_path = public as $$
   select i.group_id, g.name, g.description, g.is_private,
          (select count(*) from public.group_members m where m.group_id = g.id),
-         i.invited_by, p.full_name, p.username, p.avatar_url, i.created_at
+         i.invited_by, p.full_name, p.username, p.avatar_url, i.created_at,
+         (select coalesce(jsonb_agg(jsonb_build_object('name', x.full_name, 'avatar_url', x.avatar_url)), '[]'::jsonb)
+     from (select p.full_name, p.avatar_url
+           from public.group_members m join public.profiles p on p.id = m.user_id
+           where m.group_id = g.id
+           order by (m.role = 'admin') desc, m.created_at limit 3) x)
   from public.group_invites i
   join public.groups g on g.id = i.group_id
   join public.profiles p on p.id = i.invited_by

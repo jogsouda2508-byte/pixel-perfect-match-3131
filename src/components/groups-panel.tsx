@@ -92,7 +92,7 @@ export function GroupsPanel({ query = "" }: { query?: string }) {
               params={{ id: g.id }}
               className="flex min-w-0 flex-1 items-start gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <GroupAvatar size={44} />
+              <GroupAvatar size={44} members={g.member_preview} total={g.member_count} />
               <span className="min-w-0 flex-1">
                 <span className="block break-words font-semibold">{g.name}</span>
                 <span className="flex items-center gap-2 text-xs text-muted-foreground">

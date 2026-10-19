@@ -141,7 +141,7 @@ function ChatPage() {
                   className="flex min-h-[76px] items-center gap-3 rounded-xl px-4 py-3 text-left transition hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   {group ? (
-                    <GroupAvatar size={44} />
+                    <GroupAvatar size={44} members={group.preview} total={group.memberCount} />
                   ) : (
                     <Avatar src={contact.avatar_url} name={name} size={44} />
                   )}

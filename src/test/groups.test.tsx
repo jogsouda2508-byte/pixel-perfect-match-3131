@@ -121,7 +121,8 @@ describe("chat shows group conversations", () => {
     h.rows["profiles"] = [{ id: "bob", full_name: "Bob B", username: "bobby", avatar_url: null }];
     const list = await listConversations("me");
     const g = list.find((c) => c.id === "c-g");
-    expect(g?.group).toEqual({ id: "g1", name: "Weekend Crew", memberCount: 3 });
+    expect(g?.group).toMatchObject({ id: "g1", name: "Weekend Crew", memberCount: 3 });
+    expect(g?.group?.preview.length).toBeGreaterThan(0);
     expect(g?.otherParticipant.full_name).toBe("Weekend Crew");
     expect(list.find((c) => c.id === "c-dm")?.otherParticipant.username).toBe("bobby");
     expect(list[0]?.id).toBe("c-g");
@@ -138,9 +139,11 @@ describe("chat shows group conversations", () => {
     h.rows["profiles"] = [
       { id: "bob", full_name: "Bob B", username: "bobby", avatar_url: null },
       { id: "carol", full_name: "Carol C", username: "carol", avatar_url: null },
+      { id: "me", full_name: "Me M", username: "me", avatar_url: null },
     ];
     const c = await getConversation("c-g", "me");
-    expect(c.group).toEqual({ id: "g1", name: "Weekend Crew", memberCount: 3 });
+    expect(c.group).toMatchObject({ id: "g1", name: "Weekend Crew", memberCount: 3 });
+    expect(c.group?.preview.map((m) => m.name)).toEqual(["Bob B", "Carol C", "Me M"]);
     expect(c.members.map((m) => m.username)).toEqual(["bobby", "carol"]);
   });
 
@@ -162,6 +165,7 @@ describe("<GroupInvites />", () => {
     inviter_username: "alice",
     inviter_avatar: null,
     created_at: new Date().toISOString(),
+    member_preview: [{ name: "Alice A", avatar_url: null }],
   };
   const wrap = () =>
     render(

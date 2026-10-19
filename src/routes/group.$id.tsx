@@ -147,7 +147,7 @@ function GroupPage() {
           <>
             <section className="glass-card space-y-4 p-5 text-center">
               <div className="flex justify-center">
-                <GroupAvatar size={72} />
+                <GroupAvatar size={72} members={g.member_preview} total={g.member_count} />
               </div>
               <div>
                 <h1 className="break-words text-xl font-bold">{g.name}</h1>

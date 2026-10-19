@@ -51,7 +51,7 @@ export function GroupInvites() {
         const who = inv.inviter_name || inv.inviter_username;
         return (
           <div key={inv.group_id} className="glass-card flex items-center gap-3 p-3">
-            <GroupAvatar size={44} />
+            <GroupAvatar size={44} members={inv.member_preview} total={inv.member_count} />
             <div className="min-w-0 flex-1">
               <p className="truncate font-semibold">{inv.group_name}</p>
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">

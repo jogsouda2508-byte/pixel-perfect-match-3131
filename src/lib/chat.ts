@@ -8,7 +8,18 @@ import type {
 
 export type ChatProfile = Pick<Profile, "id" | "full_name" | "username" | "avatar_url">;
 
-export type ChatGroup = { id: string; name: string; memberCount: number };
+export type ChatGroup = {
+  id: string;
+  name: string;
+  memberCount: number;
+  /** Up to three members, for the overlapping photos on the group icon. */
+  preview: { name: string; avatar_url: string | null }[];
+};
+
+const toPreview = (p: ChatProfile) => ({
+  name: p.full_name || p.username,
+  avatar_url: p.avatar_url,
+});
 
 export type ChatConversation = ConversationRow & {
   /** For a group chat this stands in for the group (full_name = group name). */
@@ -20,7 +31,7 @@ export type ChatConversation = ConversationRow & {
 /** What the conversation screen needs: who/what it is, plus every member for sender names. */
 export type ChatContact = ChatProfile & { group: ChatGroup | null; members: ChatProfile[] };
 
-function groupAsProfile(group: ChatGroup): ChatProfile {
+function groupAsProfile(group: Pick<ChatGroup, "id" | "name">): ChatProfile {
   return { id: group.id, full_name: group.name, username: "", avatar_url: null };
 }
 
@@ -76,12 +87,21 @@ export async function listConversations(userId?: string): Promise<ChatConversati
   }
 
   const dmIds = new Set((conversations ?? []).filter((c) => !c.group_id).map((c) => c.id));
+  const groupConvIds = new Set((conversations ?? []).filter((c) => c.group_id).map((c) => c.id));
+  const previewIdsByConversation = new Map<string, string[]>();
+  for (const row of participants ?? []) {
+    if (!groupConvIds.has(row.conversation_id)) continue;
+    const ids = previewIdsByConversation.get(row.conversation_id) ?? [];
+    if (ids.length < 3) previewIdsByConversation.set(row.conversation_id, [...ids, row.user_id]);
+  }
   const otherIds = [
-    ...new Set(
-      (participants ?? [])
+    ...new Set([
+      ...(participants ?? [])
         .filter((row) => dmIds.has(row.conversation_id))
         .map((row) => row.user_id),
-    ),
+      ...[...previewIdsByConversation.values()].flat(),
+      ...(groupConvIds.size ? [me] : []),
+    ]),
   ];
   const profileById = new Map<string, ChatProfile>();
   if (otherIds.length) {
@@ -116,7 +136,15 @@ export async function listConversations(userId?: string): Promise<ChatConversati
       if (conversation.group_id) {
         const name = groupNames.get(conversation.group_id);
         if (!name) return [];
-        const group = { id: conversation.group_id, name, memberCount: others.length + 1 };
+        const previewIds = [...(previewIdsByConversation.get(conversation.id) ?? []), me].slice(
+          0,
+          3,
+        );
+        const preview = previewIds.flatMap((uid) => {
+          const profile = profileById.get(uid);
+          return profile ? [toPreview(profile)] : [];
+        });
+        const group = { id: conversation.group_id, name, memberCount: others.length + 1, preview };
         return [{ ...conversation, otherParticipant: groupAsProfile(group), group, unread }];
       }
       const otherParticipant = others[0] ? profileById.get(others[0]) : undefined;
@@ -160,16 +188,21 @@ export async function getConversation(
       .maybeSingle();
     if (groupError) fail("load this group", groupError);
     if (!groupRow) throw new Error("This group is unavailable.");
-    let members: ChatProfile[] = [];
-    if (otherIds.length) {
-      const { data: profiles, error: profileError } = await supabase
-        .from("profiles")
-        .select("id, full_name, username, avatar_url")
-        .in("id", otherIds);
-      if (profileError) fail("load group members", profileError);
-      members = profiles ?? [];
-    }
-    const group = { id: groupRow.id, name: groupRow.name, memberCount: participants.length };
+    // Fetch everyone including me: others label messages, all of them make up the icon photos.
+    const { data: profiles, error: profileError } = await supabase
+      .from("profiles")
+      .select("id, full_name, username, avatar_url")
+      .in("id", [...otherIds, me]);
+    if (profileError) fail("load group members", profileError);
+    const everyone = profiles ?? [];
+    const members = everyone.filter((p) => p.id !== me);
+    const mine = everyone.filter((p) => p.id === me);
+    const group = {
+      id: groupRow.id,
+      name: groupRow.name,
+      memberCount: participants.length,
+      preview: [...members, ...mine].slice(0, 3).map(toPreview),
+    };
     return { ...groupAsProfile(group), group, members };
   }
 

@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import logoUrl from "@/assets/logo.png";
 import { Home, Search, MessageSquare, User, BadgeCheck, Video } from "lucide-react";
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { ComposerLauncher } from "@/components/composer";
 import { UnreadBadge, useChatUnread } from "@/lib/use-chat-unread";
 
@@ -60,15 +60,64 @@ export function BrandLockup({
   );
 }
 
+/**
+ * Story ring split into one arc per story (like Instagram): 2 stories = 2 arcs with a small gap
+ * between them. The photo sits inside the ring.
+ */
+function SegmentedRing({
+  segments,
+  size,
+  children,
+}: {
+  segments: number;
+  size: number;
+  children: ReactNode;
+}) {
+  const id = useId();
+  const r = 48.2;
+  const circumference = 2 * Math.PI * r;
+  const gap = Math.min(4, (circumference / segments) * 0.3);
+  const arc = circumference / segments - gap;
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden="true">
+        <defs>
+          <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" style={{ stopColor: "var(--primary)" }} />
+            <stop offset="100%" style={{ stopColor: "var(--violet)" }} />
+          </linearGradient>
+        </defs>
+        {Array.from({ length: segments }, (_, i) => (
+          <circle
+            key={i}
+            cx="50"
+            cy="50"
+            r={r}
+            fill="none"
+            stroke={`url(#${id})`}
+            strokeWidth="3.2"
+            strokeDasharray={`${arc} ${circumference - arc}`}
+            transform={`rotate(${-90 + (i * 360) / segments + (gap / circumference) * 180} 50 50)`}
+          />
+        ))}
+      </svg>
+      <div className="absolute inset-[6%]">{children}</div>
+    </div>
+  );
+}
+
 export function Avatar({
   src,
   size = 40,
   ring = false,
+  segments = 1,
   name,
 }: {
   src?: string | null | undefined;
   size?: number;
   ring?: boolean;
+  /** With `ring`: how many stories there are. The ring is split into that many arcs. */
+  segments?: number;
   name?: string | undefined;
 }) {
   const initials = (name ?? "")
@@ -77,25 +126,33 @@ export function Avatar({
     .slice(0, 2)
     .map((w) => w[0]!.toUpperCase())
     .join("");
+  const photo = src ? (
+    <img
+      src={src}
+      alt=""
+      className="h-full w-full rounded-full border-2 border-background object-cover"
+    />
+  ) : (
+    <div
+      className="grid h-full w-full place-items-center rounded-full border-2 border-background bg-gradient-brand font-semibold text-primary-foreground"
+      style={{ fontSize: Math.max(10, size * 0.38) }}
+    >
+      {initials || "?"}
+    </div>
+  );
+  if (ring && segments > 1) {
+    return (
+      <SegmentedRing segments={segments} size={size}>
+        {photo}
+      </SegmentedRing>
+    );
+  }
   return (
     <div
       className={ring ? "rounded-full bg-gradient-brand p-[2px]" : ""}
       style={{ width: size, height: size }}
     >
-      {src ? (
-        <img
-          src={src}
-          alt=""
-          className="h-full w-full rounded-full border-2 border-background object-cover"
-        />
-      ) : (
-        <div
-          className="grid h-full w-full place-items-center rounded-full border-2 border-background bg-gradient-brand font-semibold text-primary-foreground"
-          style={{ fontSize: Math.max(10, size * 0.38) }}
-        >
-          {initials || "?"}
-        </div>
-      )}
+      {photo}
     </div>
   );
 }

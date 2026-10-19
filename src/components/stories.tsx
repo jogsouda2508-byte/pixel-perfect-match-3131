@@ -169,7 +169,13 @@ export function Stories() {
             ariaLabel={myGroup ? "View your story" : "Create a story"}
             onClick={onOwnBubble}
           >
-            <Avatar src={profile?.avatar_url} name={myName} size={AVATAR} ring={!!myGroup} />
+            <Avatar
+              src={profile?.avatar_url}
+              name={myName}
+              size={AVATAR}
+              ring={!!myGroup}
+              segments={myGroup?.items.length ?? 1}
+            />
           </StoryButton>
           {/* The "+" only exists while I have NO story. Once I have one, the bubble opens it;
               adding another one is done from inside the story viewer. */}
@@ -197,7 +203,7 @@ export function Stories() {
               ariaLabel={`View ${g.name || g.username}'s story`}
               onClick={() => setViewing(g)}
             >
-              <Avatar src={g.avatar} name={g.name} size={AVATAR} ring />
+              <Avatar src={g.avatar} name={g.name} size={AVATAR} ring segments={g.items.length} />
             </StoryButton>
           </div>
         ))}
