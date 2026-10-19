@@ -8,10 +8,21 @@ import type {
 
 export type ChatProfile = Pick<Profile, "id" | "full_name" | "username" | "avatar_url">;
 
+export type ChatGroup = { id: string; name: string; memberCount: number };
+
 export type ChatConversation = ConversationRow & {
+  /** For a group chat this stands in for the group (full_name = group name). */
   otherParticipant: ChatProfile;
+  group: ChatGroup | null;
   unread: boolean;
 };
+
+/** What the conversation screen needs: who/what it is, plus every member for sender names. */
+export type ChatContact = ChatProfile & { group: ChatGroup | null; members: ChatProfile[] };
+
+function groupAsProfile(group: ChatGroup): ChatProfile {
+  return { id: group.id, full_name: group.name, username: "", avatar_url: null };
+}
 
 export function isUnread(lastMessageAt: string | null, lastReadAt: string): boolean {
   return !!lastMessageAt && new Date(lastMessageAt).getTime() > new Date(lastReadAt).getTime();
@@ -50,38 +61,67 @@ export async function listConversations(userId?: string): Promise<ChatConversati
     .in("conversation_id", conversationIds)
     .neq("user_id", me);
   if (otherParticipantError) fail("load conversation members", otherParticipantError);
-  const otherIds = [...new Set((participants ?? []).map((row) => row.user_id))];
-  if (!otherIds.length) return [];
 
-  const { data: profiles, error: profileError } = await supabase
-    .from("profiles")
-    .select("id, full_name, username, avatar_url")
-    .in("id", otherIds);
-  if (profileError) fail("load conversation profiles", profileError);
+  const groupIds = [
+    ...new Set((conversations ?? []).flatMap((c) => (c.group_id ? [c.group_id] : []))),
+  ];
+  const groupNames = new Map<string, string>();
+  if (groupIds.length) {
+    const { data: groups, error: groupError } = await supabase
+      .from("groups")
+      .select("id, name")
+      .in("id", groupIds);
+    if (groupError) fail("load groups", groupError);
+    for (const g of groups ?? []) groupNames.set(g.id, g.name);
+  }
+
+  const dmIds = new Set((conversations ?? []).filter((c) => !c.group_id).map((c) => c.id));
+  const otherIds = [
+    ...new Set(
+      (participants ?? [])
+        .filter((row) => dmIds.has(row.conversation_id))
+        .map((row) => row.user_id),
+    ),
+  ];
+  const profileById = new Map<string, ChatProfile>();
+  if (otherIds.length) {
+    const { data: profiles, error: profileError } = await supabase
+      .from("profiles")
+      .select("id, full_name, username, avatar_url")
+      .in("id", otherIds);
+    if (profileError) fail("load conversation profiles", profileError);
+    for (const p of profiles ?? []) profileById.set(p.id, p);
+  }
 
   const readAtByConversation = new Map(
     (myRows as Pick<ConversationParticipantRow, "conversation_id" | "last_read_at">[]).map(
       (row) => [row.conversation_id, row.last_read_at],
     ),
   );
-  const participantByConversation = new Map(
-    (participants ?? []).map((row) => [row.conversation_id, row.user_id]),
-  );
-  const profileById = new Map((profiles ?? []).map((profile) => [profile.id, profile]));
+  const othersByConversation = new Map<string, string[]>();
+  for (const row of participants ?? []) {
+    othersByConversation.set(row.conversation_id, [
+      ...(othersByConversation.get(row.conversation_id) ?? []),
+      row.user_id,
+    ]);
+  }
 
   return (conversations ?? [])
-    .flatMap((conversation) => {
-      const otherId = participantByConversation.get(conversation.id);
-      const otherParticipant = otherId ? profileById.get(otherId) : undefined;
+    .flatMap((conversation): ChatConversation[] => {
       const lastReadAt = readAtByConversation.get(conversation.id);
-      if (!otherParticipant || !lastReadAt) return [];
-      return [
-        {
-          ...conversation,
-          otherParticipant,
-          unread: isUnread(conversation.last_message_at, lastReadAt),
-        },
-      ];
+      if (!lastReadAt) return [];
+      const others = othersByConversation.get(conversation.id) ?? [];
+      const unread = isUnread(conversation.last_message_at, lastReadAt);
+
+      if (conversation.group_id) {
+        const name = groupNames.get(conversation.group_id);
+        if (!name) return [];
+        const group = { id: conversation.group_id, name, memberCount: others.length + 1 };
+        return [{ ...conversation, otherParticipant: groupAsProfile(group), group, unread }];
+      }
+      const otherParticipant = others[0] ? profileById.get(others[0]) : undefined;
+      if (!otherParticipant) return [];
+      return [{ ...conversation, otherParticipant, group: null, unread }];
     })
     .sort((a, b) => {
       const aTime = a.last_message_at ?? a.created_at;
@@ -93,7 +133,7 @@ export async function listConversations(userId?: string): Promise<ChatConversati
 export async function getConversation(
   conversationId: string,
   userId?: string,
-): Promise<ChatProfile> {
+): Promise<ChatContact> {
   const me = userId ?? (await currentUserId());
   const { data: participants, error } = await supabase
     .from("conversation_participants")
@@ -103,9 +143,38 @@ export async function getConversation(
   if (!participants?.some((participant) => participant.user_id === me))
     throw new Error("This conversation is unavailable.");
 
-  const otherId = participants.find((participant) => participant.user_id !== me)?.user_id;
-  if (!otherId) throw new Error("This conversation has no other participant.");
+  const { data: conversation, error: conversationError } = await supabase
+    .from("conversations")
+    .select("group_id")
+    .eq("id", conversationId)
+    .maybeSingle();
+  if (conversationError) fail("load this conversation", conversationError);
 
+  const otherIds = participants.map((p) => p.user_id).filter((uid) => uid !== me);
+
+  if (conversation?.group_id) {
+    const { data: groupRow, error: groupError } = await supabase
+      .from("groups")
+      .select("id, name")
+      .eq("id", conversation.group_id)
+      .maybeSingle();
+    if (groupError) fail("load this group", groupError);
+    if (!groupRow) throw new Error("This group is unavailable.");
+    let members: ChatProfile[] = [];
+    if (otherIds.length) {
+      const { data: profiles, error: profileError } = await supabase
+        .from("profiles")
+        .select("id, full_name, username, avatar_url")
+        .in("id", otherIds);
+      if (profileError) fail("load group members", profileError);
+      members = profiles ?? [];
+    }
+    const group = { id: groupRow.id, name: groupRow.name, memberCount: participants.length };
+    return { ...groupAsProfile(group), group, members };
+  }
+
+  const otherId = otherIds[0];
+  if (!otherId) throw new Error("This conversation has no other participant.");
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("id, full_name, username, avatar_url")
@@ -113,7 +182,7 @@ export async function getConversation(
     .maybeSingle();
   if (profileError) fail("load this contact", profileError);
   if (!profile) throw new Error("This contact is unavailable.");
-  return profile;
+  return { ...profile, group: null, members: [profile] };
 }
 
 export async function getMessages(conversationId: string): Promise<MessageRow[]> {

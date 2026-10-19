@@ -11,6 +11,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Send, Smile } from "lucide-react";
 import { Avatar } from "@/components/ediraa";
+import { GroupAvatar, memberLabel } from "@/components/group-ui";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { PageShell } from "@/components/page-shell";
@@ -243,6 +244,10 @@ function ConversationDetail({ id }: { id: string }) {
     }
   };
 
+  const senderNames = new Map(
+    (contact.data?.members ?? []).map((m) => [m.id, m.full_name || m.username]),
+  );
+  const isGroup = !!contact.data?.group;
   const name = contact.data?.full_name || contact.data?.username || "Conversation";
 
   return (
@@ -258,6 +263,20 @@ function ConversationDetail({ id }: { id: string }) {
           </Link>
           {contact.isLoading ? (
             <span className="text-sm text-muted-foreground">Loading conversation…</span>
+          ) : contact.data?.group ? (
+            <Link
+              to="/group/$id"
+              params={{ id: contact.data.group.id }}
+              className="flex min-w-0 items-center gap-3 rounded-lg p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <GroupAvatar size={40} />
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-semibold">{name}</span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {memberLabel(contact.data.group.memberCount)} • tap for group info
+                </span>
+              </span>
+            </Link>
           ) : contact.data ? (
             <Link
               to="/u/$username"
@@ -316,6 +335,11 @@ function ConversationDetail({ id }: { id: string }) {
                         : "rounded-bl-md bg-secondary text-secondary-foreground"
                     }`}
                   >
+                    {isGroup && !own && (
+                      <p className="mb-0.5 text-xs font-semibold text-primary">
+                        {senderNames.get(message.sender_id) ?? "Former member"}
+                      </p>
+                    )}
                     {message.shared_post_id ? (
                       <SharedVideoCard postId={message.shared_post_id} own={own} />
                     ) : (

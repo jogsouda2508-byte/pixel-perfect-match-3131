@@ -1,67 +1,43 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, Users } from "lucide-react";
+import { Loader2, MessageCircle, Plus } from "lucide-react";
 import { Pill } from "@/components/ediraa";
+import { CreateGroupDialog } from "@/components/create-group-dialog";
+import { GroupAvatar, PrivacyBadge, memberLabel } from "@/components/group-ui";
+import { GroupInvites } from "@/components/group-invites";
 import { useAuth } from "@/lib/auth";
-import { createGroup, deleteGroup, fetchGroups, setGroupMembership } from "@/lib/social";
+import { fetchGroups, setGroupMembership } from "@/lib/social";
 
-const NAME_MIN = 3;
-const NAME_MAX = 50;
-const DESC_MAX = 300;
-const field =
-  "w-full rounded-xl border border-border bg-elevated/40 px-4 py-3 text-sm outline-none placeholder:text-muted-foreground focus:border-primary";
-
-/** Browse, create, join and leave groups. Used on /groups and in Discover → Groups. */
+/** Browse, create and join groups; answer invitations. Used on /groups and Discover → Groups. */
 export function GroupsPanel({ query = "" }: { query?: string }) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const meId = user?.id ?? "";
   const [mineOnly, setMineOnly] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [name, setName] = useState("");
-  const [desc, setDesc] = useState("");
 
   const groups = useQuery({
     queryKey: ["groups", meId, query, mineOnly],
     queryFn: () => fetchGroups({ query, mineOnly }),
     enabled: !!meId,
   });
-  const refresh = () => qc.invalidateQueries({ queryKey: ["groups"] });
 
-  const create = useMutation({
-    mutationFn: () => createGroup(name, desc),
+  const join = useMutation({
+    mutationFn: (id: string) => setGroupMembership(id, meId, true),
     onSuccess: async () => {
-      toast.success("Group created");
-      setName("");
-      setDesc("");
-      setCreating(false);
-      setMineOnly(true);
-      await refresh();
+      toast.success("You joined the group");
+      await Promise.all(
+        ["groups", "chat-conversations"].map((k) => qc.invalidateQueries({ queryKey: [k] })),
+      );
     },
-    onError: () =>
-      toast.error(`Couldn't create the group. Names must be ${NAME_MIN}–${NAME_MAX} characters.`),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't join the group."),
   });
-
-  const membership = useMutation({
-    mutationFn: (v: { id: string; join: boolean }) => setGroupMembership(v.id, meId, v.join),
-    onSuccess: refresh,
-    onError: () => toast.error("Couldn't update your membership. Please try again."),
-  });
-
-  const remove = useMutation({
-    mutationFn: (id: string) => deleteGroup(id),
-    onSuccess: async () => {
-      toast.success("Group deleted");
-      await refresh();
-    },
-    onError: () => toast.error("Couldn't delete the group."),
-  });
-
-  const nameOk = name.trim().length >= NAME_MIN && name.trim().length <= NAME_MAX;
 
   return (
     <section className="space-y-4">
+      <GroupInvites />
       <div className="flex items-center gap-2">
         <div className="flex flex-1 gap-2 overflow-x-auto">
           <Pill active={!mineOnly} onClick={() => setMineOnly(false)}>
@@ -73,57 +49,14 @@ export function GroupsPanel({ query = "" }: { query?: string }) {
         </div>
         <button
           type="button"
-          onClick={() => setCreating((v) => !v)}
+          onClick={() => setCreating(true)}
           className="flex shrink-0 items-center gap-1.5 rounded-full bg-gradient-brand px-4 py-2 text-sm font-semibold text-primary-foreground"
         >
           <Plus className="h-4 w-4" />
-          Create
+          New group
         </button>
       </div>
-
-      {creating && (
-        <form
-          className="glass-card space-y-3 p-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (nameOk && !create.isPending) create.mutate();
-          }}
-        >
-          <h2 className="font-semibold">New group</h2>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value.slice(0, NAME_MAX))}
-            placeholder="Group name"
-            aria-label="Group name"
-            className={field}
-          />
-          <textarea
-            value={desc}
-            onChange={(e) => setDesc(e.target.value.slice(0, DESC_MAX))}
-            placeholder="What is this group about? (optional)"
-            aria-label="Group description"
-            rows={3}
-            className={`${field} resize-none`}
-          />
-          <div className="flex items-center justify-end gap-3">
-            <button
-              type="button"
-              onClick={() => setCreating(false)}
-              className="px-3 py-2 text-sm font-semibold text-muted-foreground"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={!nameOk || create.isPending}
-              className="flex items-center gap-2 rounded-full bg-gradient-brand px-5 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
-            >
-              {create.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              Create group
-            </button>
-          </div>
-        </form>
-      )}
+      <CreateGroupDialog open={creating} onOpenChange={setCreating} />
 
       <div className="glass-card divide-y divide-border">
         {groups.isLoading && (
@@ -133,61 +66,76 @@ export function GroupsPanel({ query = "" }: { query?: string }) {
         )}
         {groups.isError && <p className="p-4 text-sm text-destructive">Couldn't load groups.</p>}
         {groups.isSuccess && groups.data.length === 0 && (
-          <p className="p-6 text-center text-sm text-muted-foreground">
-            {query
-              ? "No groups match your search."
-              : mineOnly
-                ? "You haven't joined any groups yet."
-                : "No groups yet. Create the first one!"}
-          </p>
+          <div className="space-y-3 p-6 text-center">
+            <p className="text-sm text-muted-foreground">
+              {query
+                ? "No groups match your search."
+                : mineOnly
+                  ? "You haven't joined any groups yet."
+                  : "No groups yet."}
+            </p>
+            {!query && (
+              <button
+                type="button"
+                onClick={() => setCreating(true)}
+                className="rounded-full bg-gradient-brand px-5 py-2 text-sm font-semibold text-primary-foreground"
+              >
+                Create a group
+              </button>
+            )}
+          </div>
         )}
-        {groups.data?.map((g) => {
-          const busy =
-            (membership.isPending && membership.variables?.id === g.id) ||
-            (remove.isPending && remove.variables === g.id);
-          return (
-            <div key={g.id} className="flex items-start gap-3 p-4">
-              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gradient-brand text-primary-foreground">
-                <Users className="h-5 w-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="break-words font-semibold">{g.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {g.member_count} {g.member_count === 1 ? "member" : "members"}
-                  {g.my_role === "admin" ? " • You're the admin" : ""}
-                </p>
+        {groups.data?.map((g) => (
+          <div key={g.id} className="flex items-center gap-3 p-4">
+            <Link
+              to="/group/$id"
+              params={{ id: g.id }}
+              className="flex min-w-0 flex-1 items-start gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <GroupAvatar size={44} />
+              <span className="min-w-0 flex-1">
+                <span className="block break-words font-semibold">{g.name}</span>
+                <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                  {memberLabel(g.member_count)}
+                  <PrivacyBadge isPrivate={g.is_private} />
+                  {g.my_role === "admin" && <span>Admin</span>}
+                </span>
                 {g.description && (
-                  <p className="mt-1 whitespace-pre-line break-words text-sm text-muted-foreground">
+                  <span className="mt-1 line-clamp-2 block break-words text-sm text-muted-foreground">
                     {g.description}
-                  </p>
+                  </span>
                 )}
-              </div>
-              {g.my_role === "admin" ? (
-                <button
-                  type="button"
-                  disabled={busy}
-                  aria-label={`Delete ${g.name}`}
-                  onClick={() => {
-                    if (window.confirm(`Delete "${g.name}"? This removes the group for everyone.`))
-                      remove.mutate(g.id);
-                  }}
-                  className="mt-1 text-muted-foreground hover:text-destructive disabled:opacity-60"
-                >
-                  <Trash2 className="h-5 w-5" />
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => membership.mutate({ id: g.id, join: !g.is_member })}
-                  className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-semibold transition disabled:opacity-60 ${g.is_member ? "bg-elevated text-muted-foreground" : "bg-gradient-brand text-primary-foreground"}`}
-                >
-                  {g.is_member ? "Joined" : "Join"}
-                </button>
-              )}
-            </div>
-          );
-        })}
+              </span>
+            </Link>
+            {g.is_member && g.conversation_id ? (
+              <Link
+                to="/chat/$id"
+                params={{ id: g.conversation_id }}
+                aria-label={`Open ${g.name} chat`}
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-elevated text-primary"
+              >
+                <MessageCircle className="h-5 w-5" />
+              </Link>
+            ) : g.has_invite ? (
+              <Link
+                to="/group/$id"
+                params={{ id: g.id }}
+                className="shrink-0 rounded-full bg-gradient-brand px-4 py-1.5 text-xs font-semibold text-primary-foreground"
+              >
+                View invite
+              </Link>
+            ) : (
+              <button
+                type="button"
+                disabled={join.isPending && join.variables === g.id}
+                onClick={() => join.mutate(g.id)}
+                className="shrink-0 rounded-full bg-gradient-brand px-4 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60"
+              >
+                Join
+              </button>
+            )}
+          </div>
+        ))}
       </div>
     </section>
   );

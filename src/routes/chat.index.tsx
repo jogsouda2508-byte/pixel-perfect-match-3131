@@ -1,8 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, MessageSquare, Search, UserPlus } from "lucide-react";
+import { Loader2, MessageSquare, Search, UserPlus, Users } from "lucide-react";
 import { Avatar, BottomNav, SideNav } from "@/components/ediraa";
+import { CreateGroupDialog } from "@/components/create-group-dialog";
+import { GroupInvites } from "@/components/group-invites";
+import { GroupAvatar, memberLabel } from "@/components/group-ui";
 import {
   Dialog,
   DialogContent,
@@ -30,6 +33,7 @@ function ChatPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [newMessageOpen, setNewMessageOpen] = useState(false);
+  const [newGroupOpen, setNewGroupOpen] = useState(false);
   const conversations = useQuery({
     queryKey: ["chat-conversations", user?.id],
     queryFn: () => listConversations(user!.id),
@@ -58,16 +62,29 @@ function ChatPage() {
       <main className="min-w-0 space-y-4">
         <header className="flex items-center justify-between gap-3">
           <h1 className="text-2xl font-bold">Chat</h1>
-          <Button
-            type="button"
-            variant="outline"
-            className="min-h-11 rounded-full"
-            onClick={() => setNewMessageOpen(true)}
-          >
-            <UserPlus aria-hidden="true" />
-            <span>New message</span>
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11 rounded-full"
+              onClick={() => setNewGroupOpen(true)}
+            >
+              <Users aria-hidden="true" />
+              <span>New group</span>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11 rounded-full"
+              onClick={() => setNewMessageOpen(true)}
+            >
+              <UserPlus aria-hidden="true" />
+              <span>New message</span>
+            </Button>
+          </div>
         </header>
+
+        <GroupInvites />
 
         {conversations.isLoading && (
           <section className="glass-card space-y-3 p-4" aria-label="Loading conversations">
@@ -114,18 +131,30 @@ function ChatPage() {
             {conversations.data.map((conversation) => {
               const contact = conversation.otherParticipant;
               const name = contact.full_name || contact.username;
+              const group = conversation.group;
               return (
                 <Link
                   key={conversation.id}
                   to="/chat/$id"
                   params={{ id: conversation.id }}
-                  aria-label={`Open conversation with ${name}${conversation.unread ? ", unread" : ""}`}
+                  aria-label={`Open ${group ? "group chat" : "conversation with"} ${name}${conversation.unread ? ", unread" : ""}`}
                   className="flex min-h-[76px] items-center gap-3 rounded-xl px-4 py-3 text-left transition hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  <Avatar src={contact.avatar_url} name={name} size={44} />
+                  {group ? (
+                    <GroupAvatar size={44} />
+                  ) : (
+                    <Avatar src={contact.avatar_url} name={name} size={44} />
+                  )}
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center justify-between gap-2">
-                      <span className="truncate text-sm font-semibold">{name}</span>
+                      <span className="truncate text-sm font-semibold">
+                        {name}
+                        {group && (
+                          <span className="ml-2 text-xs font-normal text-muted-foreground">
+                            {memberLabel(group.memberCount)}
+                          </span>
+                        )}
+                      </span>
                       {conversation.last_message_at && (
                         <span className="shrink-0 text-sm text-muted-foreground">
                           {timeAgo(conversation.last_message_at)}
@@ -151,6 +180,7 @@ function ChatPage() {
         )}
       </main>
       <BottomNav />
+      <CreateGroupDialog open={newGroupOpen} onOpenChange={setNewGroupOpen} />
       <NewMessageDialog
         open={newMessageOpen}
         onOpenChange={setNewMessageOpen}
