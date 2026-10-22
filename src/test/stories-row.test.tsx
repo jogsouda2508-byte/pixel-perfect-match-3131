@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -526,5 +526,43 @@ describe("story viewers and likes", () => {
     fireEvent.click(await screen.findByRole("button", { name: "View your story" }));
     fireEvent.click(await screen.findByRole("button", { name: /^Viewers:/ }));
     expect(await screen.findByText("No views yet.")).toBeInTheDocument();
+  });
+});
+
+describe("holding a story", () => {
+  afterEach(() => vi.useRealTimers());
+  const barWidth = () =>
+    parseFloat(
+      (screen.getByRole("dialog").querySelector(".h-1 > div") as HTMLElement).style.width || "0",
+    );
+  const advance = (ms: number) => act(async () => void vi.advanceTimersByTime(ms));
+
+  it("pauses while I hold the photo and carries on from the same point when I let go", async () => {
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame", "performance"] });
+    h.groups = [group("a", "alice", [img("1"), img("2")])];
+    wrap(<Stories />);
+    fireEvent.click(await screen.findByRole("button", { name: /View alice Name's story/ }));
+    await advance(1000);
+    const before = barWidth();
+    expect(before).toBeGreaterThan(5);
+
+    const photo = screen.getByRole("dialog").querySelector("img.object-contain") as HTMLElement;
+    fireEvent.pointerDown(photo, { button: 0 });
+    await advance(3000); // would be the end of the story if it were still running
+    expect(barWidth()).toBe(before);
+
+    fireEvent.pointerUp(window);
+    await advance(1000);
+    expect(barWidth()).toBeGreaterThan(before);
+    expect(barWidth()).toBeLessThan(60); // resumed, did not jump ahead
+  });
+
+  it("still lets me tap Next while the story is held", async () => {
+    h.groups = [group("a", "alice", [img("1"), img("2")])];
+    wrap(<Stories />);
+    fireEvent.click(await screen.findByRole("button", { name: /View alice Name's story/ }));
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Next" }), { button: 0 });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.queryByRole("button", { name: "Next" })).toBeNull(); // now on the last story
   });
 });

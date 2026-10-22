@@ -169,13 +169,7 @@ export function Stories() {
             ariaLabel={myGroup ? "View your story" : "Create a story"}
             onClick={onOwnBubble}
           >
-            <Avatar
-              src={profile?.avatar_url}
-              name={myName}
-              size={AVATAR}
-              ring={!!myGroup}
-              segments={myGroup?.items.length ?? 1}
-            />
+            <Avatar src={profile?.avatar_url} name={myName} size={AVATAR} ring={!!myGroup} />
           </StoryButton>
           {/* The "+" only exists while I have NO story. Once I have one, the bubble opens it;
               adding another one is done from inside the story viewer. */}
@@ -203,7 +197,7 @@ export function Stories() {
               ariaLabel={`View ${g.name || g.username}'s story`}
               onClick={() => setViewing(g)}
             >
-              <Avatar src={g.avatar} name={g.name} size={AVATAR} ring segments={g.items.length} />
+              <Avatar src={g.avatar} name={g.name} size={AVATAR} ring />
             </StoryButton>
           </div>
         ))}
@@ -275,6 +269,9 @@ function StoryViewer({
   const [viewersOpen, setViewersOpen] = useState(false);
   const viewersOpenRef = useRef(false);
   viewersOpenRef.current = viewersOpen;
+  // Press and hold on the story to pause it; letting go resumes from the same point.
+  const [held, setHeld] = useState(false);
+  const paused = viewersOpen || held;
   const item = group.items[i];
   const last = group.items.length - 1;
   const isMine = group.authorId === meId;
@@ -290,6 +287,7 @@ function StoryViewer({
   const go = (next: number) => {
     setFraction(0);
     setViewersOpen(false);
+    setHeld(false);
     setI(next);
   };
   const advance = () => (i < last ? go(i + 1) : onClose());
@@ -305,7 +303,7 @@ function StoryViewer({
     elapsedRef.current = 0;
   }, [itemId]);
   useEffect(() => {
-    if (!itemIsPhoto || viewersOpen) return;
+    if (!itemIsPhoto || paused) return;
     const DURATION_MS = 5000;
     const startedAt = performance.now() - elapsedRef.current;
     let raf = 0;
@@ -322,7 +320,21 @@ function StoryViewer({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [itemId, itemIsPhoto, viewersOpen]);
+  }, [itemId, itemIsPhoto, paused]);
+
+  // Releasing anywhere (even outside the story, or if the browser cancels the touch) resumes it.
+  useEffect(() => {
+    if (!held) return;
+    const release = () => setHeld(false);
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", release);
+    window.addEventListener("blur", release);
+    return () => {
+      window.removeEventListener("pointerup", release);
+      window.removeEventListener("pointercancel", release);
+      window.removeEventListener("blur", release);
+    };
+  }, [held]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -432,17 +444,30 @@ function StoryViewer({
           <X className="h-6 w-6" />
         </button>
       </div>
-      <div className="relative flex min-h-0 flex-1 items-center justify-center">
+      <div
+        className="relative flex min-h-0 flex-1 select-none items-center justify-center [-webkit-touch-callout:none]"
+        onPointerDown={(e) => {
+          // left mouse button or touch; the previous / next buttons keep working as taps
+          if (e.button > 0 || (e.target as HTMLElement).closest("button")) return;
+          setHeld(true);
+        }}
+        onContextMenu={(e) => e.preventDefault()}
+      >
         {isVideo ? (
           <StoryVideo
             key={item.id}
             item={item}
-            paused={viewersOpen}
+            paused={paused}
             onProgress={setFraction}
             onDone={advance}
           />
         ) : (
-          <img src={item.image_url ?? ""} alt="" className="max-h-full max-w-full object-contain" />
+          <img
+            src={item.image_url ?? ""}
+            alt=""
+            draggable={false}
+            className="max-h-full max-w-full object-contain"
+          />
         )}
         {i > 0 && (
           <button
@@ -586,7 +611,7 @@ function StoryVideo({
   onDone,
 }: {
   item: StoryItem;
-  /** true while the owner's viewers list is open */
+  /** true while the viewers list is open or the person is holding the story */
   paused: boolean;
   onProgress: (fraction: number) => void;
   onDone: () => void;
@@ -596,7 +621,7 @@ function StoryVideo({
   const start = item.segment_start;
   const end = item.segment_end ?? Number.POSITIVE_INFINITY;
 
-  // Pause while the viewers list is open, resume when it closes.
+  // Pause while the viewers list is open or the story is held, resume when released.
   useEffect(() => {
     const v = ref.current;
     if (!v) return;
