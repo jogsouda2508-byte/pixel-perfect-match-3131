@@ -197,7 +197,7 @@ export function Pill({
   return (
     <button
       onClick={onClick}
-      className={`shrink-0 rounded-full font-medium transition ${large ? "px-5 py-2.5 text-sm" : compact ? "px-3.5 py-1.5 text-[13px]" : "px-4 py-2 text-sm"} ${active ? "bg-gradient-brand text-primary-foreground glow" : "border border-border bg-card text-foreground"}`}
+      className={`shrink-0 rounded-full font-medium transition ${large ? "px-5 py-2.5 text-sm" : compact ? "px-4 py-2 text-[15px]" : "px-4 py-2 text-sm"} ${active ? "bg-gradient-brand text-primary-foreground glow" : "border border-border bg-card text-foreground"}`}
     >
       {children}
     </button>
