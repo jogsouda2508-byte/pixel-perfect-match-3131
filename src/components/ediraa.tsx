@@ -184,17 +184,20 @@ export function Pill({
   children,
   onClick,
   large = false,
+  compact = false,
 }: {
   active?: boolean;
   children: ReactNode;
   onClick?: () => void;
   /** Roomier size, used on the wide Discover page. */
   large?: boolean;
+  /** Smaller size, used on the Home feed tabs. */
+  compact?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
-      className={`shrink-0 rounded-full font-medium transition ${large ? "px-5 py-2.5 text-sm" : "px-4 py-2 text-sm"} ${active ? "bg-gradient-brand text-primary-foreground glow" : "border border-border bg-card text-foreground"}`}
+      className={`shrink-0 rounded-full font-medium transition ${large ? "px-5 py-2.5 text-sm" : compact ? "px-3 py-1 text-xs" : "px-4 py-2 text-sm"} ${active ? "bg-gradient-brand text-primary-foreground glow" : "border border-border bg-card text-foreground"}`}
     >
       {children}
     </button>

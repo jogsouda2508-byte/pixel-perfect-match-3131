@@ -119,6 +119,7 @@ function HomePage() {
               <Pill
                 key={t.key}
                 active={tab === t.key}
+                compact
                 onClick={() => setTab(t.key)}
               >
                 {t.label}
