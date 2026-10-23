@@ -333,6 +333,11 @@ function StoryViewer({
   const [viewersOpen, setViewersOpen] = useState(false);
   const viewersOpenRef = useRef(false);
   viewersOpenRef.current = viewersOpen;
+  // Press and hold on the story to pause it; letting go resumes from the same point.
+  const [held, setHeld] = useState(false);
+  const paused = viewersOpen || held;
+  // When the current press started, so a long press is never counted as a tap (double-tap like).
+  const pressStartRef = useRef<number | null>(null);
   // The big heart in the middle of the story. Every new number restarts the animation
   // (0 = nothing showing), so liking another story, or double-tapping again, plays it again.
   const [burst, setBurst] = useState(0);
@@ -357,6 +362,7 @@ function StoryViewer({
     setFraction(0);
     setViewersOpen(false);
     setBurst(0);
+    setHeld(false);
     lastTapRef.current = null;
     setI(next);
   };
@@ -374,7 +380,7 @@ function StoryViewer({
     elapsedRef.current = 0;
   }, [itemId]);
   useEffect(() => {
-    if (!itemIsPhoto || viewersOpen) return;
+    if (!itemIsPhoto || paused) return;
     const DURATION_MS = 5000;
     const startedAt = performance.now() - elapsedRef.current;
     let raf = 0;
@@ -391,7 +397,21 @@ function StoryViewer({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [itemId, itemIsPhoto, viewersOpen]);
+  }, [itemId, itemIsPhoto, paused]);
+
+  // Releasing anywhere (even outside the story, or if the browser cancels the touch) resumes it.
+  useEffect(() => {
+    if (!held) return;
+    const release = () => setHeld(false);
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", release);
+    window.addEventListener("blur", release);
+    return () => {
+      window.removeEventListener("pointerup", release);
+      window.removeEventListener("pointercancel", release);
+      window.removeEventListener("blur", release);
+    };
+  }, [held]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -478,6 +498,13 @@ function StoryViewer({
     if (isMine || !stats || viewersOpen) return;
     if ((e.target as HTMLElement).closest("button")) return;
     const now = performance.now();
+    const pressedAt = pressStartRef.current;
+    pressStartRef.current = null;
+    if (pressedAt !== null && now - pressedAt > 300) {
+      // This was a press-and-hold (pause), not a tap.
+      lastTapRef.current = null;
+      return;
+    }
     const prev = lastTapRef.current;
     if (
       prev &&
@@ -579,16 +606,23 @@ function StoryViewer({
         </button>
       </div>
       <div
-        className="relative flex min-h-0 flex-1 items-center justify-center select-none"
+        className="relative flex min-h-0 flex-1 items-center justify-center select-none [-webkit-touch-callout:none]"
         // no browser zoom on double tap, so a double tap can mean "like"
         style={{ touchAction: "manipulation" }}
         onClick={onStoryTap}
+        onPointerDown={(e) => {
+          // left mouse button or touch; the previous / next buttons keep working as taps
+          if (e.button > 0 || (e.target as HTMLElement).closest("button")) return;
+          pressStartRef.current = performance.now();
+          setHeld(true);
+        }}
+        onContextMenu={(e) => e.preventDefault()}
       >
         {isVideo ? (
           <StoryVideo
             key={item.id}
             item={item}
-            paused={viewersOpen}
+            paused={paused}
             onProgress={setFraction}
             onDone={advance}
           />
@@ -596,6 +630,7 @@ function StoryViewer({
           <img
             src={item.image_url ?? ""}
             alt=""
+            draggable={false}
             className="max-h-full max-w-full object-contain"
           />
         )}
@@ -788,7 +823,7 @@ function StoryVideo({
   onDone,
 }: {
   item: StoryItem;
-  /** true while the owner's viewers list is open */
+  /** true while the viewers list is open or the person is holding the story */
   paused: boolean;
   onProgress: (fraction: number) => void;
   onDone: () => void;
@@ -798,7 +833,7 @@ function StoryVideo({
   const start = item.segment_start;
   const end = item.segment_end ?? Number.POSITIVE_INFINITY;
 
-  // Pause while the viewers list is open, resume when it closes.
+  // Pause while the viewers list is open or the story is held, resume when released.
   useEffect(() => {
     const v = ref.current;
     if (!v) return;
