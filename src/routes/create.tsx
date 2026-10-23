@@ -1,4 +1,8 @@
-import { createFileRoute, useBlocker, useNavigate } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  useBlocker,
+  useNavigate,
+} from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Building2, Globe, UserCheck } from "lucide-react";
@@ -18,10 +22,16 @@ import type { Audience } from "@/integrations/supabase/types";
 export const Route = createFileRoute("/create")({
   head: () => ({
     meta: [
-      { title: "Create Post — Ediraa" },
-      { name: "description", content: "Share an update with your Ediraa network." },
-      { property: "og:title", content: "Create Post — Ediraa" },
-      { property: "og:description", content: "Share an update with your Ediraa network." },
+      { title: "Create Post — Gicco chat" },
+      {
+        name: "description",
+        content: "Share an update with your Gicco chat network.",
+      },
+      { property: "og:title", content: "Create Post — Gicco chat" },
+      {
+        property: "og:description",
+        content: "Share an update with your Gicco chat network.",
+      },
     ],
   }),
   component: CreatePostPage,
@@ -97,11 +107,13 @@ function CreatePostPage() {
       navigate({ to: "/home" });
     },
     onError: (error: Error) =>
-      toast.error(error.message || "Couldn't publish your post. Please try again."),
+      toast.error(
+        error.message || "Couldn't publish your post. Please try again.",
+      ),
   });
 
   return (
-    <div className="mx-auto max-w-6xl px-4 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,640px)] lg:justify-center">
+    <div className="mx-auto max-w-[1480px] px-4 sm:px-6 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]">
       <SideNav />
       <main className="min-w-0 space-y-4">
         <header className="flex items-center gap-3">
@@ -119,7 +131,9 @@ function CreatePostPage() {
           <textarea
             ref={textInput}
             value={text}
-            onChange={(event) => setText(event.currentTarget.value.slice(0, MAX))}
+            onChange={(event) =>
+              setText(event.currentTarget.value.slice(0, MAX))
+            }
             placeholder="What's on your mind?"
             rows={5}
             aria-label="Post text"
@@ -128,7 +142,11 @@ function CreatePostPage() {
           <p className="-mt-3 text-right text-xs text-muted-foreground">
             {text.length}/{MAX}
           </p>
-          <ComposerLauncher variant="media" extras={extras} onExtrasChange={setExtras} />
+          <ComposerLauncher
+            variant="media"
+            extras={extras}
+            onExtrasChange={setExtras}
+          />
           <PostExtrasFields
             value={extras}
             onChange={setExtras}

@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Camera, ChevronRight, Loader2, Lock, MapPin } from "lucide-react";
 import { Avatar } from "@/components/ediraa";
+import { PushSettingsCard } from "@/components/push-prompt";
 import { PageHeader, PageShell } from "@/components/page-shell";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,8 +17,8 @@ import { passwordSchema, passwordStrength } from "@/lib/validation";
 export const Route = createFileRoute("/settings")({
   head: () => ({
     meta: [
-      { title: "Settings & Privacy — Ediraa" },
-      { name: "description", content: "Edit your profile and manage your Ediraa account." },
+      { title: "Settings & Privacy — Gicco chat" },
+      { name: "description", content: "Edit your profile and manage your Gicco chat account." },
     ],
   }),
   component: SettingsPage,
@@ -38,6 +39,7 @@ function SettingsPage() {
           <EditProfileCard profile={profile} />
           <PrivacyCard profile={profile} />
           <AccountCard profile={profile} />
+          <PushSettingsCard />
           <PasswordCard />
           <LogoutButton />
         </>
@@ -94,7 +96,7 @@ function PrivacyCard({ profile }: { profile: Profile }) {
           <p className="text-xs text-muted-foreground">
             {isPrivate
               ? "Only people you approve can see your posts and stories. New followers must send a request."
-              : "Anyone on Ediraa can see your posts and follow you. Turn this on to approve followers yourself."}
+              : "Anyone on Gicco chat can see your posts and follow you. Turn this on to approve followers yourself."}
           </p>
         </div>
         <Switch
@@ -379,7 +381,11 @@ function PasswordCard() {
           disabled={sending || linkSent}
           className="text-sm font-medium text-primary disabled:opacity-60"
         >
-          {sending ? "Sending…" : linkSent ? "Link sent — check your inbox" : "Email me a reset link instead"}
+          {sending
+            ? "Sending…"
+            : linkSent
+              ? "Link sent — check your inbox"
+              : "Email me a reset link instead"}
         </button>
       </div>
     </form>

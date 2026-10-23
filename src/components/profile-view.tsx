@@ -36,11 +36,18 @@ import { useFollow } from "@/lib/use-follow";
 import { startConversation } from "@/lib/chat";
 import { fetchUserVideos } from "@/lib/videos";
 import type { Profile } from "@/integrations/supabase/types";
+import coverUrl from "@/assets/profile-cover.jpg";
 
 const tabs = ["Posts", "Reels", "Tagged"] as const;
 
 /** Shared by /profile (your own) and /u/<username> (anyone else). */
-export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean }) {
+export function ProfileView({
+  profile,
+  isMe,
+}: {
+  profile: Profile;
+  isMe: boolean;
+}) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [tab, setTab] = useState<(typeof tabs)[number]>("Posts");
@@ -64,7 +71,9 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
   const requested = follow.isRequested(profile.id);
   // Private accounts keep their posts, videos and tags hidden until the viewer is an accepted follower.
   const lockKnown = isMe || !profile.is_private || !followState.isLoading;
-  const locked = lockKnown && isProfileLocked({ isPrivate: !!profile.is_private, isMe, following });
+  const locked =
+    lockKnown &&
+    isProfileLocked({ isPrivate: !!profile.is_private, isMe, following });
 
   const counts = useQuery({
     queryKey: ["follow-counts", profile.id],
@@ -105,7 +114,12 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
       });
     } else if (p.image_url) {
       galleryIndexByPost.set(p.id, galleryItems.length);
-      galleryItems.push({ id: p.id, type: "image", src: p.image_url, caption: p.content });
+      galleryItems.push({
+        id: p.id,
+        type: "image",
+        src: p.image_url,
+        caption: p.content,
+      });
     }
   }
 
@@ -116,7 +130,11 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
       const id = await startConversation(profile.id);
       navigate({ to: "/chat/$id", params: { id } });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Couldn't start a conversation.");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Couldn't start a conversation.",
+      );
     } finally {
       setStartingMessage(false);
     }
@@ -127,7 +145,10 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
       {videos.isLoading && (
         <div className="grid grid-cols-3 gap-1.5" aria-label="Loading videos">
           {[0, 1, 2, 3, 4, 5].map((item) => (
-            <div key={item} className="aspect-[9/16] animate-pulse rounded-lg bg-elevated" />
+            <div
+              key={item}
+              className="aspect-[9/16] animate-pulse rounded-lg bg-elevated"
+            />
           ))}
         </div>
       )}
@@ -138,7 +159,9 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
       )}
       {videos.isSuccess && videos.data.length === 0 && (
         <p className="glass-card p-6 text-center text-sm text-muted-foreground">
-          {isMe ? "You haven't shared any videos yet." : "No videos to show yet."}
+          {isMe
+            ? "You haven't shared any videos yet."
+            : "No videos to show yet."}
         </p>
       )}
       <div className="grid grid-cols-3 gap-1.5">
@@ -163,7 +186,9 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
               </div>
             )}
             <span className="absolute bottom-2 right-2 rounded bg-black/65 px-1.5 py-0.5 text-xs text-white">
-              {video.duration_seconds ? `${Math.ceil(video.duration_seconds)}s` : "Video"}
+              {video.duration_seconds
+                ? `${Math.ceil(video.duration_seconds)}s`
+                : "Video"}
             </span>
           </Link>
         ))}
@@ -172,12 +197,17 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
   );
 
   return (
-    <div className="mx-auto max-w-6xl px-4 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,640px)] lg:justify-center">
+    <div className="mx-auto max-w-[1480px] px-4 sm:px-6 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]">
       <SideNav />
       <main className="min-w-0">
         <section className="glass-card overflow-hidden">
           <div className="relative">
-            <div className="h-40 w-full bg-gradient-brand opacity-80 md:h-52" />
+            <img
+              src={coverUrl}
+              alt=""
+              aria-hidden="true"
+              className="h-40 w-full object-cover md:h-52 xl:h-60"
+            />
             {isMe && (
               <Link
                 to="/more"
@@ -214,7 +244,9 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => follow.toggle(profile.id, following)}
-                    disabled={follow.isPending(profile.id) || followState.isLoading}
+                    disabled={
+                      follow.isPending(profile.id) || followState.isLoading
+                    }
                     className={`min-h-11 rounded-full px-5 py-2 text-sm font-semibold transition disabled:opacity-60 ${following || requested ? "bg-elevated text-muted-foreground" : "bg-gradient-brand text-primary-foreground"}`}
                   >
                     {followLabel(following, requested)}
@@ -226,7 +258,10 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
                     className="inline-flex min-h-11 items-center gap-2 rounded-full border border-primary px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
                   >
                     {startingMessage ? (
-                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                      <Loader2
+                        className="h-4 w-4 animate-spin"
+                        aria-hidden="true"
+                      />
                     ) : (
                       <MessageSquare className="h-4 w-4" aria-hidden="true" />
                     )}
@@ -252,7 +287,9 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
             </h1>
             <p className="text-sm text-muted-foreground">@{profile.username}</p>
             {profile.bio && (
-              <p className="mt-2 whitespace-pre-line text-sm leading-relaxed">{profile.bio}</p>
+              <p className="mt-2 whitespace-pre-line text-sm leading-relaxed">
+                {profile.bio}
+              </p>
             )}
             {profile.location && (
               <p className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -267,7 +304,10 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
               </p>
             )}
             {profile.interests.length > 0 && (
-              <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Interests">
+              <ul
+                className="mt-3 flex flex-wrap gap-1.5"
+                aria-label="Interests"
+              >
                 {profile.interests.map((interest) => (
                   <li
                     key={interest}
@@ -292,7 +332,9 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
               />
             </div>
           </div>
-          <div className={`grid grid-cols-3 border-t border-border ${locked ? "hidden" : ""}`}>
+          <div
+            className={`grid grid-cols-3 border-t border-border ${locked ? "hidden" : ""}`}
+          >
             {tabs.map((t) => (
               <button
                 key={t}
@@ -334,7 +376,9 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
             )}
             {grid.isError && (
               <p className="mt-3 text-center text-sm text-destructive">
-                {tab === "Tagged" ? "Couldn't load tagged posts." : "Couldn't load posts."}
+                {tab === "Tagged"
+                  ? "Couldn't load tagged posts."
+                  : "Couldn't load posts."}
               </p>
             )}
             {grid.isSuccess && grid.data.length === 0 && (
@@ -354,7 +398,9 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
                   <button
                     type="button"
                     key={p.id}
-                    onClick={() => setGalleryIndex(galleryIndexByPost.get(p.id) ?? 0)}
+                    onClick={() =>
+                      setGalleryIndex(galleryIndexByPost.get(p.id) ?? 0)
+                    }
                     aria-label={`Play video${p.content ? `: ${p.content.slice(0, 60)}` : ""}`}
                     className="relative block aspect-square w-full overflow-hidden rounded-lg bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
@@ -368,7 +414,10 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
                     )}
                     <span className="absolute inset-0 grid place-items-center">
                       <span className="grid h-9 w-9 place-items-center rounded-full bg-black/55">
-                        <Play className="h-5 w-5 fill-white text-white" aria-hidden="true" />
+                        <Play
+                          className="h-5 w-5 fill-white text-white"
+                          aria-hidden="true"
+                        />
                       </span>
                     </span>
                   </button>
@@ -376,7 +425,9 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
                   <button
                     type="button"
                     key={p.id}
-                    onClick={() => setGalleryIndex(galleryIndexByPost.get(p.id) ?? 0)}
+                    onClick={() =>
+                      setGalleryIndex(galleryIndexByPost.get(p.id) ?? 0)
+                    }
                     aria-label={`Open photo${p.content ? `: ${p.content.slice(0, 60)}` : ""}`}
                     className="block aspect-square w-full overflow-hidden rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
@@ -418,7 +469,15 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
   );
 }
 
-function Stat({ n, l, onClick }: { n: string; l: string; onClick?: () => void }) {
+function Stat({
+  n,
+  l,
+  onClick,
+}: {
+  n: string;
+  l: string;
+  onClick?: () => void;
+}) {
   const body = (
     <>
       <p className="text-lg font-bold">{n}</p>
@@ -426,7 +485,11 @@ function Stat({ n, l, onClick }: { n: string; l: string; onClick?: () => void })
     </>
   );
   return onClick ? (
-    <button type="button" onClick={onClick} className="rounded-lg py-1 hover:bg-elevated/60">
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-lg py-1 hover:bg-elevated/60"
+    >
       {body}
     </button>
   ) : (
@@ -463,7 +526,9 @@ function FollowListDialog({
     <Dialog open={!!kind} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{kind === "followers" ? "Followers" : "Following"}</DialogTitle>
+          <DialogTitle>
+            {kind === "followers" ? "Followers" : "Following"}
+          </DialogTitle>
           <DialogDescription className="sr-only">
             {kind === "followers"
               ? "People who follow this profile"
@@ -475,10 +540,14 @@ function FollowListDialog({
             <Loader2 className="h-5 w-5 animate-spin text-primary" />
           </div>
         )}
-        {people.isError && <p className="text-sm text-destructive">Couldn't load this list.</p>}
+        {people.isError && (
+          <p className="text-sm text-destructive">Couldn't load this list.</p>
+        )}
         {people.isSuccess && people.data.length === 0 && (
           <p className="py-4 text-center text-sm text-muted-foreground">
-            {kind === "followers" ? "No followers yet." : "Not following anyone yet."}
+            {kind === "followers"
+              ? "No followers yet."
+              : "Not following anyone yet."}
           </p>
         )}
         <div className="space-y-4">
@@ -501,7 +570,9 @@ function FollowListDialog({
                   following={isFollowing}
                   requested={follow.isRequested(p.id)}
                   pending={follow.isPending(p.id)}
-                  {...(isSelf ? {} : { onToggle: () => follow.toggle(p.id, isFollowing) })}
+                  {...(isSelf
+                    ? {}
+                    : { onToggle: () => follow.toggle(p.id, isFollowing) })}
                 />
               </div>
             );

@@ -1,0 +1,63 @@
+MERGE NOTES  (not part of the app - you can delete this file after applying)
+=============================================================================
+Base = your GitHub repo (commit 10c2885 "private account fix").
+Two zips were laid on top: gicco-push-final (32 files) and group-chat-and-story-ring-files (17 files).
+Most of their files were already identical in the repo; only the files that really differed are in
+this package (+1 new SQL file). The group-chat zip is older (19 Oct 06:xx) than the push zip (07:2x), so
+where both touch a file the push zip's story code wins and the group-chat additions are added on top.
+
+HOW TO APPLY
+1. Copy src/ and supabase/ from this package into the project root, choose "Replace".
+2. DELETE these two files (they belong to the old story-like design that the zip replaces;
+   leaving them makes `npm test` / tsc fail):
+     src/lib/story-like.ts
+     src/test/story-like.test.ts
+3. Supabase -> SQL Editor: run supabase/migrations/20261025000000_notifications_merge.sql
+   (AFTER all your other migrations; safe to run twice). See "SQL" below for why.
+4. npm run lint && npm test && npm run build
+
+FILES CHANGED
+ src/components/stories.tsx   zip version (video stories, one-video-one-story, viewers list, likes with
+                              double-tap heart, own-bubble logic, multi-photo, progress bars)
+                              + story ring split into one arc per story (group-chat zip)
+                              + kept from repo: optional "Local Hub" bubble (only if the page passes
+                              onLocalHub, as home.tsx does) and tapping the author opens their profile.
+ src/lib/social.ts           zip version (video-story columns, fetchStories, deleteStory(item),
+                              recordStoryView, setStoryLike(id, liked), fetchStoryEngagement,
+                              fetchStoryViewers, fetchLocalities, Local-tab location)
+                              + group-chat zip: createGroup(+private, invitees), fetchGroup, inviteToGroup,
+                              respondToGroupInvite, removeGroupMember, fetchMyGroupInvites, fetchGroupMembers,
+                              friendly group error messages
+                              + kept from repo: all follow-request functions (private accounts).
+ src/integrations/supabase/types.ts
+                              zip additions (video story fields, story_views, push_subscriptions,
+                              get_localities, story RPCs, get_feed p_location)
+                              + group-chat types (invites, members, member preview, conversation group_id)
+                              + kept from repo: is_private, follow_requests, new notification kinds.
+ src/components/ediraa.tsx   group-chat zip version (segmented story ring: one arc per story; "Gicco chat"
+                              BrandLockup/BrandName, Reels label, roomier Pill/UserRow) + kept from repo:
+                              follow "Requested" state for private accounts.
+ src/styles.css              zip version (emoji font, bigger desktop text, hand cursors, emoji picker,
+                              white tab scrollbar, new story heart animation).
+ src/routes/settings.tsx     repo version (Private account switch) + zip's Push notifications card
+                              and "Gicco chat" titles.
+ src/routes/notifications.tsx repo version (follow requests, Accept/Decline, Tags tab)
+                              + "Gicco chat" titles (repo had "Ediraa").
+ supabase/migrations/20261025000000_notifications_merge.sql   NEW (see below)
+
+SQL
+ 20261021000000_private_accounts.sql and 20261021000000_story_like_notifications.sql both redefine
+ get_notifications(); whichever ran last wins, and each one drops the other's feature
+ (follow requests vs story likes from story_views). The new file defines one version with both.
+
+WHY THE GROUP-CHAT FILES (create-group-dialog, group.$id, group-invites ... chat.ts, routeTree, migration)
+ ARE NOT IN THIS PACKAGE: they are already identical in the repo. But the repo's social.ts / types.ts /
+ ediraa.tsx were old copies that lacked what those files import (fetchGroup, inviteToGroup, MemberPreview,
+ Avatar `segments`, ...), so the repo did not compile. This package fixes that.
+
+NOT DONE / TO KNOW
+ - src/routes/home.tsx in the repo is an older copy: it does not use LocalityPicker / the Local tab
+   location, which src/test/home-tabs.test.tsx expects. It is not in your zip, so I did not touch it.
+   Send me the home.tsx from your last working version and I will merge it.
+ - I could not run npm install / tests here (package registry blocked). I checked syntax, formatting and
+   cross-file imports/types only. Please run: npm run lint && npm test && npm run build

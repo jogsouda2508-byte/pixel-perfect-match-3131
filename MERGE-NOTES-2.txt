@@ -1,0 +1,25 @@
+MERGE NOTES 2 (not part of the app - delete after applying)
+Base = repo + the previous merged package you already applied. The "ediraa-changed-files_12" zip is the OLDEST
+(17 Oct), so only what it has that the base lacks was added; everything newer in the base was kept.
+
+Apply: copy src/ into the project root, choose Replace. No SQL, no packages. Then: npm run lint && npm test && npm run build
+
+ADDED FROM THE ZIP
+ Wide desktop layout (max-w-[1480px], 3 columns): home, discover, create, notifications, profile-view, video-viewer
+ Home: feed tabs moved into the header row on desktop (name shown only on phones)
+ Discover: roomier text, large pills / user rows, search input text size
+ Profile: cover photo image instead of plain gradient
+ Emoji button in the comment box: post-card (post comments) and video-viewer (video comments)
+ Post card: comment toggle button styling; Share on normal posts now opens the share-in-chat dialog
+ (same as videos) instead of the browser share sheet.
+
+KEPT FROM THE BASE (zip had older versions): private accounts / "Requested" buttons, tags + post location,
+ PostMeta, follow requests in notifications, group chat, story code, Gicco chat branding (page titles in
+ home/discover/create changed from Ediraa to Gicco chat).
+
+NOT TAKEN (older than the base): auth-ui, ediraa, stories, styles, chat.$id, chat.index, package.json,
+ package-lock.json, post-card-video test. Unchanged/identical: profile-cover.jpg, emoji-button, emoji-picker,
+ page-shell, share-video-dialog, shared-video-card, emoji-picker test.
+
+STILL OPEN: src/routes/home.tsx is still missing the Local-tab location picker and the Gicco header that
+ src/test/home-tabs.test.tsx expects. Send the latest home.tsx and I will finish it.

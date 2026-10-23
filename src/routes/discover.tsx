@@ -12,12 +12,15 @@ import { useFollow } from "@/lib/use-follow";
 export const Route = createFileRoute("/discover")({
   head: () => ({
     meta: [
-      { title: "Discover — Ediraa" },
-      { name: "description", content: "Find people, businesses and trending topics on Ediraa." },
-      { property: "og:title", content: "Discover — Ediraa" },
+      { title: "Discover — Gicco chat" },
+      {
+        name: "description",
+        content: "Find people, businesses and trending topics on Gicco chat.",
+      },
+      { property: "og:title", content: "Discover — Gicco chat" },
       {
         property: "og:description",
-        content: "Find people, businesses and trending topics on Ediraa.",
+        content: "Find people, businesses and trending topics on Gicco chat.",
       },
     ],
   }),
@@ -43,10 +46,12 @@ function DiscoverPage() {
   const q = useDebounced(query.trim());
   const follow = useFollow();
 
-  const showPeople = filter === "All" || filter === "People" || filter === "Business";
+  const showPeople =
+    filter === "All" || filter === "People" || filter === "Business";
   const people = useQuery({
     queryKey: ["people", "discover", q, filter, meId],
-    queryFn: () => fetchPeople({ query: q, businessOnly: filter === "Business", limit: 20 }),
+    queryFn: () =>
+      fetchPeople({ query: q, businessOnly: filter === "Business", limit: 20 }),
     enabled: !!meId && showPeople,
   });
 
@@ -65,9 +70,9 @@ function DiscoverPage() {
   });
 
   return (
-    <div className="mx-auto max-w-6xl px-4 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,640px)] lg:justify-center">
+    <div className="mx-auto max-w-[1480px] px-4 sm:px-6 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]">
       <SideNav />
-      <main className="min-w-0 space-y-4">
+      <main className="min-w-0 space-y-4 lg:col-span-2 lg:max-w-[820px] 2xl:max-w-[900px]">
         <h1 className="text-2xl font-bold">Discover</h1>
         <label className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
           <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
@@ -75,12 +80,17 @@ function DiscoverPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search users, posts, business..."
-            className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            className="w-full bg-transparent text-base outline-none placeholder:text-muted-foreground"
           />
         </label>
         <div className="flex gap-2 overflow-x-auto pb-1">
           {filters.map((f) => (
-            <Pill key={f} active={filter === f} onClick={() => setFilter(f)}>
+            <Pill
+              key={f}
+              large
+              active={filter === f}
+              onClick={() => setFilter(f)}
+            >
               {f}
             </Pill>
           ))}
@@ -89,17 +99,25 @@ function DiscoverPage() {
         {filter === "Groups" ? (
           <GroupsPanel query={q} />
         ) : (
-          <section className="glass-card p-4">
+          <section className="glass-card p-5">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="font-semibold">
-                {q ? "People" : filter === "Business" ? "Businesses" : "People you may know"}
+              <h2 className="text-lg font-semibold">
+                {q
+                  ? "People"
+                  : filter === "Business"
+                    ? "Businesses"
+                    : "People you may know"}
               </h2>
             </div>
-            <div className="space-y-4">
+            <div className="space-y-5">
               {people.isLoading && (
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               )}
-              {people.isError && <p className="text-sm text-destructive">Couldn't load people.</p>}
+              {people.isError && (
+                <p className="text-sm text-destructive">
+                  Couldn't load people.
+                </p>
+              )}
               {people.isSuccess && people.data.length === 0 && (
                 <p className="text-sm text-muted-foreground">
                   {q ? "No people match your search." : "No one to show yet."}
@@ -107,6 +125,7 @@ function DiscoverPage() {
               )}
               {people.data?.map((p) => (
                 <UserRow
+                  large
                   key={p.id}
                   name={p.full_name || p.username}
                   username={p.username}
@@ -119,7 +138,12 @@ function DiscoverPage() {
                   following={follow.isFollowing(p.id, p.is_following)}
                   requested={follow.isRequested(p.id)}
                   pending={follow.isPending(p.id)}
-                  onToggle={() => follow.toggle(p.id, follow.isFollowing(p.id, p.is_following))}
+                  onToggle={() =>
+                    follow.toggle(
+                      p.id,
+                      follow.isFollowing(p.id, p.is_following),
+                    )
+                  }
                 />
               ))}
             </div>
@@ -128,10 +152,14 @@ function DiscoverPage() {
 
         {showPosts && (
           <section className="space-y-4">
-            <h2 className="px-1 font-semibold">Posts</h2>
-            {posts.isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+            <h2 className="px-1 text-lg font-semibold">Posts</h2>
+            {posts.isLoading && (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            )}
             {posts.isSuccess && posts.data.length === 0 && (
-              <p className="px-1 text-sm text-muted-foreground">No posts match your search.</p>
+              <p className="px-1 text-sm text-muted-foreground">
+                No posts match your search.
+              </p>
             )}
             {posts.data?.map((p) => (
               <PostCard key={p.id} post={p} />
@@ -139,12 +167,14 @@ function DiscoverPage() {
           </section>
         )}
 
-        <section className="glass-card p-4">
+        <section className="glass-card p-5">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-semibold">Trending Topics</h2>
+            <h2 className="text-lg font-semibold">Trending Topics</h2>
           </div>
           {trending.isSuccess && trending.data.length === 0 && (
-            <p className="text-sm text-muted-foreground">Hashtags used in posts will trend here.</p>
+            <p className="text-sm text-muted-foreground">
+              Hashtags used in posts will trend here.
+            </p>
           )}
           <div className="flex flex-wrap gap-2">
             {trending.data?.map((t) => (
@@ -154,7 +184,7 @@ function DiscoverPage() {
                   setFilter("All");
                   setQuery(`#${t.tag}`);
                 }}
-                className="rounded-full bg-elevated px-3 py-1.5 text-xs font-medium"
+                className="rounded-full bg-elevated px-3.5 py-1.5 text-sm font-medium"
               >
                 #{t.tag}
               </button>
