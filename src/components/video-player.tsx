@@ -86,7 +86,7 @@ export function VideoPlayer({
         if (currentlyPlaying === event.currentTarget) currentlyPlaying = null;
       }}
       onError={() => setFailed(true)}
-      className="mt-3 max-h-[70dvh] w-full rounded-xl bg-black object-contain"
+      className="mt-3 max-h-[50dvh] w-full rounded-xl bg-black object-contain sm:max-h-[70dvh]"
     />
   );
 }

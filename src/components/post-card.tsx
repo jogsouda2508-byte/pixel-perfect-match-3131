@@ -221,7 +221,7 @@ export function PostCard({
                 src={post.image_url}
                 alt=""
                 loading="lazy"
-                className="max-h-[480px] w-full object-cover"
+                className="max-h-[300px] w-full object-cover sm:max-h-[480px]"
               />
             </button>
             <Gallery
