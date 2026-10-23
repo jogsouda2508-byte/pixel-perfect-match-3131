@@ -83,7 +83,7 @@ function DiscoverPage() {
             className="w-full bg-transparent text-base outline-none placeholder:text-muted-foreground"
           />
         </label>
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div className="scrollbar-hidden flex gap-2 overflow-x-auto pb-1">
           {filters.map((f) => (
             <Pill
               key={f}

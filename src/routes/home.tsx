@@ -114,7 +114,7 @@ function HomePage() {
             <span className="sr-only">Gicco chat</span>
             <BrandLockup compact />
           </h1>
-          <div className="scrollbar-white order-3 flex w-full gap-2 overflow-x-auto md:order-1 md:w-auto md:min-w-0 md:flex-1">
+          <div className="scrollbar-hidden order-3 flex w-full gap-2 overflow-x-auto md:order-1 md:w-auto md:min-w-0 md:flex-1">
             {TABS.map((t) => (
               <Pill
                 key={t.key}

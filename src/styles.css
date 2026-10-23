@@ -269,6 +269,16 @@
   }
 }
 
+/* Hides the scrollbar of one horizontally scrollable row (the Home feed category tabs) so no
+   white strip shows under it. The row still scrolls by swipe, trackpad, wheel and keyboard. */
+.scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
 /* Story like: one big heart pops in the middle of the story, bounces once and fades out.
    Used by the StoryHeartBurst overlay in components/stories.tsx (~900 ms). */
 @keyframes story-heart-pop {
