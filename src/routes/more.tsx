@@ -70,7 +70,7 @@ function MorePage() {
   return (
     <PageShell>
       <h1 className="text-xl font-bold">More</h1>
-      <Link to="/profile" className="glass-card flex items-center gap-3 p-4">
+      <Link to="/profile" className="glass-card more-profile-card flex items-center gap-3 p-4">
         <Avatar src={profile?.avatar_url} name={name} size={48} ring />
         <div className="min-w-0 flex-1">
           <p className="truncate font-semibold">{name}</p>

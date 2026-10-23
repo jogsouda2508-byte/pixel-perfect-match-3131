@@ -368,6 +368,15 @@ html {
   }
 }
 
+/* More page (phones only): the profile box still touches both screen edges like the other
+   cards, but its corners are clearly rounded. More specific than the square-corner rule above,
+   so it wins; laptops, desktops and tablets are untouched. */
+@media (max-width: 639.98px) {
+  .app-main > .glass-card.more-profile-card {
+    border-radius: 1.5rem;
+  }
+}
+
 /* ------------------------------------------------------- phone text size
    Smaller text on phones only (below 640px). Laptops, desktops and tablets keep the
    normal sizes. Only font sizes change here: spacing, icons and tap targets stay put. */
