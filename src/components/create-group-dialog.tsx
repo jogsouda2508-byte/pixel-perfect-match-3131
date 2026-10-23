@@ -79,7 +79,7 @@ export function CreateGroupDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto">
+      <DialogContent className="phone-compact-sheet max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>New group</DialogTitle>
           <DialogDescription>

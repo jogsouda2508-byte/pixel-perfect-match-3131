@@ -247,7 +247,7 @@ function NewMessageDialog({
         }
       }}
     >
-      <DialogContent className="max-h-[85dvh] grid-rows-[auto_auto_auto_minmax(0,1fr)] overflow-hidden [&>button]:grid [&>button]:h-11 [&>button]:w-11 [&>button]:place-items-center">
+      <DialogContent className="phone-compact-sheet max-h-[85dvh] grid-rows-[auto_auto_auto_minmax(0,1fr)] overflow-hidden [&>button]:grid [&>button]:h-11 [&>button]:w-11 [&>button]:place-items-center">
         <DialogHeader>
           <DialogTitle>New message</DialogTitle>
           <DialogDescription>Choose someone to start a private conversation.</DialogDescription>

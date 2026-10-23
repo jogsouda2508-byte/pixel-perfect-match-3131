@@ -392,3 +392,24 @@ html {
     font-size: var(--text-base);
   }
 }
+
+/* ------------------------------------------- smaller text: New group / New message
+   Phones only (below 640px), and only inside the two dialogs that carry this class
+   (CreateGroupDialog, and NewMessageDialog on the Chat page). It re-sets the same text
+   size scale as above, one step smaller, for everything inside the dialog: title,
+   description, inputs, buttons, names and usernames. Laptops, desktops and tablets are
+   untouched, and so is every other screen. Spacing, icons, avatars and tap targets stay put. */
+@media (max-width: 639.98px) {
+  .phone-compact-sheet {
+    --text-xs: 0.625rem; /* 10px (phone default 11) */
+    --text-sm: 0.71875rem; /* 11.5px (phone default 13) */
+    --text-base: 0.78125rem; /* 12.5px (phone default 14.5) */
+    --text-lg: 0.875rem; /* 14px (phone default 16) */
+    font-size: var(--text-base);
+  }
+  .phone-compact-sheet input,
+  .phone-compact-sheet textarea,
+  .phone-compact-sheet select {
+    font-size: var(--text-base);
+  }
+}
