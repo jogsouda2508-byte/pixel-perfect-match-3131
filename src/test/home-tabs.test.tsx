@@ -109,7 +109,7 @@ describe("Gicco chat header", () => {
     const chat = gicco.nextElementSibling;
     expect(chat?.textContent).toBe("chat");
     expect(gicco.parentElement?.className).toContain("flex-col");
-    expect(document.querySelector('svg[aria-label="Ediraa logo"]')).toBeInTheDocument();
+    expect(document.querySelector('img[alt="Gicco chat logo"]')).toBeInTheDocument();
   });
 });
 

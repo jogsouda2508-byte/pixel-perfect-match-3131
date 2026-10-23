@@ -399,6 +399,8 @@ export type StoryItem = {
   segment_start: number;
   segment_end: number | null;
   created_at: string;
+  /** optional local flag used by withStoryLiked(); the app reads likes from StoryEngagement */
+  liked_by_me?: boolean;
 };
 
 export type StoryGroup = {

@@ -431,11 +431,12 @@ function StoryViewer({
       await qc.cancelQueries({ queryKey: key });
       const before = qc.getQueryData<StoryEngagement | null>(key);
       if (before) {
-        qc.setQueryData<StoryEngagement | null>(key, {
+        const optimistic: StoryEngagement = {
           ...before,
           likedByMe: args.liked,
           likes: Math.max(0, before.likes + (args.liked ? 1 : -1)),
-        });
+        };
+        qc.setQueryData(key, optimistic);
       }
       return { key, before };
     },

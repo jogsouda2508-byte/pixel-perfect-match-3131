@@ -1,18 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { upsert, del, from } = vi.hoisted(() => {
-  const eq2 = vi.fn();
-  const eq1 = vi.fn(() => ({ eq: eq2 }));
-  return {
-    upsert: vi.fn(),
-    del: { eq1, eq2 },
-    from: vi.fn(),
-  };
-});
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { from } }));
+const { rpc } = vi.hoisted(() => ({ rpc: vi.fn() }));
+vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc } }));
 
 import { DOUBLE_TAP_MS, isDoubleTap, withStoryLiked } from "@/lib/story-like";
-import { setStoryLike, type StoryGroup } from "@/lib/social";
+import { setStoryLike, type StoryGroup, type StoryItem } from "@/lib/social";
+
+const story = (id: string, createdAt: string, liked: boolean): StoryItem => ({
+  id,
+  media_type: "image",
+  image_url: "x",
+  video_url: null,
+  upload_id: null,
+  segment_index: 0,
+  segment_count: 1,
+  segment_start: 0,
+  segment_end: null,
+  created_at: createdAt,
+  liked_by_me: liked,
+});
 
 const group = (liked: boolean): StoryGroup => ({
   authorId: "a",
@@ -21,8 +27,8 @@ const group = (liked: boolean): StoryGroup => ({
   avatar: null,
   latest: "2026-10-18T00:00:00Z",
   items: [
-    { id: "s1", image_url: "x", created_at: "2026-10-18T00:00:00Z", liked_by_me: liked },
-    { id: "s2", image_url: "y", created_at: "2026-10-18T00:01:00Z", liked_by_me: false },
+    story("s1", "2026-10-18T00:00:00Z", liked),
+    story("s2", "2026-10-18T00:01:00Z", false),
   ],
 });
 
@@ -56,32 +62,34 @@ describe("withStoryLiked", () => {
 
 describe("setStoryLike", () => {
   beforeEach(() => {
-    upsert.mockReset();
-    del.eq1.mockClear();
-    del.eq2.mockReset();
-    from.mockReset();
-    from.mockReturnValue({ upsert, delete: () => ({ eq: del.eq1 }) });
+    rpc.mockReset();
   });
 
-  it("likes with an idempotent upsert on (story, user)", async () => {
-    upsert.mockResolvedValue({ error: null });
-    await setStoryLike("s1", "u1", true);
-    expect(from).toHaveBeenCalledWith("story_likes");
-    expect(upsert).toHaveBeenCalledWith(
-      { story_id: "s1", user_id: "u1" },
-      { onConflict: "story_id,user_id", ignoreDuplicates: true },
-    );
+  it("likes through the idempotent set_story_like function", async () => {
+    rpc.mockResolvedValue({ data: true, error: null });
+    await setStoryLike("s1", true);
+    expect(rpc).toHaveBeenCalledWith("set_story_like", {
+      p_story_id: "s1",
+      p_liked: true,
+    });
   });
 
-  it("unlikes by deleting only my row", async () => {
-    del.eq2.mockResolvedValue({ error: null });
-    await setStoryLike("s1", "u1", false);
-    expect(del.eq1).toHaveBeenCalledWith("story_id", "s1");
-    expect(del.eq2).toHaveBeenCalledWith("user_id", "u1");
+  it("unlikes through the same function with liked = false", async () => {
+    rpc.mockResolvedValue({ data: false, error: null });
+    await setStoryLike("s1", false);
+    expect(rpc).toHaveBeenCalledWith("set_story_like", {
+      p_story_id: "s1",
+      p_liked: false,
+    });
   });
 
   it("throws a readable error when the database refuses", async () => {
-    upsert.mockResolvedValue({ error: { message: "denied" } });
-    await expect(setStoryLike("s1", "u1", true)).rejects.toThrow();
+    rpc.mockResolvedValue({ data: null, error: { message: "denied" } });
+    await expect(setStoryLike("s1", true)).rejects.toThrow();
+  });
+
+  it("throws when the story is no longer available (NULL result)", async () => {
+    rpc.mockResolvedValue({ data: null, error: null });
+    await expect(setStoryLike("s1", true)).rejects.toThrow();
   });
 });
