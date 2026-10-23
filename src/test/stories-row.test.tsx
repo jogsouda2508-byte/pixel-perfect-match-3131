@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, createEvent, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -564,5 +564,66 @@ describe("holding a story", () => {
     fireEvent.pointerDown(screen.getByRole("button", { name: "Next" }), { button: 0 });
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     expect(screen.queryByRole("button", { name: "Next" })).toBeNull(); // now on the last story
+  });
+});
+
+describe("swiping between people", () => {
+  // jsdom has no PointerEvent, so the coordinates are put on the events by hand.
+  const pointer = (type: "pointerDown" | "pointerUp", el: HTMLElement, x: number, y: number) => {
+    const ev = createEvent[type](el, { button: 0 });
+    Object.defineProperty(ev, "clientX", { value: x });
+    Object.defineProperty(ev, "clientY", { value: y });
+    fireEvent(el, ev);
+  };
+  const swipe = (from: number, to: number, endY = 100) => {
+    const area = screen.getByRole("dialog").querySelector("img.object-contain") as HTMLElement;
+    pointer("pointerDown", area, from, 100);
+    pointer("pointerUp", area, to, endY);
+  };
+  const profileOf = (name: string) =>
+    screen.queryByRole("button", { name: `Open ${name} Name's profile` });
+
+  it("shows the next person's story when I swipe left, and the previous one when I swipe right", async () => {
+    h.groups = [group("a", "alice", [img("1")]), group("b", "bob", [img("2")])];
+    wrap(<Stories />);
+    fireEvent.click(await screen.findByRole("button", { name: /View alice Name's story/ }));
+    expect(profileOf("alice")).toBeInTheDocument();
+
+    swipe(250, 100); // finger moves left
+    expect(profileOf("bob")).toBeInTheDocument();
+    expect(profileOf("alice")).toBeNull();
+
+    swipe(100, 250); // finger moves right
+    expect(profileOf("alice")).toBeInTheDocument();
+    expect(profileOf("bob")).toBeNull();
+  });
+
+  it("follows the order of the row, starting with my own story", async () => {
+    h.groups = [group("a", "alice", [img("1")]), group("me", "me", [img("m1")])];
+    wrap(<Stories />);
+    fireEvent.click(await screen.findByRole("button", { name: "View your story" }));
+    expect(profileOf("me")).toBeInTheDocument();
+    swipe(250, 100);
+    expect(profileOf("alice")).toBeInTheDocument();
+  });
+
+  it("stays on the story when there is nobody further in that direction", async () => {
+    h.groups = [group("a", "alice", [img("1")]), group("b", "bob", [img("2")])];
+    wrap(<Stories />);
+    fireEvent.click(await screen.findByRole("button", { name: /View alice Name's story/ }));
+    swipe(100, 250); // right on the first person
+    expect(profileOf("alice")).toBeInTheDocument();
+    swipe(250, 100); // left: bob (the last one)
+    swipe(250, 100); // left again: nobody after bob
+    expect(profileOf("bob")).toBeInTheDocument();
+  });
+
+  it("ignores short moves and mostly-vertical drags", async () => {
+    h.groups = [group("a", "alice", [img("1")]), group("b", "bob", [img("2")])];
+    wrap(<Stories />);
+    fireEvent.click(await screen.findByRole("button", { name: /View alice Name's story/ }));
+    swipe(200, 170); // only 30px
+    swipe(200, 100, 400); // sideways 100px but 300px down
+    expect(profileOf("alice")).toBeInTheDocument();
   });
 });

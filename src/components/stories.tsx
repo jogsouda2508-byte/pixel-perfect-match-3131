@@ -71,6 +71,16 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
   // Your own story lives on the first "Create Story" item, so it is never listed twice.
   const myGroup = groups.find((g) => g.authorId === meId) ?? null;
   const others = groups.filter((g) => g.authorId !== meId);
+  // Same order as the row: my story first, then everyone else. Swiping sideways inside a
+  // story moves along this list.
+  const viewList = myGroup ? [myGroup, ...others] : others;
+  const viewIdx = viewing
+    ? viewList.findIndex((g) => g.authorId === viewing.authorId)
+    : -1;
+  const swipeToPerson = (dir: 1 | -1) => {
+    const next = viewList[viewIdx + dir];
+    if (viewIdx >= 0 && next) setViewing(next);
+  };
 
   const upload = useMutation({
     // One story per photo, uploaded in the order picked. If one fails, the ones before it stay.
@@ -273,8 +283,10 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
       )}
       {viewing && (
         <StoryViewer
+          key={viewing.authorId}
           group={viewing}
           meId={meId}
+          onSwipePerson={swipeToPerson}
           onClose={() => setViewing(null)}
           onAdd={() => {
             setViewing(null);
@@ -317,10 +329,13 @@ function StoryViewer({
   meId,
   onClose,
   onAdd,
+  onSwipePerson,
 }: {
   group: StoryGroup;
   meId: string;
   onClose: () => void;
+  /** swipe sideways: 1 = next person's story (swipe left), -1 = previous person's (swipe right) */
+  onSwipePerson?: (dir: 1 | -1) => void;
   /** add another photo / video to my own story */
   onAdd: () => void;
 }) {
@@ -338,6 +353,10 @@ function StoryViewer({
   const paused = viewersOpen || held;
   // When the current press started, so a long press is never counted as a tap (double-tap like).
   const pressStartRef = useRef<number | null>(null);
+  // Where the current press began, to tell a sideways swipe from a tap or a hold.
+  const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
+  // True when the press moved: that was a drag / swipe, never a tap (double-tap like).
+  const draggedRef = useRef(false);
   // The big heart in the middle of the story. Every new number restarts the animation
   // (0 = nothing showing), so liking another story, or double-tapping again, plays it again.
   const [burst, setBurst] = useState(0);
@@ -500,6 +519,11 @@ function StoryViewer({
     const now = performance.now();
     const pressedAt = pressStartRef.current;
     pressStartRef.current = null;
+    if (draggedRef.current) {
+      draggedRef.current = false;
+      lastTapRef.current = null;
+      return;
+    }
     if (pressedAt !== null && now - pressedAt > 300) {
       // This was a press-and-hold (pause), not a tap.
       lastTapRef.current = null;
@@ -607,14 +631,32 @@ function StoryViewer({
       </div>
       <div
         className="relative flex min-h-0 flex-1 items-center justify-center select-none [-webkit-touch-callout:none]"
-        // no browser zoom on double tap, so a double tap can mean "like"
-        style={{ touchAction: "manipulation" }}
+        // no browser zoom on double tap, so a double tap can mean "like"; sideways movement is
+        // left to us (pan-y only), so a swipe between people is not taken over by the browser
+        style={{ touchAction: "pan-y" }}
         onClick={onStoryTap}
         onPointerDown={(e) => {
           // left mouse button or touch; the previous / next buttons keep working as taps
           if (e.button > 0 || (e.target as HTMLElement).closest("button")) return;
           pressStartRef.current = performance.now();
+          swipeStartRef.current = { x: e.clientX, y: e.clientY };
+          draggedRef.current = false;
           setHeld(true);
+        }}
+        onPointerUp={(e) => {
+          const start = swipeStartRef.current;
+          swipeStartRef.current = null;
+          if (!start) return;
+          const dx = e.clientX - start.x;
+          const dy = e.clientY - start.y;
+          if (Math.abs(dx) > 10 || Math.abs(dy) > 10) draggedRef.current = true;
+          // a clear, mostly sideways swipe: left = next person, right = previous person
+          if (onSwipePerson && Math.abs(dx) >= 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+            onSwipePerson(dx < 0 ? 1 : -1);
+          }
+        }}
+        onPointerCancel={() => {
+          swipeStartRef.current = null;
         }}
         onContextMenu={(e) => e.preventDefault()}
       >
