@@ -90,10 +90,13 @@ export function PostMeta({
               Everyone tagged in this post. Select a name to open their profile.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4" onClick={(e) => {
-            // Close the popup when a profile link is followed.
-            if ((e.target as HTMLElement).closest("a")) setOpen(false);
-          }}>
+          <div
+            className="space-y-4"
+            onClick={(e) => {
+              // Close the popup when a profile link is followed.
+              if ((e.target as HTMLElement).closest("a")) setOpen(false);
+            }}
+          >
             {people.map((person) => (
               <UserRow
                 key={person.id}

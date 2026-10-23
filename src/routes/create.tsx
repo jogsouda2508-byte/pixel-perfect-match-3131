@@ -1,21 +1,27 @@
 import { createFileRoute, useBlocker, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Building2, Globe, Hash, MapPin, UserCheck, Users } from "lucide-react";
+import { ArrowLeft, Building2, Globe, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { BottomNav, SideNav } from "@/components/ediraa";
 import { ComposerLauncher } from "@/components/composer";
+import {
+  EMPTY_EXTRAS,
+  PostExtrasFields,
+  type PostExtrasValue,
+} from "@/components/post-extras-fields";
 import { useAuth } from "@/lib/auth";
+import { appendHashtagMark, extractHashtags } from "@/lib/post-extras";
 import { createPost } from "@/lib/social";
 import type { Audience } from "@/integrations/supabase/types";
 
 export const Route = createFileRoute("/create")({
   head: () => ({
     meta: [
-      { title: "Create Post — Gicco chat" },
-      { name: "description", content: "Share an update with your Gicco chat network." },
-      { property: "og:title", content: "Create Post — Gicco chat" },
-      { property: "og:description", content: "Share an update with your Gicco chat network." },
+      { title: "Create Post — Ediraa" },
+      { name: "description", content: "Share an update with your Ediraa network." },
+      { property: "og:title", content: "Create Post — Ediraa" },
+      { property: "og:description", content: "Share an update with your Ediraa network." },
     ],
   }),
   component: CreatePostPage,
@@ -33,18 +39,26 @@ function CreatePostPage() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const [text, setText] = useState("");
+  const textInput = useRef<HTMLTextAreaElement>(null);
   const [audience, setAudience] = useState<Audience>("Public");
-  const dirty = !!text.trim();
+  // Location and tagged people are kept here, so they survive picking a photo or video below.
+  const [extras, setExtras] = useState<PostExtrasValue>(EMPTY_EXTRAS);
+  const dirty = !!text.trim() || !!extras.location || extras.tagged.length > 0;
+
+  // Set once the post is published, so leaving the page afterwards isn't treated as "unsaved".
+  const publishedRef = useRef(false);
 
   useBlocker({
     shouldBlockFn: () =>
-      dirty && !window.confirm("You have unsaved changes. Leave without publishing?"),
+      dirty &&
+      !publishedRef.current &&
+      !window.confirm("You have unsaved changes. Leave without publishing?"),
     enableBeforeUnload: false,
   });
 
   const warnBeforeLeaving = useCallback(
     (event: BeforeUnloadEvent) => {
-      if (!dirty) return;
+      if (!dirty || publishedRef.current) return;
       event.preventDefault();
       event.returnValue = "";
     },
@@ -58,15 +72,28 @@ function CreatePostPage() {
 
   const publish = useMutation({
     mutationFn: () =>
-      createPost({ authorId: profile!.id, content: text.trim(), audience, image: null }),
-    onSuccess: async () => {
+      createPost({
+        authorId: profile!.id,
+        content: text.trim(),
+        audience,
+        image: null,
+        location: extras.location,
+        taggedUserIds: extras.tagged.map((person) => person.id),
+      }),
+    onSuccess: async (result) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["feed"] }),
         queryClient.invalidateQueries({ queryKey: ["user-posts"] }),
         queryClient.invalidateQueries({ queryKey: ["follow-counts"] }),
         queryClient.invalidateQueries({ queryKey: ["trending"] }),
+        queryClient.invalidateQueries({ queryKey: ["notifications"] }),
       ]);
-      toast.success("Posted!");
+      if (result.tagsFailed)
+        toast.warning(
+          "Posted, but we couldn't tag everyone. Some people may not be able to see this post.",
+        );
+      else toast.success("Posted!");
+      publishedRef.current = true;
       navigate({ to: "/home" });
     },
     onError: (error: Error) =>
@@ -74,7 +101,7 @@ function CreatePostPage() {
   });
 
   return (
-    <div className="mx-auto max-w-[1480px] px-4 sm:px-6 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]">
+    <div className="mx-auto max-w-6xl px-4 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,640px)] lg:justify-center">
       <SideNav />
       <main className="min-w-0 space-y-4">
         <header className="flex items-center gap-3">
@@ -90,6 +117,7 @@ function CreatePostPage() {
         </header>
         <section className="glass-card space-y-4 p-4">
           <textarea
+            ref={textInput}
             value={text}
             onChange={(event) => setText(event.currentTarget.value.slice(0, MAX))}
             placeholder="What's on your mind?"
@@ -100,40 +128,17 @@ function CreatePostPage() {
           <p className="-mt-3 text-right text-xs text-muted-foreground">
             {text.length}/{MAX}
           </p>
-          <ComposerLauncher variant="media" />
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <button
-              type="button"
-              onClick={() => toast("Location tagging is coming soon.")}
-              className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border"
-            >
-              <MapPin className="h-4 w-4 text-primary" aria-hidden="true" />
-              Location
-            </button>
-            <button
-              type="button"
-              onClick={() => toast("Tagging people is coming soon.")}
-              className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border"
-            >
-              <Users className="h-4 w-4 text-primary" aria-hidden="true" />
-              Tag People
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                setText((value) =>
-                  (value && !value.endsWith(" ") && !value.endsWith("\n")
-                    ? `${value} #`
-                    : `${value}#`
-                  ).slice(0, MAX),
-                )
-              }
-              className="col-span-2 flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border"
-            >
-              <Hash className="h-4 w-4 text-primary" aria-hidden="true" />
-              Add Hashtag
-            </button>
-          </div>
+          <ComposerLauncher variant="media" extras={extras} onExtrasChange={setExtras} />
+          <PostExtrasFields
+            value={extras}
+            onChange={setExtras}
+            audience={audience}
+            hashtags={extractHashtags(text)}
+            onAddHashtag={() => {
+              setText((value) => appendHashtagMark(value, MAX));
+              textInput.current?.focus();
+            }}
+          />
         </section>
         <section className="glass-card p-4">
           <h2 className="mb-3 text-sm font-semibold">Post to</h2>

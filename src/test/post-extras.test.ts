@@ -95,7 +95,10 @@ describe("saveTags", () => {
   it("de-duplicates ids and caps the list", async () => {
     rpc.mockResolvedValue({ data: 2, error: null });
     await expect(saveTags("post-1", ["a", "b", "a"])).resolves.toBe(true);
-    expect(rpc).toHaveBeenCalledWith("set_post_tags", { p_post_id: "post-1", p_user_ids: ["a", "b"] });
+    expect(rpc).toHaveBeenCalledWith("set_post_tags", {
+      p_post_id: "post-1",
+      p_user_ids: ["a", "b"],
+    });
 
     rpc.mockClear();
     rpc.mockResolvedValue({ data: MAX_TAGGED_PEOPLE, error: null });

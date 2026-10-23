@@ -21,7 +21,11 @@ import {
   validateVideoDuration,
   validateVideoFile,
 } from "@/lib/videos";
-import { EMPTY_EXTRAS, PostExtrasFields, type PostExtrasValue } from "@/components/post-extras-fields";
+import {
+  EMPTY_EXTRAS,
+  PostExtrasFields,
+  type PostExtrasValue,
+} from "@/components/post-extras-fields";
 import { appendHashtagMark, extractHashtags } from "@/lib/post-extras";
 import { Button } from "@/components/ui/button";
 import {

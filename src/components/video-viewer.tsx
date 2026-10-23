@@ -6,6 +6,7 @@ import {
   Download,
   Heart,
   Loader2,
+  Maximize,
   MessageCircle,
   MoreHorizontal,
   Play,
@@ -18,7 +19,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Avatar, BottomNav, SideNav } from "@/components/ediraa";
 import { ComposerLauncher } from "@/components/composer";
-import { EmojiButton } from "@/components/emoji-button";
+import { PostMeta } from "@/components/post-meta";
+import { followLabel } from "@/lib/follow-state";
 import { ShareVideoDialog } from "@/components/share-video-dialog";
 import {
   AlertDialog,
@@ -234,6 +236,19 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
     setCurrentTime(video.currentTime);
   };
 
+  const enterFullscreen = async (post: VideoFeedRow) => {
+    const video = videoRefs.current.get(post.id) as
+      (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | undefined;
+    if (!video) return;
+    try {
+      if (video.requestFullscreen) await video.requestFullscreen();
+      else if (video.webkitEnterFullscreen) video.webkitEnterFullscreen();
+      else toast.error("Full screen isn't supported in this browser.");
+    } catch {
+      toast.error("Couldn't open full screen.");
+    }
+  };
+
   const download = async (post: VideoFeedRow) => {
     if (downloading[post.id]) return;
     setDownloading((state) => ({ ...state, [post.id]: true }));
@@ -312,11 +327,11 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
   if (!items.length) return <VideoFeedEmpty />;
 
   return (
-    <main className="relative h-[100dvh] w-full overflow-hidden bg-black md:mx-auto md:grid md:max-w-[1480px] md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 md:bg-background md:px-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]">
+    <main className="relative h-[100dvh] w-full overflow-hidden bg-black md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 md:bg-background md:px-4 lg:grid-cols-[220px_minmax(0,640px)] lg:justify-center">
       <SideNav />
       <section
         ref={containerRef}
-        aria-label="Reels"
+        aria-label="Videos"
         className="h-[100dvh] min-h-0 snap-y snap-mandatory overflow-y-auto overscroll-contain bg-black"
       >
         {items.map((post, index) => {
@@ -440,6 +455,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
               )}
               <header className="absolute inset-x-0 top-0 z-10 flex items-center justify-end bg-gradient-to-b from-black/65 to-transparent p-3 pt-[max(env(safe-area-inset-top),0.75rem)]">
                 <div className="flex items-center gap-2">
+                  <ComposerLauncher variant="video" />
                   <button
                     type="button"
                     onClick={toggleMute}
@@ -471,7 +487,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                       onClick={() => follow.toggle(post.author_id, following)}
                       className="min-h-11 rounded-full border border-white/80 px-4 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
                     >
-                      {following ? "Following" : "Follow"}
+                      {followLabel(following, follow.isRequested(post.author_id))}
                     </button>
                   )}
                 </div>
@@ -491,6 +507,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                     )}
                   </p>
                 )}
+                <PostMeta post={post} tone="overlay" />
                 <time className="block text-sm text-white/75" dateTime={post.created_at}>
                   {timeAgo(post.created_at)}
                 </time>
@@ -548,6 +565,14 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                 </button>
                 <button
                   type="button"
+                  onClick={() => void enterFullscreen(post)}
+                  aria-label="Full screen"
+                  className="grid h-12 w-12 place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                >
+                  <Maximize className="h-6 w-6" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
                   onClick={() => void saved.toggle(post.id)}
                   disabled={saved.isPending(post.id)}
                   aria-label={saved.isSaved(post.id) ? "Remove video from saved" : "Save video"}
@@ -555,7 +580,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                   className="grid h-12 w-12 place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
                 >
                   <Star
-                    className={`h-6 w-6 ${saved.isSaved(post.id) ? "fill-amber-400 text-amber-500" : ""}`}
+                    className={`h-6 w-6 ${saved.isSaved(post.id) ? "fill-warning text-warning" : ""}`}
                     aria-hidden="true"
                   />
                 </button>
@@ -592,7 +617,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
         {feed.isError && (
           <div className="grid min-h-40 place-items-center bg-black p-5 text-white" role="alert">
             <div className="space-y-3 text-center">
-              <p className="text-sm">Couldn't load more reels.</p>
+              <p className="text-sm">Couldn't load more videos.</p>
               <Button type="button" variant="secondary" onClick={() => void feed.fetchNextPage()}>
                 Retry
               </Button>
@@ -637,7 +662,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
 
 function VideoFeedLoading() {
   return (
-    <div className="mx-auto h-[100dvh] max-w-[1480px] md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 md:px-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]">
+    <div className="mx-auto h-[100dvh] max-w-6xl md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6">
       <SideNav />
       <Skeleton className="h-[100dvh] w-full bg-muted" />
       <BottomNav />
@@ -647,12 +672,12 @@ function VideoFeedLoading() {
 
 function VideoFeedError({ onRetry }: { onRetry: () => void }) {
   return (
-    <div className="mx-auto h-[100dvh] max-w-[1480px] md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 md:px-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]">
+    <div className="mx-auto h-[100dvh] max-w-6xl md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6">
       <SideNav />
       <section className="grid h-[100dvh] place-items-center bg-background p-6 text-center text-foreground">
         <div className="space-y-4">
           <AlertCircle className="mx-auto h-10 w-10" />
-          <p className="text-sm">Couldn't load reels.</p>
+          <p className="text-sm">Couldn't load videos.</p>
           <Button type="button" variant="secondary" onClick={onRetry}>
             Retry
           </Button>
@@ -665,16 +690,16 @@ function VideoFeedError({ onRetry }: { onRetry: () => void }) {
 
 function VideoFeedEmpty() {
   return (
-    <div className="mx-auto h-[100dvh] max-w-[1480px] md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 md:px-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]">
+    <div className="mx-auto h-[100dvh] max-w-6xl md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6">
       <SideNav />
       <section className="grid h-[100dvh] place-items-center bg-gradient-to-br from-background via-background to-primary/10 p-6 text-center text-foreground">
         <div className="space-y-4">
           <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-primary/10 text-primary">
             <Camera className="h-8 w-8" aria-hidden="true" />
           </div>
-          <h1 className="text-xl font-semibold">No reels yet</h1>
+          <h1 className="text-xl font-semibold">No videos yet</h1>
           <p className="text-sm text-muted-foreground">
-            Be the first to share a short reel with your community.
+            Be the first to share a short video with your community.
           </p>
           <ComposerLauncher variant="video" videoLabel />
         </div>
@@ -695,7 +720,6 @@ function VideoComments({
 }) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState("");
-  const commentInputRef = useRef<HTMLInputElement>(null);
   const key = ["comments", post?.id];
   const comments = useQuery({
     queryKey: key,
@@ -706,7 +730,6 @@ function VideoComments({
     mutationFn: (text: string) => addComment(post!.id, currentUser!.id, text),
     onSuccess: async () => {
       setDraft("");
-      onClose(); // close the comment box as soon as the comment is posted
       await queryClient.invalidateQueries({ queryKey: key });
       await queryClient.invalidateQueries({ queryKey: ["video-feed"] });
     },
@@ -744,7 +767,7 @@ function VideoComments({
           ))}
         </div>
         <form
-          className="relative flex items-center gap-2 border-t border-border pt-3"
+          className="flex items-center gap-2 border-t border-border pt-3"
           onSubmit={(event) => {
             event.preventDefault();
             const text = draft.trim();
@@ -753,19 +776,12 @@ function VideoComments({
           }}
         >
           <Input
-            ref={commentInputRef}
             value={draft}
             onChange={(event) => setDraft(event.target.value.slice(0, 300))}
             placeholder="Add a comment…"
             aria-label="Add a comment"
             maxLength={300}
             className="min-h-11"
-          />
-          <EmojiButton
-            inputRef={commentInputRef}
-            value={draft}
-            onChange={setDraft}
-            maxLength={300}
           />
           <Button type="submit" className="min-h-11" disabled={!draft.trim() || add.isPending}>
             {add.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send"}
@@ -778,12 +794,30 @@ function VideoComments({
 
 function CommentItem({ comment }: { comment: CommentView }) {
   const author = comment.author;
-  const displayName = author?.full_name || author?.username || "Gicco chat user";
+  const displayName = author?.full_name || author?.username || "Ediraa user";
   return (
     <div className="flex items-start gap-3">
-      <Avatar src={author?.avatar_url} name={displayName} size={36} />
+      {author?.username ? (
+        <Link to="/u/$username" params={{ username: author.username }} className="shrink-0">
+          <Avatar src={author.avatar_url} name={displayName} size={36} />
+        </Link>
+      ) : (
+        <Avatar src={author?.avatar_url} name={displayName} size={36} />
+      )}
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold">{displayName}</p>
+        <p className="text-sm font-semibold">
+          {author?.username ? (
+            <Link
+              to="/u/$username"
+              params={{ username: author.username }}
+              className="hover:underline"
+            >
+              {displayName}
+            </Link>
+          ) : (
+            displayName
+          )}
+        </p>
         <p className="break-words text-sm">{comment.content}</p>
         <time className="text-sm text-muted-foreground" dateTime={comment.created_at}>
           {timeAgo(comment.created_at)}

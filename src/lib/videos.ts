@@ -85,7 +85,7 @@ function storageError(action: string, error: unknown): never {
   throw new Error(`Couldn't ${action}. Please try again.`);
 }
 
-export function storagePathFromPublicUrl(url: string, bucket: "videos" | "media"): string | null {
+function storagePathFromPublicUrl(url: string, bucket: "videos" | "media"): string | null {
   const marker = `/storage/v1/object/public/${bucket}/`;
   const path = new URL(url).pathname;
   const index = path.indexOf(marker);
@@ -99,7 +99,7 @@ export function storagePathFromPublicUrl(url: string, bucket: "videos" | "media"
 
 type UploadResult = { path: string; publicUrl: string };
 
-export function uploadVideoFile(
+function uploadVideoFile(
   file: File,
   userId: string,
   signal: AbortSignal,

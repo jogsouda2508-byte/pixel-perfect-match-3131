@@ -1,10 +1,21 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Heart, Loader2, MessageSquare, Send, UserPlus, Users } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import {
+  ArrowLeft,
+  Heart,
+  Loader2,
+  MessageSquare,
+  Send,
+  Tag,
+  UserCheck,
+  UserPlus,
+} from "lucide-react";
 import { Avatar, BottomNav, Pill, SideNav } from "@/components/ediraa";
 import { useAuth } from "@/lib/auth";
-import { fetchNotifications, markNotificationsSeen } from "@/lib/social";
+import { fetchNotifications, markNotificationsSeen, respondFollowRequest } from "@/lib/social";
+import { NOTIFICATION_TABS, notificationMatchesTab } from "@/lib/notification-tabs";
 import { timeAgo } from "@/lib/time";
 import { useFollow } from "@/lib/use-follow";
 import type { NotificationRow } from "@/integrations/supabase/types";
@@ -12,56 +23,54 @@ import type { NotificationRow } from "@/integrations/supabase/types";
 export const Route = createFileRoute("/notifications")({
   head: () => ({
     meta: [
-      { title: "Notifications — Gicco chat" },
+      { title: "Notifications — Ediraa" },
       {
         name: "description",
-        content: "Likes, comments and new followers from your Gicco chat network.",
+        content: "Likes, comments and new followers from your Ediraa network.",
       },
-      { property: "og:title", content: "Notifications — Gicco chat" },
+      { property: "og:title", content: "Notifications — Ediraa" },
       {
         property: "og:description",
-        content: "Likes, comments and new followers from your Gicco chat network.",
+        content: "Likes, comments and new followers from your Ediraa network.",
       },
     ],
   }),
   component: NotificationsPage,
 });
 
-const tabs = ["All", "Likes", "Comments", "Follows"] as const;
-// Which notification kinds each tab shows (null = all). "Likes" covers post AND story likes.
-const tabKinds: Record<(typeof tabs)[number], readonly NotificationRow["kind"][] | null> = {
-  All: null,
-  Likes: ["like", "story_like"],
-  Comments: ["comment"],
-  Follows: ["follow"],
-};
+const tabs = NOTIFICATION_TABS;
 
 const kindIcon = {
   like: <Heart className="h-3.5 w-3.5 fill-primary-foreground text-primary-foreground" />,
-  story_like: <Heart className="h-3.5 w-3.5 fill-primary-foreground text-primary-foreground" />,
   comment: (
     <MessageSquare className="h-3.5 w-3.5 fill-primary-foreground text-primary-foreground" />
   ),
   follow: <UserPlus className="h-3.5 w-3.5 text-primary-foreground" />,
   share: <Send className="h-3.5 w-3.5 text-primary-foreground" />,
-  tag: <Users className="h-3.5 w-3.5 text-primary-foreground" />,
+  tag: <Tag className="h-3.5 w-3.5 text-primary-foreground" />,
+  story_like: <Heart className="h-3.5 w-3.5 fill-primary-foreground text-primary-foreground" />,
+  follow_request: <UserPlus className="h-3.5 w-3.5 text-primary-foreground" />,
+  follow_accepted: <UserCheck className="h-3.5 w-3.5 text-primary-foreground" />,
 } as const;
 const kindColor = {
   like: "bg-destructive",
-  story_like: "bg-destructive",
   comment: "bg-primary",
   follow: "bg-success",
   share: "bg-primary",
   tag: "bg-primary",
+  story_like: "bg-destructive",
+  follow_request: "bg-primary",
+  follow_accepted: "bg-success",
 } as const;
 
 function describe(n: NotificationRow) {
   if (n.kind === "like") return "liked your post";
   if (n.kind === "story_like") return "liked your story";
+  if (n.kind === "follow_request") return "wants to follow you";
+  if (n.kind === "follow_accepted") return "accepted your follow request";
   if (n.kind === "tag") return "tagged you in a post";
   if (n.kind === "comment") return `commented: ${n.snippet ?? ""}`;
-  if (n.kind === "share")
-    return n.snippet === "video" ? "shared a video with you" : "shared a post with you";
+  if (n.kind === "share") return n.snippet === "video" ? "shared a video with you" : "shared a post with you";
   return "started following you";
 }
 
@@ -86,11 +95,25 @@ function NotificationsPage() {
       .catch(() => {});
   }, [meId, qc]);
 
-  const kinds = tabKinds[tab];
-  const visible = (list.data ?? []).filter((n) => !kinds || kinds.includes(n.kind));
+  const visible = (list.data ?? []).filter((n) => notificationMatchesTab(n.kind, tab));
+
+  // Answering a follow request: shown as "Accepted"/"Declined" until the list refreshes.
+  const [answered, setAnswered] = useState<Record<string, "accepted" | "declined">>({});
+  const respond = useMutation({
+    mutationFn: ({ id, accept }: { id: string; accept: boolean }) =>
+      respondFollowRequest(id, accept),
+    onSuccess: (result, { id }) => {
+      setAnswered((current) => ({ ...current, [id]: result }));
+      toast.success(result === "accepted" ? "Request accepted" : "Request declined");
+      void qc.invalidateQueries({ queryKey: ["notifications"] });
+      void qc.invalidateQueries({ queryKey: ["follow-counts"] });
+      void qc.invalidateQueries({ queryKey: ["unread"] });
+    },
+    onError: () => toast.error("Couldn't answer the request. Please try again."),
+  });
 
   return (
-    <div className="mx-auto max-w-[1480px] px-4 sm:px-6 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]">
+    <div className="mx-auto max-w-6xl px-4 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,640px)] lg:justify-center">
       <SideNav />
       <main className="min-w-0 space-y-4">
         <header className="flex items-center gap-3">
@@ -150,7 +173,7 @@ function NotificationsPage() {
                     >
                       {n.actor_name || n.actor_username}
                     </Link>{" "}
-                    {(n.kind === "like" || n.kind === "comment") && n.post_id ? (
+                    {(n.kind === "like" || n.kind === "comment" || n.kind === "tag") && n.post_id ? (
                       <Link
                         to="/post/$id"
                         params={{ id: n.post_id }}
@@ -165,7 +188,7 @@ function NotificationsPage() {
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">{timeAgo(n.created_at)}</p>
                 </div>
-                {(n.kind === "like" || n.kind === "comment") && n.post_id && (
+                {(n.kind === "like" || n.kind === "comment" || n.kind === "tag") && n.post_id && (
                   <Link
                     to="/post/$id"
                     params={{ id: n.post_id }}
@@ -182,6 +205,40 @@ function NotificationsPage() {
                     className="shrink-0 rounded-full bg-gradient-brand px-4 py-1.5 text-xs font-semibold text-primary-foreground"
                   >
                     Open
+                  </Link>
+                )}
+                {n.kind === "follow_request" &&
+                  (answered[n.actor_id] ? (
+                    <span className="shrink-0 text-xs font-semibold text-muted-foreground">
+                      {answered[n.actor_id] === "accepted" ? "Accepted" : "Declined"}
+                    </span>
+                  ) : (
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => respond.mutate({ id: n.actor_id, accept: true })}
+                        disabled={respond.isPending}
+                        className="min-h-9 rounded-full bg-gradient-brand px-4 py-1.5 text-xs font-semibold text-primary-foreground transition disabled:opacity-60"
+                      >
+                        Accept
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => respond.mutate({ id: n.actor_id, accept: false })}
+                        disabled={respond.isPending}
+                        className="min-h-9 rounded-full border border-border px-4 py-1.5 text-xs font-semibold transition hover:bg-muted disabled:opacity-60"
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  ))}
+                {n.kind === "follow_accepted" && (
+                  <Link
+                    to="/u/$username"
+                    params={{ username: n.actor_username }}
+                    className="shrink-0 rounded-full border border-border px-4 py-1.5 text-xs font-semibold hover:bg-muted"
+                  >
+                    View profile
                   </Link>
                 )}
                 {n.kind === "follow" && (

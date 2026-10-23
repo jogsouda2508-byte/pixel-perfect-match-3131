@@ -12,9 +12,7 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
-  --font-sans:
-    "Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
-    "Noto Color Emoji";
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -170,23 +168,6 @@
     border-color: var(--color-border);
   }
 
-  /* Larger type on desktop: everything sized in rem scales together. */
-  html {
-    /* Always reserve the scrollbar's space so pages don't shift sideways between routes. */
-    scrollbar-gutter: stable;
-    font-size: 16px;
-  }
-  @media (min-width: 1024px) {
-    html {
-      font-size: 18px;
-    }
-  }
-  @media (min-width: 1536px) {
-    html {
-      font-size: 19px;
-    }
-  }
-
   body {
     background-color: var(--color-background);
     background-image: var(--page-gradient);
@@ -197,81 +178,8 @@
   }
 }
 
-/* Interactive elements show the hand cursor; disabled ones don't. */
-@layer base {
-  button:not(:disabled):not([aria-disabled="true"]):not([data-disabled]),
-  a[href],
-  summary,
-  select:not(:disabled),
-  label[for],
-  [role="button"]:not([aria-disabled="true"]):not([data-disabled]),
-  [role="tab"]:not([aria-disabled="true"]):not([data-disabled]),
-  [role="menuitem"]:not([aria-disabled="true"]):not([data-disabled]),
-  [role="menuitemcheckbox"]:not([aria-disabled="true"]):not([data-disabled]),
-  [role="menuitemradio"]:not([aria-disabled="true"]):not([data-disabled]),
-  [role="option"]:not([aria-disabled="true"]):not([data-disabled]),
-  [role="switch"]:not([aria-disabled="true"]):not([data-disabled]),
-  [role="checkbox"]:not([aria-disabled="true"]):not([data-disabled]),
-  [role="radio"]:not([aria-disabled="true"]):not([data-disabled]),
-  [role="link"],
-  input[type="button"]:not(:disabled),
-  input[type="submit"]:not(:disabled),
-  input[type="reset"]:not(:disabled),
-  input[type="checkbox"]:not(:disabled),
-  input[type="radio"]:not(:disabled),
-  input[type="file"]:not(:disabled) {
-    cursor: pointer;
-  }
-
-  button:disabled,
-  [aria-disabled="true"],
-  [data-disabled],
-  input:disabled,
-  select:disabled {
-    cursor: not-allowed;
-  }
-}
-
-/* Emoji picker (chat): Ediraa purple accent, rounded, fits the panel width. */
-.ediraa-emoji em-emoji-picker {
-  --rgb-accent: 124, 92, 240;
-  --border-radius: 16px;
-  --font-family: var(--font-sans);
-  --shadow: 0 12px 32px -8px rgba(76, 52, 180, 0.35);
-  max-width: 100%;
-  height: min(380px, 55dvh);
-}
-
-/* White scrollbar for one horizontally scrollable row (the Home feed category tabs).
-   Opt-in via the class, so other scrolling areas (Stories, Discover and Notifications tabs)
-   keep the default look. Thickness is left untouched, so layout and spacing do not change.
-   Scrolling still works by touch, trackpad, mouse wheel and keyboard. */
-.scrollbar-white {
-  scrollbar-color: #ffffff #ffffff; /* thumb, track: Chrome 121+ (desktop + Android), Firefox */
-}
-.dark .scrollbar-white {
-  /* Match the dark page background instead, so no bright line shows in dark mode. */
-  scrollbar-color: var(--background) var(--background);
-}
-@supports not (scrollbar-color: auto) {
-  /* Older Chromium / Safari */
-  .scrollbar-white::-webkit-scrollbar,
-  .scrollbar-white::-webkit-scrollbar-track,
-  .scrollbar-white::-webkit-scrollbar-thumb,
-  .scrollbar-white::-webkit-scrollbar-corner {
-    background: #ffffff;
-  }
-  .dark .scrollbar-white::-webkit-scrollbar,
-  .dark .scrollbar-white::-webkit-scrollbar-track,
-  .dark .scrollbar-white::-webkit-scrollbar-thumb,
-  .dark .scrollbar-white::-webkit-scrollbar-corner {
-    background: var(--background);
-  }
-}
-
-/* Story like: one big heart pops in the middle of the story, bounces once and fades out.
-   Used by the StoryHeartBurst overlay in components/stories.tsx (~900 ms). */
-@keyframes story-heart-pop {
+/* ---- Story like: one big heart that pops, bounces and fades (see components/stories.tsx) ---- */
+@keyframes story-heart-burst {
   0% {
     transform: scale(0.2);
     opacity: 0;
@@ -281,19 +189,18 @@
     opacity: 1;
   }
   32% {
-    transform: scale(0.92);
-    opacity: 1;
+    transform: scale(0.95);
   }
   46% {
-    transform: scale(1.08);
+    transform: scale(1.12);
     opacity: 1;
   }
-  60% {
-    transform: scale(1);
+  62% {
+    transform: scale(1.05);
     opacity: 1;
   }
   100% {
-    transform: scale(1.18);
+    transform: scale(1.2);
     opacity: 0;
   }
 }
@@ -301,7 +208,7 @@
   0% {
     opacity: 0;
   }
-  25%,
+  15%,
   70% {
     opacity: 1;
   }
@@ -309,14 +216,16 @@
     opacity: 0;
   }
 }
-.story-heart-pop {
-  animation: story-heart-pop 900ms ease-out both;
+.story-heart-burst {
+  font-size: clamp(6rem, 28vw, 9rem);
+  line-height: 1;
+  filter: drop-shadow(0 6px 18px rgb(0 0 0 / 0.35));
   will-change: transform, opacity;
+  animation: story-heart-burst 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 @media (prefers-reduced-motion: reduce) {
-  /* No movement: the heart just fades in and out. */
-  .story-heart-pop {
-    animation: story-heart-fade 700ms ease-out both;
-    will-change: opacity;
+  /* No movement for people who ask for less motion: just a gentle fade in and out. */
+  .story-heart-burst {
+    animation: story-heart-fade 900ms ease-out both;
   }
 }

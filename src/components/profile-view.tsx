@@ -1,7 +1,17 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Building2, Loader2, MapPin, MessageSquare, Play, Settings, Video } from "lucide-react";
+import {
+  Building2,
+  CalendarDays,
+  Loader2,
+  Lock,
+  MapPin,
+  MessageSquare,
+  Play,
+  Settings,
+  Video,
+} from "lucide-react";
 import { toast } from "sonner";
 import { BottomNav, SideNav, UserRow } from "@/components/ediraa";
 import { Gallery, type GalleryItem } from "@/components/gallery";
@@ -18,13 +28,14 @@ import {
   fetchFollowingIds,
   fetchFollowList,
   fetchIsFollowing,
+  fetchTaggedPosts,
   fetchUserPosts,
 } from "@/lib/social";
+import { followLabel, isProfileLocked } from "@/lib/follow-state";
 import { useFollow } from "@/lib/use-follow";
 import { startConversation } from "@/lib/chat";
 import { fetchUserVideos } from "@/lib/videos";
 import type { Profile } from "@/integrations/supabase/types";
-import coverUrl from "@/assets/profile-cover.jpg";
 
 const tabs = ["Posts", "Reels", "Tagged"] as const;
 
@@ -37,6 +48,23 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
   const [startingMessage, setStartingMessage] = useState(false);
   const name = profile.full_name || profile.username;
   const follow = useFollow();
+  const joined = Number.isNaN(new Date(profile.created_at).getTime())
+    ? ""
+    : new Date(profile.created_at).toLocaleDateString(undefined, {
+        month: "long",
+        year: "numeric",
+      });
+
+  const followState = useQuery({
+    queryKey: ["is-following", user?.id, profile.id],
+    queryFn: () => fetchIsFollowing(user!.id, profile.id),
+    enabled: !isMe && !!user,
+  });
+  const following = follow.isFollowing(profile.id, followState.data ?? false);
+  const requested = follow.isRequested(profile.id);
+  // Private accounts keep their posts, videos and tags hidden until the viewer is an accepted follower.
+  const lockKnown = isMe || !profile.is_private || !followState.isLoading;
+  const locked = lockKnown && isProfileLocked({ isPrivate: !!profile.is_private, isMe, following });
 
   const counts = useQuery({
     queryKey: ["follow-counts", profile.id],
@@ -45,24 +73,27 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
   const posts = useQuery({
     queryKey: ["user-posts", profile.id],
     queryFn: () => fetchUserPosts(profile.id),
+    enabled: lockKnown && !locked,
+  });
+  // Posts this person is tagged in (only the ones the viewer is allowed to see).
+  const tagged = useQuery({
+    queryKey: ["user-tagged", profile.id],
+    queryFn: () => fetchTaggedPosts(profile.id),
+    enabled: tab === "Tagged" && lockKnown && !locked,
   });
   const videos = useQuery({
     queryKey: ["user-videos", profile.id],
     queryFn: () => fetchUserVideos(profile.id),
-    enabled: tab === "Reels",
+    enabled: tab === "Reels" && lockKnown && !locked,
   });
-  const followState = useQuery({
-    queryKey: ["is-following", user?.id, profile.id],
-    queryFn: () => fetchIsFollowing(user!.id, profile.id),
-    enabled: !isMe && !!user,
-  });
-  const following = follow.isFollowing(profile.id, followState.data ?? false);
 
   // Every photo and video post, in grid order, for the full-screen gallery.
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
   const galleryItems: GalleryItem[] = [];
   const galleryIndexByPost = new Map<string, number>();
-  for (const p of posts.data ?? []) {
+  // The Posts and Tagged tabs share one grid and one full-screen gallery.
+  const grid = tab === "Tagged" ? tagged : posts;
+  for (const p of grid.data ?? []) {
     if (p.media_type === "video" && p.video_url) {
       galleryIndexByPost.set(p.id, galleryItems.length);
       galleryItems.push({
@@ -92,9 +123,9 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
   };
 
   const reelsContent = (
-    <section aria-label="Reels" className="mt-3">
+    <section aria-label="Videos" className="mt-3">
       {videos.isLoading && (
-        <div className="grid grid-cols-3 gap-1.5" aria-label="Loading reels">
+        <div className="grid grid-cols-3 gap-1.5" aria-label="Loading videos">
           {[0, 1, 2, 3, 4, 5].map((item) => (
             <div key={item} className="aspect-[9/16] animate-pulse rounded-lg bg-elevated" />
           ))}
@@ -102,12 +133,12 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
       )}
       {videos.isError && (
         <p className="glass-card p-6 text-center text-sm text-destructive">
-          Couldn't load reels. Please try again.
+          Couldn't load videos. Please try again.
         </p>
       )}
       {videos.isSuccess && videos.data.length === 0 && (
         <p className="glass-card p-6 text-center text-sm text-muted-foreground">
-          {isMe ? "You haven't shared any reels yet." : "No reels to show yet."}
+          {isMe ? "You haven't shared any videos yet." : "No videos to show yet."}
         </p>
       )}
       <div className="grid grid-cols-3 gap-1.5">
@@ -141,17 +172,12 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
   );
 
   return (
-    <div className="mx-auto max-w-[1480px] px-4 sm:px-6 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]">
+    <div className="mx-auto max-w-6xl px-4 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,640px)] lg:justify-center">
       <SideNav />
       <main className="min-w-0">
         <section className="glass-card overflow-hidden">
           <div className="relative">
-            <img
-              src={coverUrl}
-              alt=""
-              aria-hidden="true"
-              className="h-40 w-full object-cover md:h-52 xl:h-60"
-            />
+            <div className="h-40 w-full bg-gradient-brand opacity-80 md:h-52" />
             {isMe && (
               <Link
                 to="/more"
@@ -189,9 +215,9 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
                   <button
                     onClick={() => follow.toggle(profile.id, following)}
                     disabled={follow.isPending(profile.id) || followState.isLoading}
-                    className={`min-h-11 rounded-full px-5 py-2 text-sm font-semibold transition disabled:opacity-60 ${following ? "bg-elevated text-muted-foreground" : "bg-gradient-brand text-primary-foreground"}`}
+                    className={`min-h-11 rounded-full px-5 py-2 text-sm font-semibold transition disabled:opacity-60 ${following || requested ? "bg-elevated text-muted-foreground" : "bg-gradient-brand text-primary-foreground"}`}
                   >
-                    {following ? "Following" : "Follow"}
+                    {followLabel(following, requested)}
                   </button>
                   <button
                     type="button"
@@ -211,6 +237,12 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
             </div>
             <h1 className="mt-3 flex items-center gap-1.5 text-xl font-bold">
               {name}
+              {profile.is_private && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-elevated px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                  <Lock className="h-3 w-3" aria-hidden="true" />
+                  Private
+                </span>
+              )}
               {profile.account_type === "business" && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-elevated px-2 py-0.5 text-xs font-medium text-primary">
                   <Building2 className="h-3 w-3" />
@@ -228,21 +260,39 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
                 {profile.location}
               </p>
             )}
+            {joined && (
+              <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+                <CalendarDays className="h-4 w-4" />
+                Joined {joined}
+              </p>
+            )}
+            {profile.interests.length > 0 && (
+              <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Interests">
+                {profile.interests.map((interest) => (
+                  <li
+                    key={interest}
+                    className="rounded-full bg-elevated px-3 py-1 text-xs font-medium text-primary"
+                  >
+                    {interest}
+                  </li>
+                ))}
+              </ul>
+            )}
             <div className="mt-4 grid grid-cols-3 text-center">
               <Stat n={String(counts.data?.posts ?? 0)} l="Posts" />
               <Stat
                 n={String(counts.data?.followers ?? 0)}
                 l="Followers"
-                onClick={() => setList("followers")}
+                {...(locked ? {} : { onClick: () => setList("followers") })}
               />
               <Stat
                 n={String(counts.data?.following ?? 0)}
                 l="Following"
-                onClick={() => setList("following")}
+                {...(locked ? {} : { onClick: () => setList("following") })}
               />
             </div>
           </div>
-          <div className="grid grid-cols-3 border-t border-border">
+          <div className={`grid grid-cols-3 border-t border-border ${locked ? "hidden" : ""}`}>
             {tabs.map((t) => (
               <button
                 key={t}
@@ -254,23 +304,52 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
             ))}
           </div>
         </section>
-        {tab === "Posts" ? (
+        {!lockKnown ? (
+          <div className="grid place-items-center py-10">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
+        ) : locked ? (
+          <section
+            aria-label="Private account"
+            className="glass-card mt-3 flex flex-col items-center gap-2 p-8 text-center"
+          >
+            <span className="grid h-14 w-14 place-items-center rounded-full bg-elevated text-primary">
+              <Lock className="h-6 w-6" aria-hidden="true" />
+            </span>
+            <h2 className="font-semibold">This account is private</h2>
+            <p className="max-w-xs text-sm text-muted-foreground">
+              {requested
+                ? `Your request is waiting for ${name} to accept it. You'll see their posts and stories once they do.`
+                : `Follow ${name} to see their posts, videos and stories. They'll need to accept your request first.`}
+            </p>
+          </section>
+        ) : tab === "Reels" ? (
+          reelsContent
+        ) : (
           <>
-            {posts.isLoading && (
+            {grid.isLoading && (
               <div className="grid place-items-center py-10">
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
               </div>
             )}
-            {posts.isError && (
-              <p className="mt-3 text-center text-sm text-destructive">Couldn't load posts.</p>
+            {grid.isError && (
+              <p className="mt-3 text-center text-sm text-destructive">
+                {tab === "Tagged" ? "Couldn't load tagged posts." : "Couldn't load posts."}
+              </p>
             )}
-            {posts.isSuccess && posts.data.length === 0 && (
+            {grid.isSuccess && grid.data.length === 0 && (
               <p className="glass-card mt-3 p-6 text-center text-sm text-muted-foreground">
-                {isMe ? "You haven't posted anything yet." : "No posts to show yet."}
+                {tab === "Tagged"
+                  ? isMe
+                    ? "Posts you're tagged in will appear here."
+                    : "No tagged posts to show yet."
+                  : isMe
+                    ? "You haven't posted anything yet."
+                    : "No posts to show yet."}
               </p>
             )}
             <div className="mt-3 grid grid-cols-3 gap-1.5">
-              {posts.data?.map((p) =>
+              {grid.data?.map((p) =>
                 p.media_type === "video" && p.video_url ? (
                   <button
                     type="button"
@@ -321,12 +400,6 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
               )}
             </div>
           </>
-        ) : tab === "Reels" ? (
-          reelsContent
-        ) : (
-          <p className="glass-card mt-3 p-6 text-center text-sm text-muted-foreground">
-            {isMe ? "Posts you're tagged in will appear here." : "Tagged posts will appear here."}
-          </p>
         )}
       </main>
       <BottomNav />
@@ -426,6 +499,7 @@ function FollowListDialog({
                   sub={`@${p.username}`}
                   img={p.avatar_url}
                   following={isFollowing}
+                  requested={follow.isRequested(p.id)}
                   pending={follow.isPending(p.id)}
                   {...(isSelf ? {} : { onToggle: () => follow.toggle(p.id, isFollowing) })}
                 />

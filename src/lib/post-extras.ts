@@ -70,7 +70,9 @@ export async function withPostExtras<T extends FeedRow>(rows: T[]): Promise<T[]>
         .in("id", ids),
       supabase
         .from("post_tags")
-        .select("post_id, person:profiles!post_tags_tagged_user_id_fkey(id, username, full_name, avatar_url)")
+        .select(
+          "post_id, person:profiles!post_tags_tagged_user_id_fkey(id, username, full_name, avatar_url)",
+        )
         .in("post_id", ids)
         .order("created_at", { ascending: true }),
     ]);

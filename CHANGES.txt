@@ -1,30 +1,48 @@
-EDIRAA - PROFILE LINKS + LOCATION + TAG PEOPLE
-==============================================
+EDIRAA - PRIVATE / PUBLIC ACCOUNTS + FOLLOW REQUESTS (and earlier updates)
+=========================================================================
 HOW TO APPLY
-1. Unzip, copy src/ and supabase/ into your project root, choose "Replace". (CHANGES.txt is not part of the app.)
-2. Supabase -> SQL Editor -> run supabase/migrations/20261019000000_post_location_tags.sql
-   (needs the earlier migrations already run; safe to run more than once).
-3. npm run dev   (no new packages, no API keys needed)
+1. Unzip, copy src/ and supabase/ into your project root, choose "Replace".
+2. Supabase -> SQL Editor -> run these IN ORDER (each is safe to run twice; skip any you already ran):
+     20261019000000_post_location_tags.sql
+     20261020000000_story_likes.sql
+     20261021000000_private_accounts.sql      <-- NEW (run this BEFORE opening the app)
+3. npm run dev   (no new packages)
 
-WHAT'S IN IT
-- Profile links: avatars/names open /u/<username> (stories, notifications, post cards, people rows);
-  profile page has a working "Tagged" tab.
-- Location: searchable picker (Photon / OpenStreetMap, no key), dialog on desktop, bottom sheet on mobile;
-  debounced, cancels stale requests, handles empty/error/rate-limit; "Use my current location" is optional.
-  Saved with the post: place id, name, address, city (never coordinates).
-- Tag People: searches real accounts (get_people), multi-select, Cancel/Done, max 20, load more.
-  Tags are written only by the database function set_post_tags, which checks you own the post and that each
-  person can see it (Friends / Local Community rules). Tagged people get a "tagged you" notification.
-- Post display: location + "with @a and N others" on feed posts and videos.
-- New in this round: if the database skips someone (e.g. non-friend on a Friends post) you now get a
-  "couldn't tag everyone" notice instead of a silent success. Added src/test/post-extras.test.ts.
+HOW PRIVATE / PUBLIC WORKS
+- Onboarding step 1 now asks "Who can see your posts?": Public (default) or Private. You can change it later in
+  Settings & Privacy -> "Account privacy" switch.
+- PUBLIC account: anyone can follow instantly (as before).
+- PRIVATE account: tapping Follow sends a follow REQUEST (button shows "Requested"; tap again to cancel).
+  The person only becomes a follower when the account owner accepts.
+- A non-follower of a private account sees the profile header (photo, name, bio) with a lock card
+  "This account is private". Their posts, videos, tagged posts, stories, likes and comments are hidden by the
+  database itself (not just the screen). Follower / following lists are not opened for locked profiles.
+- Example: you are public, your friend is private -> you cannot see her posts or stories until she accepts you.
+- Notifications (Activity):
+    * "X wants to follow you"  + Accept / Decline buttons        (to the private account)
+    * "X accepted your follow request" + View profile             (to the requester)
+    * "X started following you"                                    (after accepting / public follows)
+  They also count in the red unread dot, and appear under the Follows tab and All.
+- Declining is quiet (the requester is not told) and they may ask again. Switching a private account to public
+  accepts everyone who was waiting. Existing followers stay when you go private.
 
-- Round 2 (UI): Create Post page and the photo/video "Details" step now share ONE block:
-  row 1 = Location | Tag People, row 2 = Add Hashtag. Chosen items turn violet and show the place / avatars
-  with an X to remove; tap to edit. Hashtags typed in the caption appear as chips. "Add Hashtag" inserts # and
-  focuses the caption in both places. Fixed: hashtags in Indian scripts were cut after the first letter.
-  If you still see "Location tagging is coming soon", the new files have not been copied in / dev server not restarted.
+FILES (new): supabase/migrations/20261021000000_private_accounts.sql, src/lib/follow-state.ts,
+  src/lib/notification-tabs.ts, src/test/private-accounts.test.ts
+FILES (changed): src/routes/onboarding.tsx, src/routes/settings.tsx, src/routes/notifications.tsx,
+  src/components/profile-view.tsx, src/components/ediraa.tsx (UserRow), src/components/video-viewer.tsx,
+  src/routes/home.tsx, src/routes/discover.tsx, src/routes/business.tsx, src/lib/use-follow.ts, src/lib/social.ts,
+  src/integrations/supabase/types.ts   (+ the location/tags + story-like files from earlier zips)
 
-NOT VERIFIED HERE
-npm could not install packages in my sandbox (registry blocked), so I could not run tsc / eslint / vitest / build.
-Please run:  npm run lint && npm test && npm run build
+KNOWN LIMITS
+- Image/video files live in a public storage bucket; their URLs are long random links, hidden from non-followers in
+  the app, but anyone who is given the exact link can open it (same as before).
+- Follower/following COUNTS stay visible on private profiles; the lists are hidden in the app.
+- Stories were already followers-only; a public account's story is still not shown to non-followers.
+
+VERIFIED
+- All 11 migrations run on a real PostgreSQL 16 with row-level security, run twice without errors.
+- Scenario test as real users under RLS: private posts/stories hidden, direct follow insert blocked, request ->
+  accept/decline/cancel, notifications (no duplicates on retry), unfollow, private->public auto-accept, feed
+  hidden, tagging respects privacy.
+- NOT run here (packages can't be installed in my sandbox): tsc / eslint / vitest / build. Files were
+  syntax-checked and Prettier-formatted. Please run:  npm run lint && npm test && npm run build

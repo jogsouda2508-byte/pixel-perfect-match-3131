@@ -2,10 +2,10 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Camera, ChevronRight, Loader2, MapPin } from "lucide-react";
+import { Camera, ChevronRight, Loader2, Lock, MapPin } from "lucide-react";
 import { Avatar } from "@/components/ediraa";
-import { PushSettingsCard } from "@/components/push-prompt";
 import { PageHeader, PageShell } from "@/components/page-shell";
+import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import type { Profile } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
@@ -16,8 +16,8 @@ import { passwordSchema, passwordStrength } from "@/lib/validation";
 export const Route = createFileRoute("/settings")({
   head: () => ({
     meta: [
-      { title: "Settings & Privacy — Gicco chat" },
-      { name: "description", content: "Edit your profile and manage your Gicco chat account." },
+      { title: "Settings & Privacy — Ediraa" },
+      { name: "description", content: "Edit your profile and manage your Ediraa account." },
     ],
   }),
   component: SettingsPage,
@@ -36,13 +36,79 @@ function SettingsPage() {
       {profile && (
         <>
           <EditProfileCard profile={profile} />
+          <PrivacyCard profile={profile} />
           <AccountCard profile={profile} />
-          <PushSettingsCard />
           <PasswordCard />
           <LogoutButton />
         </>
       )}
     </PageShell>
+  );
+}
+
+/** Public / private account switch. Going public accepts everyone who was waiting for approval. */
+function PrivacyCard({ profile }: { profile: Profile }) {
+  const { refreshProfile } = useAuth();
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const isPrivate = !!profile.is_private;
+
+  const change = async (next: boolean) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await updateMyProfile(profile.id, { is_private: next });
+      await refreshProfile();
+      // Who can see what (and who follows me) may have changed.
+      for (const key of ["notifications", "unread", "follow-counts", "follow-list", "feed"]) {
+        void qc.invalidateQueries({ queryKey: [key] });
+      }
+      toast.success(
+        next
+          ? "Your account is now private"
+          : "Your account is now public. Pending requests were accepted.",
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't change your privacy setting.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="glass-card space-y-3 p-4" aria-labelledby="privacy-heading">
+      <h2 id="privacy-heading" className="font-semibold">
+        Account privacy
+      </h2>
+      <div className="flex items-start gap-3">
+        <span
+          aria-hidden="true"
+          className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
+        >
+          <Lock className="h-4 w-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <label htmlFor="private-account" className="block text-sm font-semibold">
+            Private account
+          </label>
+          <p className="text-xs text-muted-foreground">
+            {isPrivate
+              ? "Only people you approve can see your posts and stories. New followers must send a request."
+              : "Anyone on Ediraa can see your posts and follow you. Turn this on to approve followers yourself."}
+          </p>
+        </div>
+        <Switch
+          id="private-account"
+          checked={isPrivate}
+          disabled={busy}
+          onCheckedChange={(next) => void change(next)}
+        />
+      </div>
+      <p className="text-xs text-muted-foreground">
+        People who already follow you keep following you. Your name, photo and bio always stay
+        visible so people can find you.
+      </p>
+    </section>
   );
 }
 

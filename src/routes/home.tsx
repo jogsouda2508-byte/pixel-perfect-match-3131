@@ -2,20 +2,10 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { Search, Bell, Loader2 } from "lucide-react";
-import {
-  Avatar,
-  BottomNav,
-  BrandLockup,
-  Pill,
-  SideNav,
-  UserRow,
-  Verified,
-} from "@/components/ediraa";
-import { LocalityPicker } from "@/components/locality-picker";
+import { Avatar, BottomNav, Pill, SideNav, UserRow, Verified } from "@/components/ediraa";
 import { PostCard } from "@/components/post-card";
 import { Stories } from "@/components/stories";
 import { useAuth } from "@/lib/auth";
-import { useLocality } from "@/lib/use-locality";
 import {
   FEED_PAGE_SIZE,
   fetchFeed,
@@ -29,15 +19,15 @@ import { useFollow } from "@/lib/use-follow";
 export const Route = createFileRoute("/home")({
   head: () => ({
     meta: [
-      { title: "Home Feed — Gicco chat" },
+      { title: "Home Feed — Ediraa" },
       {
         name: "description",
-        content: "Stories, posts and local updates from your Gicco chat network.",
+        content: "Stories, posts and local updates from your Ediraa network.",
       },
-      { property: "og:title", content: "Home Feed — Gicco chat" },
+      { property: "og:title", content: "Home Feed — Ediraa" },
       {
         property: "og:description",
-        content: "Stories, posts and local updates from your Gicco chat network.",
+        content: "Stories, posts and local updates from your Ediraa network.",
       },
     ],
   }),
@@ -53,8 +43,8 @@ const TABS: { label: string; key: FeedTab }[] = [
 
 const EMPTY: Record<FeedTab, string> = {
   for_you: "No posts yet. Be the first to share something!",
-  following: "Posts from people you follow will appear here.",
-  local: "No posts from this area yet.",
+  following: "Posts from people you follow will show up here. Follow a few people to get started.",
+  local: "No local posts yet. Make sure your profile has a location to see posts from your area.",
   business: "No business posts yet.",
 };
 
@@ -64,19 +54,14 @@ function HomePage() {
   const myName = profile?.full_name || profile?.username || "";
   const [tab, setTab] = useState<FeedTab>("for_you");
   const meId = user?.id ?? "";
-  // Local tab: the picked locality, else the profile's own. Never a global feed.
-  const [pickedLocality, setPickedLocality] = useLocality(meId);
-  const profileLocation = profile?.location?.trim() || null;
-  const activeLocality = pickedLocality ?? profileLocation;
-  const localNeedsSetup = tab === "local" && !activeLocality;
 
   const feed = useInfiniteQuery({
-    queryKey: ["feed", tab, meId, tab === "local" ? (pickedLocality ?? "") : ""],
-    queryFn: ({ pageParam }) => fetchFeed({ tab, before: pageParam, location: pickedLocality }),
+    queryKey: ["feed", tab, meId],
+    queryFn: ({ pageParam }) => fetchFeed({ tab, before: pageParam }),
     initialPageParam: null as string | null,
     getNextPageParam: (last) =>
       last.length === FEED_PAGE_SIZE ? (last[last.length - 1]?.created_at ?? null) : undefined,
-    enabled: !!meId && !localNeedsSetup,
+    enabled: !!meId,
   });
   const posts = feed.data?.pages.flat() ?? [];
 
@@ -100,23 +85,12 @@ function HomePage() {
   const follow = useFollow();
 
   return (
-    <div className="mx-auto max-w-[1480px] px-4 sm:px-6 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]">
+    <div className="mx-auto max-w-6xl px-4 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,640px)_300px]">
       <SideNav />
       <main className="min-w-0 space-y-4">
-        <header className="flex flex-wrap items-center justify-between gap-y-3 md:flex-nowrap md:gap-4 lg:min-h-16 2xl:min-h-[4.5rem]">
-          {/* The name lives in the side menu on desktop; keep it on phones, which have no side menu. */}
-          <h1 className="order-1 md:hidden">
-            <span className="sr-only">Gicco chat</span>
-            <BrandLockup compact />
-          </h1>
-          <div className="scrollbar-white order-3 flex w-full gap-2 overflow-x-auto md:order-1 md:w-auto md:min-w-0 md:flex-1">
-            {TABS.map((t) => (
-              <Pill key={t.key} active={tab === t.key} onClick={() => setTab(t.key)}>
-                {t.label}
-              </Pill>
-            ))}
-          </div>
-          <div className="order-2 flex shrink-0 items-center gap-4 md:order-2">
+        <header className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Ediraa</h1>
+          <div className="flex items-center gap-4">
             <Link
               to="/discover"
               aria-label="Search"
@@ -148,7 +122,14 @@ function HomePage() {
             </Link>
           </div>
         </header>
-        <Stories />
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {TABS.map((t) => (
+            <Pill key={t.key} active={tab === t.key} onClick={() => setTab(t.key)}>
+              {t.label}
+            </Pill>
+          ))}
+        </div>
+        <Stories onLocalHub={() => setTab("local")} />
         <section className="glass-card p-3">
           <Link
             to="/create"
@@ -159,16 +140,7 @@ function HomePage() {
           </Link>
         </section>
 
-        {tab === "local" && (
-          <LocalityPicker
-            active={activeLocality}
-            profileLocation={profileLocation}
-            selected={pickedLocality}
-            onSelect={setPickedLocality}
-          />
-        )}
-
-        {feed.isLoading && !localNeedsSetup && (
+        {feed.isLoading && (
           <div className="grid place-items-center py-10">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
@@ -184,21 +156,9 @@ function HomePage() {
             </button>
           </div>
         )}
-        {feed.isSuccess && !localNeedsSetup && posts.length === 0 && (
+        {feed.isSuccess && posts.length === 0 && (
           <div className="glass-card p-6 text-center text-sm text-muted-foreground">
-            {tab === "local" && activeLocality
-              ? `No posts from ${activeLocality} yet.`
-              : EMPTY[tab]}
-            {tab === "following" && (
-              <div className="mt-4">
-                <Link
-                  to="/discover"
-                  className="rounded-full border border-primary px-5 py-2 font-semibold text-primary"
-                >
-                  Find people to follow
-                </Link>
-              </div>
-            )}
+            {EMPTY[tab]}
             {tab === "for_you" && (
               <div className="mt-4">
                 <Link
@@ -244,6 +204,7 @@ function HomePage() {
               }
               img={p.avatar_url}
               following={follow.isFollowing(p.id, p.is_following)}
+              requested={follow.isRequested(p.id)}
               pending={follow.isPending(p.id)}
               onToggle={() => follow.toggle(p.id, follow.isFollowing(p.id, p.is_following))}
             />
@@ -265,7 +226,7 @@ function HomePage() {
             ))}
           </div>
           <p className="mt-4 flex items-center gap-1 text-xs text-muted-foreground">
-            Gicco chat Official <Verified />
+            Ediraa Official <Verified />
           </p>
         </section>
       </aside>

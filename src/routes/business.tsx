@@ -11,10 +11,10 @@ import { useFollow } from "@/lib/use-follow";
 export const Route = createFileRoute("/business")({
   head: () => ({
     meta: [
-      { title: "Business Page — Gicco chat" },
+      { title: "Business Page — Ediraa" },
       {
         name: "description",
-        content: "Run a business page and discover local businesses on Gicco chat.",
+        content: "Run a business page and discover local businesses on Ediraa.",
       },
     ],
   }),
@@ -115,7 +115,7 @@ function BusinessPage() {
           <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-gradient-brand text-primary-foreground">
             <Building2 className="h-6 w-6" />
           </div>
-          <h2 className="text-lg font-bold">Grow your business on Gicco chat</h2>
+          <h2 className="text-lg font-bold">Grow your business on Ediraa</h2>
           <p className="text-sm text-muted-foreground">
             Switch to a Business account to get a business badge on your profile and have your posts
             show up in the Business feed. You can switch back any time.
@@ -133,7 +133,7 @@ function BusinessPage() {
       )}
 
       <section className="glass-card p-4">
-        <h2 className="mb-4 font-semibold">Businesses on Gicco chat</h2>
+        <h2 className="mb-4 font-semibold">Businesses on Ediraa</h2>
         <div className="space-y-4">
           {businesses.isLoading && (
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -152,6 +152,7 @@ function BusinessPage() {
               sub={`@${p.username}`}
               img={p.avatar_url}
               following={follow.isFollowing(p.id, p.is_following)}
+              requested={follow.isRequested(p.id)}
               pending={follow.isPending(p.id)}
               onToggle={() => follow.toggle(p.id, follow.isFollowing(p.id, p.is_following))}
             />

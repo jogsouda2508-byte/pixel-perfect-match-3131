@@ -92,7 +92,8 @@ export function parsePhotonFeatures(json: unknown): PlaceSelection[] {
     const placeId = `osm:${p.osm_type}${p.osm_id}`;
     if (seen.has(placeId)) continue;
     seen.add(placeId);
-    const city = p.city?.trim() || p.locality?.trim() || p.district?.trim() || p.county?.trim() || null;
+    const city =
+      p.city?.trim() || p.locality?.trim() || p.district?.trim() || p.county?.trim() || null;
     const street = joinParts([[p.housenumber, p.street].filter(Boolean).join(" ")]);
     const address =
       joinParts([

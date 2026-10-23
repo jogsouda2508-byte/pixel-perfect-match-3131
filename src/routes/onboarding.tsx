@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Camera, Check, Loader2, MapPin } from "lucide-react";
+import { Camera, Check, Globe, Loader2, Lock, MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Profile } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
@@ -9,7 +9,7 @@ import { Avatar } from "@/components/ediraa";
 import { AuthShell, PrimaryButton, inputClass } from "@/components/auth-ui";
 
 export const Route = createFileRoute("/onboarding")({
-  head: () => ({ meta: [{ title: "Set up your profile — Gicco chat" }] }),
+  head: () => ({ meta: [{ title: "Set up your profile — Ediraa" }] }),
   component: OnboardingPage,
 });
 
@@ -42,6 +42,8 @@ function OnboardingPage() {
   const [preview, setPreview] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string>();
+  // Account privacy. Public is the default; this is saved even if step 1 is skipped.
+  const [isPrivate, setIsPrivate] = useState(profile?.is_private ?? false);
   const fileRef = useRef<HTMLInputElement>(null);
   // Skipping a step means "don't save what's on it".
   const skipped = useRef({ profile: false, interests: false });
@@ -52,6 +54,8 @@ function OnboardingPage() {
   // step 3
   const [people, setPeople] = useState<Profile[] | null>(null);
   const [following, setFollowing] = useState<Set<string>>(new Set());
+  // Private accounts I have asked to follow (waiting for them to accept).
+  const [requested, setRequested] = useState<Set<string>>(new Set());
   const [pending, setPending] = useState<Set<string>>(new Set());
 
   useEffect(
@@ -66,7 +70,7 @@ function OnboardingPage() {
     if (step !== 2 || !user || people) return;
     let active = true;
     (async () => {
-      const [{ data: list, error }, { data: mine }] = await Promise.all([
+      const [{ data: list, error }, { data: mine }, { data: asked }] = await Promise.all([
         supabase
           .from("profiles")
           .select("*")
@@ -74,11 +78,17 @@ function OnboardingPage() {
           .order("created_at", { ascending: false })
           .limit(20),
         supabase.from("follows").select("following_id").eq("follower_id", user.id),
+        supabase
+          .from("follow_requests")
+          .select("target_id")
+          .eq("requester_id", user.id)
+          .eq("status", "pending"),
       ]);
       if (!active) return;
       if (error) toast.error("Couldn't load suggestions.");
       setPeople(list ?? []);
       setFollowing(new Set((mine ?? []).map((r) => r.following_id)));
+      setRequested(new Set((asked ?? []).map((r) => r.target_id)));
     })();
     return () => {
       active = false;
@@ -112,10 +122,14 @@ function OnboardingPage() {
   const toggleFollow = async (id: string) => {
     if (pending.has(id)) return;
     const isFollowing = following.has(id);
+    const isRequested = requested.has(id);
     setPending((p) => new Set(p).add(id));
-    const { error } = isFollowing
+    // Following a public account is instant; a private account turns it into a request.
+    const { data, error } = isFollowing
       ? await supabase.from("follows").delete().eq("follower_id", user.id).eq("following_id", id)
-      : await supabase.from("follows").insert({ follower_id: user.id, following_id: id });
+      : isRequested
+        ? await supabase.rpc("cancel_follow_request", { p_target: id })
+        : await supabase.rpc("send_follow_request", { p_target: id });
     setPending((p) => {
       const n = new Set(p);
       n.delete(id);
@@ -125,12 +139,16 @@ function OnboardingPage() {
       toast.error("Couldn't update. Please try again.");
       return;
     }
-    setFollowing((f) => {
-      const n = new Set(f);
-      if (isFollowing) n.delete(id);
-      else n.add(id);
-      return n;
-    });
+    if (isFollowing) {
+      setFollowing((f) => new Set([...f].filter((x) => x !== id)));
+    } else if (isRequested) {
+      setRequested((r) => new Set([...r].filter((x) => x !== id)));
+    } else if (data === "requested") {
+      setRequested((r) => new Set(r).add(id));
+      toast.success("Follow request sent");
+    } else {
+      setFollowing((f) => new Set(f).add(id));
+    }
   };
 
   const finish = async () => {
@@ -145,6 +163,7 @@ function OnboardingPage() {
           bio: saveStepOne ? bio.trim() || null : (profile?.bio ?? null),
           location: saveStepOne ? location.trim() || null : (profile?.location ?? null),
           avatar_url: url,
+          is_private: isPrivate,
           interests: skipped.current.interests ? (profile?.interests ?? []) : interests,
           onboarding_completed: true,
         })
@@ -270,6 +289,57 @@ function OnboardingPage() {
               />
             </div>
           </div>
+          <fieldset>
+            <legend className="mb-1.5 block text-sm font-medium">Who can see your posts?</legend>
+            <div className="grid gap-2">
+              {(
+                [
+                  {
+                    value: false,
+                    icon: Globe,
+                    title: "Public account",
+                    text: "Anyone on Ediraa can see your posts and follow you right away.",
+                  },
+                  {
+                    value: true,
+                    icon: Lock,
+                    title: "Private account",
+                    text: "Only people you approve can see your posts and stories. Others must send a follow request.",
+                  },
+                ] as const
+              ).map(({ value, icon: Icon, title, text }) => {
+                const on = isPrivate === value;
+                return (
+                  <button
+                    key={title}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => setIsPrivate(value)}
+                    className={`flex items-start gap-3 rounded-2xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${on ? "border-primary bg-primary/10" : "border-border bg-card/60 hover:border-primary/40"}`}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full ${on ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"}`}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold">{title}</span>
+                      <span className="block text-xs text-muted-foreground">{text}</span>
+                    </span>
+                    <span
+                      aria-hidden="true"
+                      className={`mt-1 h-4 w-4 shrink-0 rounded-full border-2 ${on ? "border-primary bg-primary" : "border-muted-foreground"}`}
+                    />
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              You can change this any time in Settings &amp; Privacy.
+            </p>
+          </fieldset>
         </div>
       )}
 
@@ -312,20 +382,24 @@ function OnboardingPage() {
             <ul className="max-h-72 space-y-3 overflow-y-auto pr-1">
               {people.map((p) => {
                 const on = following.has(p.id);
+                const asked = requested.has(p.id);
                 return (
                   <li key={p.id} className="flex items-center gap-3">
                     <Avatar src={p.avatar_url} name={p.full_name || p.username} size={40} />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold">{p.full_name || p.username}</p>
-                      <p className="truncate text-xs text-muted-foreground">@{p.username}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        @{p.username}
+                        {p.is_private ? " · Private" : ""}
+                      </p>
                     </div>
                     <button
                       type="button"
                       disabled={pending.has(p.id)}
                       onClick={() => toggleFollow(p.id)}
-                      className={`shrink-0 rounded-lg px-3 py-1 text-xs font-medium transition disabled:opacity-60 ${on ? "bg-gradient-brand text-primary-foreground" : "border border-primary text-primary"}`}
+                      className={`shrink-0 rounded-lg px-3 py-1 text-xs font-medium transition disabled:opacity-60 ${on ? "bg-gradient-brand text-primary-foreground" : asked ? "bg-elevated text-muted-foreground" : "border border-primary text-primary"}`}
                     >
-                      {on ? "Following" : "Follow"}
+                      {on ? "Following" : asked ? "Requested" : "Follow"}
                     </button>
                   </li>
                 );
