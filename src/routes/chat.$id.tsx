@@ -252,7 +252,7 @@ function ConversationDetail({ id }: { id: string }) {
 
   return (
     <PageShell showBottomNav={false}>
-      <section className="flex min-h-[calc(100dvh-6rem)] flex-col overflow-hidden rounded-2xl border border-border bg-card">
+      <section className="-mx-4 -mb-5 flex h-dvh flex-col overflow-hidden border-0 border-border bg-card sm:mx-0 sm:mb-0 sm:h-auto sm:min-h-[calc(100dvh-6rem)] sm:rounded-2xl sm:border">
         <header className="flex min-h-16 items-center gap-2 border-b border-border px-3 py-2">
           <Link
             to="/chat"
