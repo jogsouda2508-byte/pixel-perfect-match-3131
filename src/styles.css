@@ -331,6 +331,18 @@
   }
 }
 
+/* Story videos: never show the browser's own big white "play" circle while the video is
+   still loading (or if autoplay is blocked). The app shows its own thin loading ring instead
+   (StoryLoadingRing in components/stories.tsx). */
+.story-video::-webkit-media-controls,
+.story-video::-webkit-media-controls-overlay-play-button,
+.story-video::-webkit-media-controls-start-playback-button,
+.story-video::-webkit-media-controls-panel {
+  display: none !important;
+  -webkit-appearance: none;
+  opacity: 0;
+}
+
 
 /* ------------------------------------------------------------------ phones
    Every page fills the screen edge to edge, never scrolls sideways and never

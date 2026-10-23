@@ -872,6 +872,8 @@ function StoryVideo({
 }) {
   const ref = useRef<HTMLVideoElement>(null);
   const doneRef = useRef(false);
+  // True until the video is really playing, and again whenever it stalls to buffer.
+  const [loading, setLoading] = useState(true);
   const start = item.segment_start;
   const end = item.segment_end ?? Number.POSITIVE_INFINITY;
 
@@ -919,27 +921,71 @@ function StoryVideo({
   }, [start, end]);
 
   return (
-    <video
-      ref={ref}
-      src={`${item.video_url}#t=${start}`}
-      className="max-h-full max-w-full object-contain"
-      autoPlay
-      playsInline
-      onLoadedMetadata={(e) => {
-        const v = e.currentTarget;
-        if (Math.abs(v.currentTime - start) > 0.3) v.currentTime = start;
-        // browsers may block autoplay with sound; fall back to muted rather than not playing
-        void v.play().catch(() => {
-          v.muted = true;
-          void v.play().catch(() => {});
-        });
-      }}
-      onEnded={() => {
-        if (!doneRef.current) {
-          doneRef.current = true;
-          onDone();
-        }
-      }}
-    />
+    <>
+      <video
+        ref={ref}
+        src={`${item.video_url}#t=${start}`}
+        className="story-video max-h-full max-w-full object-contain"
+        autoPlay
+        playsInline
+        onLoadStart={() => setLoading(true)}
+        onWaiting={() => setLoading(true)}
+        onPlaying={() => setLoading(false)}
+        onError={() => setLoading(false)}
+        onLoadedMetadata={(e) => {
+          const v = e.currentTarget;
+          if (Math.abs(v.currentTime - start) > 0.3) v.currentTime = start;
+          // browsers may block autoplay with sound; fall back to muted rather than not playing
+          void v.play().catch(() => {
+            v.muted = true;
+            void v.play().catch(() => setLoading(false));
+          });
+        }}
+        onEnded={() => {
+          if (!doneRef.current) {
+            doneRef.current = true;
+            onDone();
+          }
+        }}
+      />
+      {loading && <StoryLoadingRing />}
+    </>
+  );
+}
+
+/**
+ * A thin ring that spins in the middle of a video story while it loads or buffers (like
+ * Instagram). It never takes taps, so holding / double tapping / swiping still work.
+ */
+function StoryLoadingRing() {
+  return (
+    <div
+      role="status"
+      aria-label="Loading video"
+      data-testid="story-video-loading"
+      className="pointer-events-none absolute inset-0 z-[4] grid place-items-center"
+    >
+      <svg
+        className="h-14 w-14 animate-spin"
+        viewBox="0 0 48 48"
+        fill="none"
+        aria-hidden="true"
+      >
+        <circle
+          cx="24"
+          cy="24"
+          r="21"
+          stroke="white"
+          strokeOpacity="0.25"
+          strokeWidth="2"
+        />
+        <path
+          d="M24 3a21 21 0 0 1 21 21"
+          stroke="white"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+      </svg>
+    </div>
   );
 }

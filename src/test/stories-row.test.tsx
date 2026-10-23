@@ -2,6 +2,8 @@ import { act, createEvent, fireEvent, render, screen, waitFor, within } from "@t
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import type { StoryGroup, StoryItem } from "@/lib/social";
 
 const h = vi.hoisted(() => ({
@@ -625,5 +627,62 @@ describe("swiping between people", () => {
     swipe(200, 170); // only 30px
     swipe(200, 100, 400); // sideways 100px but 300px down
     expect(profileOf("alice")).toBeInTheDocument();
+  });
+});
+
+describe("loading a video story", () => {
+  const ring = () => screen.queryByTestId("story-video-loading");
+  const open = async () => {
+    h.groups = [group("b", "bob", [seg("s1", 0, 0, 15), seg("s2", 1, 15, 22.5)])];
+    wrap(<Stories />);
+    fireEvent.click(await screen.findByRole("button", { name: /View bob Name's story/ }));
+    return screen.getByRole("dialog").querySelector("video") as HTMLVideoElement;
+  };
+
+  it("shows a thin loading ring from the start, until the video is playing", async () => {
+    const video = await open();
+    expect(ring()).toBeInTheDocument();
+    expect(ring()).toHaveClass("pointer-events-none"); // never blocks taps / holds / swipes
+    fireEvent.playing(video);
+    expect(ring()).toBeNull();
+  });
+
+  it("shows the ring again when the video stops to buffer, and hides it when it plays on", async () => {
+    const video = await open();
+    fireEvent.playing(video);
+    expect(ring()).toBeNull();
+    fireEvent.waiting(video);
+    expect(ring()).toBeInTheDocument();
+    fireEvent.playing(video);
+    expect(ring()).toBeNull();
+  });
+
+  it("shows the ring again for the next part of a video story", async () => {
+    const video = await open();
+    fireEvent.playing(video);
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(ring()).toBeInTheDocument();
+    expect(screen.getByRole("dialog").querySelector("video")).not.toBe(video);
+  });
+
+  it("stops the ring if the video cannot be loaded", async () => {
+    const video = await open();
+    fireEvent.error(video);
+    expect(ring()).toBeNull();
+  });
+
+  it("does not show the ring on a photo story", async () => {
+    h.groups = [group("a", "alice", [img("1")])];
+    wrap(<Stories />);
+    fireEvent.click(await screen.findByRole("button", { name: /View alice Name's story/ }));
+    expect(ring()).toBeNull();
+  });
+
+  it("hides the browser's own play button on story videos", async () => {
+    const video = await open();
+    expect(video).toHaveClass("story-video");
+    expect(
+      readFileSync(resolve(__dirname, "../styles.css"), "utf8"),
+    ).toMatch(/\.story-video::-webkit-media-controls-start-playback-button/);
   });
 });
