@@ -236,7 +236,7 @@ export function ProfileView({
               {isMe ? (
                 <Link
                   to="/settings"
-                  className="rounded-full border border-primary px-5 py-2 text-sm font-semibold text-primary"
+                  className="rounded-full border border-primary px-3.5 py-1 text-xs font-semibold text-primary sm:px-5 sm:py-2 sm:text-sm"
                 >
                   Edit Profile
                 </Link>
