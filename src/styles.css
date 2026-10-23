@@ -355,3 +355,28 @@ html {
     padding-top: 0.75rem;
   }
 }
+
+/* ------------------------------------------------------- phone text size
+   Smaller text on phones only (below 640px). Laptops, desktops and tablets keep the
+   normal sizes. Only font sizes change here: spacing, icons and tap targets stay put. */
+@media (max-width: 639.98px) {
+  :root {
+    --text-xs: 0.6875rem; /* 11px (was 12) */
+    --text-sm: 0.8125rem; /* 13px (was 14) */
+    --text-base: 0.90625rem; /* 14.5px (was 16) */
+    --text-lg: 1rem; /* 16px (was 18) */
+    --text-xl: 1.125rem; /* 18px (was 20) */
+    --text-2xl: 1.3125rem; /* 21px (was 24) */
+    --text-3xl: 1.625rem; /* 26px (was 30) */
+    --text-4xl: 1.875rem; /* 30px (was 36) */
+  }
+  /* Text with no size class (plain paragraphs, inputs) follows the same base size. */
+  body {
+    font-size: var(--text-base);
+  }
+  input,
+  textarea,
+  select {
+    font-size: var(--text-base);
+  }
+}
