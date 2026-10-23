@@ -57,16 +57,16 @@ function ChatPage() {
   }, [queryClient, user]);
 
   return (
-    <div className="mx-auto max-w-[1480px] px-4 sm:px-6 pb-28 pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]">
+    <div className="mx-auto max-w-[1480px] app-page px-4 sm:px-6 pb-24 pt-0 sm:pt-5 sm:pb-28 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]">
       <SideNav />
-      <main className="min-w-0 space-y-4">
-        <header className="flex items-center justify-between gap-3">
+      <main className="app-main min-w-0 space-y-1.5 sm:space-y-4">
+        <header className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-bold">Chat</h1>
-          <div className="flex gap-2">
+          <div className="flex w-full gap-2 sm:w-auto">
             <Button
               type="button"
               variant="outline"
-              className="min-h-11 rounded-full"
+              className="min-h-11 flex-1 rounded-full sm:flex-none"
               onClick={() => setNewGroupOpen(true)}
             >
               <Users aria-hidden="true" />
@@ -75,7 +75,7 @@ function ChatPage() {
             <Button
               type="button"
               variant="outline"
-              className="min-h-11 rounded-full"
+              className="min-h-11 flex-1 rounded-full sm:flex-none"
               onClick={() => setNewMessageOpen(true)}
             >
               <UserPlus aria-hidden="true" />

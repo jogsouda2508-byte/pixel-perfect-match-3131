@@ -320,3 +320,28 @@
     will-change: opacity;
   }
 }
+
+
+/* ------------------------------------------------------------------ phones
+   Every page fills the screen edge to edge, never scrolls sideways and never
+   rubber-bands. Desktop and tablet (>= 640px) are untouched. */
+html {
+  overscroll-behavior: none;
+}
+@media (max-width: 639.98px) {
+  body {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+  /* Cards touch the left / right edges of the screen instead of floating with a gap. */
+  .app-main > .glass-card {
+    margin-inline: -1rem;
+    border-radius: 0;
+    border-inline-width: 0;
+    box-shadow: none;
+  }
+  /* Titles and tab rows sit just under the status bar (cards start right at it). */
+  .app-main > :first-child:not(.glass-card) {
+    padding-top: 0.75rem;
+  }
+}

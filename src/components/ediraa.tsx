@@ -276,7 +276,11 @@ const items = [
   { to: "/profile", label: "Profile", icon: User },
 ] as const;
 
-export function BottomNav() {
+/**
+ * Mobile bottom bar. The round "+" create button is opt-in (`showCreate`) and only the
+ * Home page turns it on, so every other page stays clean.
+ */
+export function BottomNav({ showCreate = false }: { showCreate?: boolean }) {
   return (
     <>
       <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background/95 backdrop-blur md:hidden">
@@ -286,7 +290,7 @@ export function BottomNav() {
           ))}
         </div>
       </nav>
-      <ComposerLauncher variant="mobile" />
+      {showCreate && <ComposerLauncher variant="mobile" />}
     </>
   );
 }
