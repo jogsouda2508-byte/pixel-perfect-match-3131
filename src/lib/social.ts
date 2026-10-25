@@ -1,6 +1,7 @@
 import { randomId } from "@/lib/uuid";
 import { supabase } from "@/integrations/supabase/client";
 import { removeStoryVideoFile } from "@/lib/story-video";
+import { videoUsedByHighlight } from "@/lib/highlights";
 import type {
   Audience,
   CommentRow,
@@ -545,7 +546,9 @@ export async function deleteStory(
     ? await query.eq("upload_id", item.upload_id)
     : await query.eq("id", item.id);
   if (error) fail("Deleting the story", error);
-  if (item.video_url) await removeStoryVideoFile(item.video_url);
+  // a highlight may still use this video file: then keep the file
+  if (item.video_url && !(await videoUsedByHighlight(item.video_url)))
+    await removeStoryVideoFile(item.video_url);
 }
 
 // ------------------------------------------------- story viewers + likes

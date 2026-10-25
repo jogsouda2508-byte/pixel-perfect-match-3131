@@ -24,6 +24,8 @@ import { ComposerLauncher } from "@/components/composer";
 import { ReelsIcon, ShareIcon } from "@/components/icons";
 import { Gallery, type GalleryItem } from "@/components/gallery";
 import { ProfileQrSheet } from "@/components/profile-qr";
+import { FollowedBy } from "@/components/followed-by";
+import { ProfileHighlights } from "@/components/profile-highlights";
 import { profileUrl } from "@/lib/public-url";
 import {
   Dialog,
@@ -152,23 +154,8 @@ export function ProfileView({
     }
   };
 
-  // The Share profile buttons open the QR code screen; its "Share profile" button shares the link.
+  // The Share profile buttons open the QR code screen (it has its own Share / Copy / Download).
   const [qrOpen, setQrOpen] = useState(false);
-  const shareProfile = async () => {
-    const url = profileUrl(profile.username);
-    try {
-      if (typeof navigator.share === "function") {
-        await navigator.share({ title: name, url });
-        return;
-      }
-      await navigator.clipboard.writeText(url);
-      toast.success("Profile link copied");
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      toast.error("Couldn't share the profile link.");
-    }
-  };
-
   const reelsContent = (
     <section aria-label="Videos" className="mt-3">
       {videos.isLoading && (
@@ -348,6 +335,9 @@ export function ProfileView({
               </ul>
             )}
 
+            {/* "Followed by ..." (people you follow who follow them), like Instagram */}
+            {!isMe && user && <FollowedBy meId={user.id} profileId={profile.id} />}
+
             {/* Action buttons */}
             {isMe ? (
               <div className="mt-4 flex gap-2">
@@ -403,6 +393,16 @@ export function ProfileView({
                   <ShareIcon className="h-5 w-5" aria-hidden="true" />
                 </button>
               </div>
+            )}
+
+            {/* Story highlights, right under the buttons */}
+            {!locked && (
+              <ProfileHighlights
+                profileId={profile.id}
+                name={name}
+                avatar={profile.avatar_url}
+                isMe={isMe}
+              />
             )}
           </div>
 
@@ -566,7 +566,6 @@ export function ProfileView({
           username={profile.username}
           url={profileUrl(profile.username)}
           onClose={() => setQrOpen(false)}
-          onShare={() => void shareProfile()}
         />
       )}
       {profile.avatar_url && (
