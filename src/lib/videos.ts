@@ -1,3 +1,4 @@
+import { randomId } from "@/lib/uuid";
 import { supabase } from "@/integrations/supabase/client";
 import type { Audience, PostRow, VideoFeedRow } from "@/integrations/supabase/types";
 import type { PlaceSelection } from "@/lib/places";
@@ -123,7 +124,7 @@ export function uploadVideoFile(
         }
 
         const extension = file.name.split(".").pop()?.toLowerCase() || "mp4";
-        const path = `${userId}/${crypto.randomUUID()}.${extension}`;
+        const path = `${userId}/${randomId()}.${extension}`;
         const encodedPath = path.split("/").map(encodeURIComponent).join("/");
         const xhr = new XMLHttpRequest();
         const abort = () => xhr.abort();
@@ -203,7 +204,7 @@ export async function uploadVideoPost(args: {
     videoPath = uploadedVideo.path;
     if (args.signal.aborted) throw new DOMException("Upload cancelled", "AbortError");
 
-    const thumbnailKey = `${args.authorId}/videos/${crypto.randomUUID()}.jpg`;
+    const thumbnailKey = `${args.authorId}/videos/${randomId()}.jpg`;
     const { error: thumbnailError } = await supabase.storage
       .from("media")
       .upload(thumbnailKey, args.thumbnail, {

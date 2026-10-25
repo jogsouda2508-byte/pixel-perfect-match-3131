@@ -1,3 +1,4 @@
+import { randomId } from "@/lib/uuid";
 import { supabase } from "@/integrations/supabase/client";
 import {
   STORY_LENGTH_MIGRATION_HINT,
@@ -155,7 +156,7 @@ export async function createVideoStory(args: {
   );
   try {
     if (args.signal.aborted) throw new DOMException("Upload cancelled", "AbortError");
-    const uploadId = crypto.randomUUID();
+    const uploadId = randomId();
     const { error } = await supabase.from("stories").insert(
       plan.segments.map((s) => ({
         author_id: args.authorId,
@@ -194,4 +195,49 @@ export async function removeStoryVideoFile(videoUrl: string): Promise<void> {
   if (!path) return;
   const { error } = await supabase.storage.from("videos").remove([path]);
   if (error) console.error("Failed to remove a story video file", error);
+}
+
+/**
+ * Warms up a video story before it is opened, so the story ring can show its loading
+ * animation while a heavy video downloads. Resolves when the first frame is ready, on an
+ * error, when cancelled, or after `timeoutMs` (the story then opens and buffers as usual).
+ * Never rejects.
+ */
+export function preloadStoryVideo(
+  url: string,
+  startSeconds: number,
+  opts: { timeoutMs?: number; signal?: AbortSignal } = {},
+): Promise<void> {
+  const { timeoutMs = 8000, signal } = opts;
+  // No real media loading in a test DOM (jsdom): open straight away there.
+  if (
+    typeof document === "undefined" ||
+    (typeof navigator !== "undefined" && /jsdom/i.test(navigator.userAgent))
+  ) {
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => {
+    const v = document.createElement("video");
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", finish);
+      v.removeEventListener("loadeddata", finish);
+      v.removeEventListener("canplay", finish);
+      v.removeEventListener("error", finish);
+      resolve();
+    };
+    const timer = setTimeout(finish, timeoutMs);
+    signal?.addEventListener("abort", finish);
+    v.preload = "auto";
+    v.muted = true;
+    v.playsInline = true;
+    v.addEventListener("loadeddata", finish);
+    v.addEventListener("canplay", finish);
+    v.addEventListener("error", finish);
+    v.src = `${url}#t=${startSeconds}`;
+    v.load();
+  });
 }

@@ -422,3 +422,32 @@ html {
     font-size: var(--text-base);
   }
 }
+
+
+/* Story ring loading: a thin, smooth, multi-colour comet that circles the story photo while a
+   video story loads or buffers. Used by RingLoader in components/ediraa.tsx. */
+@keyframes story-ring-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.story-ring-loader {
+  background: conic-gradient(
+    from 0deg,
+    rgba(255, 255, 255, 0) 0%,
+    #22d3ee 22%,
+    #6366f1 45%,
+    #d946ef 68%,
+    #f43f5e 84%,
+    #fbbf24 100%
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
+  animation: story-ring-spin 1.1s cubic-bezier(0.45, 0.1, 0.55, 0.9) infinite;
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .story-ring-loader {
+    animation-duration: 2.4s;
+  }
+}

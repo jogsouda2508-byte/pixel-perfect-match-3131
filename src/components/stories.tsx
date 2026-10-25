@@ -29,7 +29,14 @@ import {
   type StoryGroup,
   type StoryItem,
 } from "@/lib/social";
-import { inspectStoryVideo } from "@/lib/story-video";
+import { inspectStoryVideo, preloadStoryVideo } from "@/lib/story-video";
+import {
+  clearStoryLoadingAuthor,
+  markStorySeen,
+  setStoryLoadingAuthor,
+  useLoadingStoryAuthor,
+  useSeenStories,
+} from "@/lib/story-seen";
 import { timeAgo } from "@/lib/time";
 
 const AVATAR = 64;
@@ -56,6 +63,38 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
   const [checking, setChecking] = useState(false);
 
   const meId = user?.id ?? "";
+  // Stories I already watched (their ring part turns grey) and who is loading right now.
+  const seenIds = useSeenStories(meId);
+  const loadingAuthor = useLoadingStoryAuthor();
+  // The person whose heavy video is being prepared: their ring spins before the story opens.
+  const [preparing, setPreparing] = useState<string | null>(null);
+  const prepAbortRef = useRef<AbortController | null>(null);
+  const openGroup = (g: StoryGroup) => {
+    prepAbortRef.current?.abort();
+    const first = g.items[0];
+    if (!first || first.media_type !== "video" || !first.video_url) {
+      setPreparing(null);
+      setViewing(g);
+      return;
+    }
+    const ctl = new AbortController();
+    prepAbortRef.current = ctl;
+    setPreparing(g.authorId);
+    void preloadStoryVideo(first.video_url, first.segment_start, {
+      signal: ctl.signal,
+    }).then(() => {
+      if (ctl.signal.aborted) return;
+      setPreparing(null);
+      setViewing(g);
+    });
+  };
+  useEffect(() => () => prepAbortRef.current?.abort(), []);
+  // The whole ring is grey only when EVERY story of the person is watched. If they add a new
+  // story, the whole ring is coloured again (never half grey, half colour).
+  const seenFlags = (g: StoryGroup) => {
+    const all = g.items.length > 0 && g.items.every((s) => seenIds.has(s.id));
+    return g.items.map(() => all);
+  };
   const myName = profile?.full_name || profile?.username || "";
   const {
     data: groups = [],
@@ -163,7 +202,7 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
    */
   const onOwnBubble = () => {
     if (myGroup) {
-      setViewing(myGroup);
+      openGroup(myGroup);
       return;
     }
     if (busy || syncing) return;
@@ -209,6 +248,8 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
               size={AVATAR}
               ring={!!myGroup}
               segments={myGroup?.items.length ?? 1}
+              seen={myGroup ? seenFlags(myGroup) : undefined}
+              loading={!!myGroup && (loadingAuthor === myGroup.authorId || preparing === myGroup.authorId)}
             />
           </StoryButton>
           {/* The "+" only exists while I have NO story. Once I have one, the bubble opens it;
@@ -239,7 +280,7 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
             <StoryButton
               label={g.username || g.name.split(" ")[0] || "Story"}
               ariaLabel={`View ${g.name || g.username}'s story`}
-              onClick={() => setViewing(g)}
+              onClick={() => openGroup(g)}
             >
               <Avatar
                 src={g.avatar}
@@ -247,6 +288,8 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
                 size={AVATAR}
                 ring
                 segments={g.items.length}
+                seen={seenFlags(g)}
+                loading={loadingAuthor === g.authorId || preparing === g.authorId}
               />
             </StoryButton>
           </div>
@@ -344,6 +387,8 @@ function StoryViewer({
   const router = useRouter({ warn: false });
   const [i, setI] = useState(0);
   const [fraction, setFraction] = useState(0);
+  // True while the current video story loads / buffers: the author's ring shows the loader.
+  const [videoLoading, setVideoLoading] = useState(false);
   // The owner's "who viewed" list. The story is paused while it is open.
   const [viewersOpen, setViewersOpen] = useState(false);
   const viewersOpenRef = useRef(false);
@@ -444,6 +489,18 @@ function StoryViewer({
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [i, last]);
+
+  // Grey ring: remember (on this device) every story I have watched, mine included.
+  useEffect(() => {
+    if (itemId) markStorySeen(meId, itemId);
+  }, [itemId, meId]);
+
+  // Tell the story row which person is loading, so their ring animates there as well.
+  useEffect(() => {
+    if (videoLoading) setStoryLoadingAuthor(group.authorId);
+    else clearStoryLoadingAuthor(group.authorId);
+    return () => clearStoryLoadingAuthor(group.authorId);
+  }, [videoLoading, group.authorId]);
 
   // Someone else's story: remember that I viewed it (once per story; failures are silent).
   useEffect(() => {
@@ -579,7 +636,12 @@ function StoryViewer({
             aria-label={`Open ${group.name || group.username}'s profile`}
             className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           >
-            <Avatar src={group.avatar} name={group.name} size={36} />
+            <Avatar
+              src={group.avatar}
+              name={group.name}
+              size={36}
+              loading={videoLoading}
+            />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold">{group.name}</p>
               <p className="text-xs text-white/70">
@@ -589,7 +651,12 @@ function StoryViewer({
           </button>
         ) : (
           <>
-            <Avatar src={group.avatar} name={group.name} size={36} />
+            <Avatar
+              src={group.avatar}
+              name={group.name}
+              size={36}
+              loading={videoLoading}
+            />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold">{group.name}</p>
               <p className="text-xs text-white/70">
@@ -666,6 +733,7 @@ function StoryViewer({
             item={item}
             paused={paused}
             onProgress={setFraction}
+            onLoadingChange={setVideoLoading}
             onDone={advance}
           />
         ) : (
@@ -862,12 +930,15 @@ function StoryVideo({
   item,
   paused,
   onProgress,
+  onLoadingChange,
   onDone,
 }: {
   item: StoryItem;
   /** true while the viewers list is open or the person is holding the story */
   paused: boolean;
   onProgress: (fraction: number) => void;
+  /** true while the video loads or buffers (drives the loader on the author's ring) */
+  onLoadingChange?: (loading: boolean) => void;
   onDone: () => void;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
@@ -876,6 +947,13 @@ function StoryVideo({
   const [loading, setLoading] = useState(true);
   const start = item.segment_start;
   const end = item.segment_end ?? Number.POSITIVE_INFINITY;
+
+  const loadingCbRef = useRef(onLoadingChange);
+  loadingCbRef.current = onLoadingChange;
+  useEffect(() => {
+    loadingCbRef.current?.(loading);
+  }, [loading]);
+  useEffect(() => () => loadingCbRef.current?.(false), []);
 
   // Pause while the viewers list is open or the story is held, resume when released.
   useEffect(() => {
@@ -948,44 +1026,6 @@ function StoryVideo({
           }
         }}
       />
-      {loading && <StoryLoadingRing />}
     </>
-  );
-}
-
-/**
- * A thin ring that spins in the middle of a video story while it loads or buffers (like
- * Instagram). It never takes taps, so holding / double tapping / swiping still work.
- */
-function StoryLoadingRing() {
-  return (
-    <div
-      role="status"
-      aria-label="Loading video"
-      data-testid="story-video-loading"
-      className="pointer-events-none absolute inset-0 z-[4] grid place-items-center"
-    >
-      <svg
-        className="h-14 w-14 animate-spin"
-        viewBox="0 0 48 48"
-        fill="none"
-        aria-hidden="true"
-      >
-        <circle
-          cx="24"
-          cy="24"
-          r="21"
-          stroke="white"
-          strokeOpacity="0.25"
-          strokeWidth="2"
-        />
-        <path
-          d="M24 3a21 21 0 0 1 21 21"
-          stroke="white"
-          strokeWidth="2"
-          strokeLinecap="round"
-        />
-      </svg>
-    </div>
   );
 }

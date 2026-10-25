@@ -63,6 +63,16 @@ export function BrandLockup({
   );
 }
 
+/** Premium multi-colour story ring: amber -> pink -> violet -> blue -> cyan. */
+const STORY_RING_STOPS: [string, string][] = [
+  ["0%", "#fbbf24"],
+  ["28%", "#f43f5e"],
+  ["52%", "#d946ef"],
+  ["76%", "#6366f1"],
+  ["100%", "#22d3ee"],
+];
+const STORY_RING_CSS = `linear-gradient(45deg, ${STORY_RING_STOPS.map(([o, c]) => `${c} ${o}`).join(", ")})`;
+
 /**
  * Story ring split into one arc per story (like Instagram): 2 stories = 2 arcs with a small gap
  * between them. The photo sits inside the ring.
@@ -70,42 +80,71 @@ export function BrandLockup({
 function SegmentedRing({
   segments,
   size,
+  seen,
+  loading = false,
   children,
 }: {
   segments: number;
   size: number;
+  /** one flag per story: true = already watched (grey arc) */
+  seen?: boolean[] | undefined;
+  loading?: boolean;
   children: ReactNode;
 }) {
   const id = useId();
-  const r = 48.2;
+  const r = 48.6;
   const circumference = 2 * Math.PI * r;
-  const gap = Math.min(4, (circumference / segments) * 0.3);
-  const arc = circumference / segments - gap;
+  // No gaps: the arcs touch, so several stories still look like ONE unbroken ring.
+  const arc = circumference / segments;
   return (
     <div className="relative" style={{ width: size, height: size }}>
       <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden="true">
         <defs>
-          <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" style={{ stopColor: "var(--primary)" }} />
-            <stop offset="100%" style={{ stopColor: "var(--violet)" }} />
+          <linearGradient id={id} gradientUnits="userSpaceOnUse" x1="0" y1="100" x2="100" y2="0">
+            {STORY_RING_STOPS.map(([offset, color]) => (
+              <stop key={offset} offset={offset} stopColor={color} />
+            ))}
           </linearGradient>
         </defs>
-        {Array.from({ length: segments }, (_, i) => (
-          <circle
-            key={i}
-            cx="50"
-            cy="50"
-            r={r}
-            fill="none"
-            stroke={`url(#${id})`}
-            strokeWidth="3.2"
-            strokeDasharray={`${arc} ${circumference - arc}`}
-            transform={`rotate(${-90 + (i * 360) / segments + (gap / circumference) * 180} 50 50)`}
-          />
-        ))}
+        <g transform="rotate(-90 50 50)">
+          {Array.from({ length: segments }, (_, i) => {
+            const isSeen = !!seen?.[i];
+            return (
+              <circle
+                key={i}
+                cx="50"
+                cy="50"
+                r={r}
+                fill="none"
+                stroke={isSeen ? undefined : `url(#${id})`}
+                className={isSeen ? "stroke-neutral-300 dark:stroke-neutral-600" : undefined}
+                strokeWidth="2.6"
+                // a hair of overlap hides the seam between neighbouring arcs
+                strokeDasharray={`${Math.min(circumference, arc + 0.4)} ${circumference}`}
+                strokeDashoffset={-(i * arc)}
+              />
+            );
+          })}
+        </g>
       </svg>
+      {loading && <RingLoader />}
       <div className="absolute inset-[6%]">{children}</div>
     </div>
+  );
+}
+
+/**
+ * Smooth, thin, multi-colour spinner drawn on top of a story ring while a story is loading.
+ * A soft comet tail (transparent -> cyan -> violet -> pink -> amber) rotates around the photo.
+ * Pure CSS (see .story-ring-loader in styles.css); never takes taps.
+ */
+function RingLoader() {
+  return (
+    <span
+      aria-hidden="true"
+      data-testid="story-ring-loader"
+      className="story-ring-loader pointer-events-none absolute inset-0 rounded-full"
+    />
   );
 }
 
@@ -115,6 +154,8 @@ export function Avatar({
   ring = false,
   segments = 1,
   name,
+  seen,
+  loading = false,
 }: {
   src?: string | null | undefined;
   size?: number;
@@ -122,6 +163,10 @@ export function Avatar({
   /** With `ring`: how many stories there are. The ring is split into that many arcs. */
   segments?: number;
   name?: string | undefined;
+  /** With `ring`: one flag per story; true = already watched, so that arc is grey. */
+  seen?: boolean[] | undefined;
+  /** With `ring`: show the smooth multi-colour loading animation on the ring. */
+  loading?: boolean;
 }) {
   const initials = (name ?? "")
     .split(/\s+/)
@@ -145,17 +190,27 @@ export function Avatar({
   );
   if (ring && segments > 1) {
     return (
-      <SegmentedRing segments={segments} size={size}>
+      <SegmentedRing segments={segments} size={size} seen={seen} loading={loading}>
         {photo}
       </SegmentedRing>
     );
   }
+  const ringClass = !ring
+    ? ""
+    : seen?.[0]
+      ? "rounded-full bg-neutral-300 p-[2px] dark:bg-neutral-600"
+      : "rounded-full bg-gradient-brand p-[2px]";
   return (
     <div
-      className={`shrink-0 ${ring ? "rounded-full bg-gradient-brand p-[2px]" : ""}`}
-      style={{ width: size, height: size }}
+      className={`relative shrink-0 ${ringClass}`}
+      style={{
+        width: size,
+        height: size,
+        ...(ring && !seen?.[0] ? { backgroundImage: STORY_RING_CSS } : {}),
+      }}
     >
       {photo}
+      {loading && <RingLoader />}
     </div>
   );
 }

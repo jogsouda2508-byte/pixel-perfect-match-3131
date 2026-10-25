@@ -1,3 +1,4 @@
+import { randomId } from "@/lib/uuid";
 import { supabase } from "@/integrations/supabase/client";
 import { removeStoryVideoFile } from "@/lib/story-video";
 import type {
@@ -66,7 +67,7 @@ async function uploadImage(
   const problem = validateImage(file);
   if (problem) throw new Error(problem);
   const ext = file.type === "image/jpeg" ? "jpg" : file.type.split("/")[1];
-  const path = `${userId}/${folder}/${crypto.randomUUID()}.${ext}`;
+  const path = `${userId}/${folder}/${randomId()}.${ext}`;
   const { error } = await supabase.storage.from("media").upload(path, file, {
     contentType: file.type,
     cacheControl: "31536000",

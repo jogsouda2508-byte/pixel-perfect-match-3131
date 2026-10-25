@@ -631,7 +631,9 @@ describe("swiping between people", () => {
 });
 
 describe("loading a video story", () => {
-  const ring = () => screen.queryByTestId("story-video-loading");
+  // The loader lives on the story ring (avatar at the top of the open story), not on the video.
+  const ring = () =>
+    screen.getByRole("dialog").querySelector('[data-testid="story-ring-loader"]');
   const open = async () => {
     h.groups = [group("b", "bob", [seg("s1", 0, 0, 15), seg("s2", 1, 15, 22.5)])];
     wrap(<Stories />);
@@ -639,7 +641,7 @@ describe("loading a video story", () => {
     return screen.getByRole("dialog").querySelector("video") as HTMLVideoElement;
   };
 
-  it("shows a thin loading ring from the start, until the video is playing", async () => {
+  it("shows the ring loader from the start, until the video is playing", async () => {
     const video = await open();
     expect(ring()).toBeInTheDocument();
     expect(ring()).toHaveClass("pointer-events-none"); // never blocks taps / holds / swipes
