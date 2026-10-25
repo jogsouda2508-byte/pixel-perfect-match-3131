@@ -12,8 +12,19 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Play, Send, Smile } from "lucide-react";
 import { Avatar } from "@/components/ediraa";
 import { GroupAvatar, memberLabel } from "@/components/group-ui";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { InlineEdit, MessageMenu, PressableBubble } from "@/components/message-menu";
 import { PageShell } from "@/components/page-shell";
 import { SharedVideoCard } from "@/components/shared-video-card";
 import {
@@ -27,6 +38,12 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { getConversation, getMessages, markRead, sendMessage } from "@/lib/chat";
 import type { MessageRow } from "@/integrations/supabase/types";
+import {
+  deleteMessage,
+  editMessage,
+  isEditable,
+  patchCachedMessages,
+} from "@/lib/message-actions";
 import { sendVoiceMessage } from "@/lib/voice";
 import { timeAgo } from "@/lib/time";
 
@@ -61,6 +78,11 @@ function ConversationDetail({ id }: { id: string }) {
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const [cancelling, setCancelling] = useState(false);
+  // long-press menu, inline edit and delete confirmation for my own messages
+  const [menu, setMenu] = useState<{ message: DisplayMessage; rect: DOMRect } | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<DisplayMessage | null>(null);
+  const [actionBusy, setActionBusy] = useState(false);
 
   const contact = useQuery({
     queryKey: ["chat-contact", id, user?.id],
@@ -127,6 +149,33 @@ function ConversationDetail({ id }: { id: string }) {
           void markConversationRead();
         },
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${id}`,
+        },
+        (payload) => {
+          const changed = payload.new as MessageRow;
+          setMessages((current) =>
+            current.map((message) =>
+              message.id === changed.id ? { ...message, ...changed } : message,
+            ),
+          );
+          patchCachedMessages(queryClient, { type: "update", row: changed });
+        },
+      )
+      // a delete event can't be filtered by conversation; we only act on ids we have
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "messages" }, (payload) => {
+        const removedId = (payload.old as Partial<MessageRow>).id;
+        if (!removedId) return;
+        setMessages((current) => current.filter((message) => message.id !== removedId));
+        setMenu((open) => (open?.message.id === removedId ? null : open));
+        setEditingId((open) => (open === removedId ? null : open));
+        patchCachedMessages(queryClient, { type: "delete", id: removedId });
+      })
       .subscribe((status, error) => {
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
           console.error("Conversation realtime subscription failed", error);
@@ -143,7 +192,8 @@ function ConversationDetail({ id }: { id: string }) {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages]);
+    // only when a message is added: editing or deleting an old one shouldn't jump the chat
+  }, [messages.length]);
 
   const deliver = async (message: DisplayMessage) => {
     if (sendingRef.current) return;
@@ -217,6 +267,42 @@ function ConversationDetail({ id }: { id: string }) {
     }
   };
   const voice = useVoiceRecorder((result) => void sendVoice(result));
+
+  const saveEdit = async (message: DisplayMessage, text: string) => {
+    setActionBusy(true);
+    setScreenError("");
+    try {
+      const saved = await editMessage(message.id, text);
+      setMessages((current) =>
+        current.map((item) => (item.id === saved.id ? { ...item, ...saved } : item)),
+      );
+      patchCachedMessages(queryClient, { type: "update", row: saved });
+      setEditingId(null);
+      void queryClient.invalidateQueries({ queryKey: ["chat-conversations", user?.id] });
+    } catch (cause) {
+      setScreenError(cause instanceof Error ? cause.message : "Couldn't edit your message.");
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    const message = pendingDelete;
+    if (!message) return;
+    setActionBusy(true);
+    setScreenError("");
+    try {
+      await deleteMessage(message);
+      setMessages((current) => current.filter((item) => item.id !== message.id));
+      patchCachedMessages(queryClient, { type: "delete", id: message.id });
+      void queryClient.invalidateQueries({ queryKey: ["chat-conversations", user?.id] });
+    } catch (cause) {
+      setScreenError(cause instanceof Error ? cause.message : "Couldn't delete your message.");
+    } finally {
+      setActionBusy(false);
+      setPendingDelete(null);
+    }
+  };
 
   // Close the picker on outside click / Escape.
   useEffect(() => {
@@ -378,9 +464,14 @@ function ConversationDetail({ id }: { id: string }) {
             )}
             {messages.map((message) => {
               const own = message.sender_id === user?.id;
+              // only my own, already-sent messages can be edited / deleted
+              const canAct = own && !message.status && !message.id.startsWith("pending-");
+              const editing = editingId === message.id;
               return (
                 <div key={message.id} className={`flex ${own ? "justify-end" : "justify-start"}`}>
-                  <div
+                  <PressableBubble
+                    enabled={canAct && !editing}
+                    onLongPress={(rect) => setMenu({ message, rect })}
                     className={`max-w-[85%] break-words rounded-2xl px-3 py-2 ${
                       own
                         ? "rounded-br-md bg-primary text-primary-foreground"
@@ -402,6 +493,13 @@ function ConversationDetail({ id }: { id: string }) {
                       />
                     ) : message.story_kind ? (
                       <StoryMessageBody message={message} own={own} name={name} />
+                    ) : editing ? (
+                      <InlineEdit
+                        initial={message.body}
+                        busy={actionBusy}
+                        onSave={(text) => void saveEdit(message, text)}
+                        onCancel={() => setEditingId(null)}
+                      />
                     ) : (
                       <p className="whitespace-pre-wrap text-sm">{message.body}</p>
                     )}
@@ -416,6 +514,7 @@ function ConversationDetail({ id }: { id: string }) {
                           minute: "2-digit",
                         })}
                       </time>
+                      {message.edited_at && <span>edited</span>}
                       {message.status === "sending" && <span>Sending…</span>}
                       {message.status === "failed" && (
                         <button
@@ -428,7 +527,7 @@ function ConversationDetail({ id }: { id: string }) {
                         </button>
                       )}
                     </div>
-                  </div>
+                  </PressableBubble>
                 </div>
               );
             })}
@@ -523,6 +622,48 @@ function ConversationDetail({ id }: { id: string }) {
             )}
           </form>
         </div>
+        {menu && (
+          <MessageMenu
+            rect={menu.rect}
+            canEdit={isEditable(menu.message)}
+            onClose={() => setMenu(null)}
+            onEdit={() => {
+              setEditingId(menu.message.id);
+              setMenu(null);
+            }}
+            onDelete={() => {
+              setPendingDelete(menu.message);
+              setMenu(null);
+            }}
+          />
+        )}
+        <AlertDialog
+          open={!!pendingDelete}
+          onOpenChange={(open) => {
+            if (!open && !actionBusy) setPendingDelete(null);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this message?</AlertDialogTitle>
+              <AlertDialogDescription>
+                It will be deleted for everyone in this chat. This can't be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={actionBusy}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={actionBusy}
+                onClick={(event) => {
+                  event.preventDefault();
+                  void confirmDelete();
+                }}
+              >
+                {actionBusy ? "Deleting…" : "Delete"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </section>
     </PageShell>
   );

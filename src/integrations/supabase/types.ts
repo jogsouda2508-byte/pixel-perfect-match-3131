@@ -257,6 +257,8 @@ export type MessageRow = {
   /** Set by send_voice_message() (same migration). */
   audio_url?: string | null;
   audio_seconds?: number | null;
+  /** Set by edit_message() (needs 20261029000000_edit_delete_messages.sql). */
+  edited_at?: string | null;
 };
 
 export type Database = {

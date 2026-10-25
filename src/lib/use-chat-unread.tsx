@@ -2,6 +2,8 @@ import { useEffect, useId } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { patchCachedMessages } from "@/lib/message-actions";
+import type { MessageRow } from "@/integrations/supabase/types";
 
 export async function fetchUnreadChatCount(): Promise<number> {
   const { data, error } = await supabase.rpc("get_unread_chat_count");
@@ -30,7 +32,13 @@ export function useChatUnread(): number {
     if (!meId) return;
     const channel = supabase
       .channel(`chat-unread:${meId}:${instance}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, () => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, (payload) => {
+        if (payload.eventType === "DELETE") {
+          const removedId = (payload.old as { id?: string }).id;
+          if (removedId) patchCachedMessages(queryClient, { type: "delete", id: removedId });
+        } else if (payload.eventType === "UPDATE") {
+          patchCachedMessages(queryClient, { type: "update", row: payload.new as MessageRow });
+        }
         void queryClient.invalidateQueries({ queryKey: ["chat-unread", meId] });
       })
       .subscribe();

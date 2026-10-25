@@ -1,8 +1,12 @@
-ANDROID MIC FIX - how to apply
-1. Unzip into your project ROOT and choose Replace (paths are src/... and scripts/...).
-2. In the project root run:   node scripts/add-android-mic-permission.mjs
-   (adds the RECORD_AUDIO permission to android/app/src/main/AndroidManifest.xml; safe to run twice)
-3. Then run:                  npx cap sync android
-4. Rebuild and run the app from Android Studio. UNINSTALL the old app from the phone first.
-5. Open a chat, hold the mic: Android shows 'Allow <app> to record audio?'. Tap Allow, then hold the mic again.
-Also make sure you did NOT recreate src/routes/chat.id.tsx (only chat.$id.tsx must exist).
+EDIT / DELETE MESSAGES - how to apply
+1. Supabase -> SQL Editor -> run  supabase/migrations/20261029000000_edit_delete_messages.sql
+   (run it AFTER the voice one, 20261028000000_voice_messages.sql; safe to run twice)
+2. Unzip into your project ROOT and choose Replace (paths are src/... and supabase/...).
+   Do NOT create src/routes/chat.id.tsx - only chat.$id.tsx must exist.
+3. Restart npm run dev and hard-refresh (Ctrl+Shift+R).
+4. Android app: npm run build, then npx cap sync android, then rebuild / run from Android Studio.
+
+HOW IT WORKS
+- Hold your finger on YOUR OWN sent message (or right-click on desktop). A small menu appears beside it.
+- Text message: Edit + Delete.   Voice message / shared post / story reply: Delete only.
+- Delete removes it for everyone in the chat (1-to-1 and groups). Edit shows 'edited' next to the time.

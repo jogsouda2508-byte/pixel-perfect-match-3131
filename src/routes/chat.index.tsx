@@ -47,7 +47,7 @@ function ChatPage() {
     if (!user) return;
     const channel = supabase
       .channel(`chat-list:${user.id}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, () => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => {
         void queryClient.invalidateQueries({ queryKey: ["chat-conversations", user.id] });
       })
       .subscribe((status, error) => {
