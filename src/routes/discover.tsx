@@ -73,14 +73,14 @@ function DiscoverPage() {
     <div className="mx-auto max-w-[1480px] app-page px-4 sm:px-6 pb-24 pt-0 sm:pt-5 sm:pb-28 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]">
       <SideNav />
       <main className="app-main min-w-0 space-y-1.5 sm:space-y-4 lg:col-span-2 lg:max-w-[820px] 2xl:max-w-[900px]">
-        <h1 className="text-2xl font-bold">Discover</h1>
+        <h1 className="text-lg font-bold sm:text-2xl">Discover</h1>
         <label className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
-          <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
+          <Search className="h-4 w-4 shrink-0 text-muted-foreground sm:h-5 sm:w-5" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search users, posts, business..."
-            className="w-full bg-transparent text-base outline-none placeholder:text-muted-foreground"
+            className="w-full bg-transparent text-[13px] outline-none sm:text-base placeholder:text-muted-foreground"
           />
         </label>
         <div className="scrollbar-hidden flex gap-2 overflow-x-auto pb-1">
@@ -101,7 +101,7 @@ function DiscoverPage() {
         ) : (
           <section className="glass-card p-5">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">
+              <h2 className="text-sm font-semibold sm:text-lg">
                 {q
                   ? "People"
                   : filter === "Business"
@@ -114,12 +114,12 @@ function DiscoverPage() {
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               )}
               {people.isError && (
-                <p className="text-sm text-destructive">
+                <p className="text-xs text-destructive sm:text-sm">
                   Couldn't load people.
                 </p>
               )}
               {people.isSuccess && people.data.length === 0 && (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs text-muted-foreground sm:text-sm">
                   {q ? "No people match your search." : "No one to show yet."}
                 </p>
               )}
@@ -152,12 +152,12 @@ function DiscoverPage() {
 
         {showPosts && (
           <section className="space-y-4">
-            <h2 className="px-1 text-lg font-semibold">Posts</h2>
+            <h2 className="px-1 text-sm font-semibold sm:text-lg">Posts</h2>
             {posts.isLoading && (
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             )}
             {posts.isSuccess && posts.data.length === 0 && (
-              <p className="px-1 text-sm text-muted-foreground">
+              <p className="px-1 text-xs text-muted-foreground sm:text-sm">
                 No posts match your search.
               </p>
             )}
@@ -169,10 +169,10 @@ function DiscoverPage() {
 
         <section className="glass-card p-5">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Trending Topics</h2>
+            <h2 className="text-sm font-semibold sm:text-lg">Trending Topics</h2>
           </div>
           {trending.isSuccess && trending.data.length === 0 && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs text-muted-foreground sm:text-sm">
               Hashtags used in posts will trend here.
             </p>
           )}
@@ -184,7 +184,7 @@ function DiscoverPage() {
                   setFilter("All");
                   setQuery(`#${t.tag}`);
                 }}
-                className="rounded-full bg-elevated px-3.5 py-1.5 text-sm font-medium"
+                className="rounded-full bg-elevated px-3 py-1 text-[11px] font-medium sm:px-3.5 sm:py-1.5 sm:text-sm"
               >
                 #{t.tag}
               </button>

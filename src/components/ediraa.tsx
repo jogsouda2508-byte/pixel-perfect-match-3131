@@ -128,7 +128,7 @@ function SegmentedRing({
         </g>
       </svg>
       {loading && <RingLoader />}
-      <div className="absolute inset-[6%]">{children}</div>
+      <div className="absolute inset-[3%]">{children}</div>
     </div>
   );
 }
@@ -188,7 +188,8 @@ export function Avatar({
       {initials || "?"}
     </div>
   );
-  if (ring && segments > 1) {
+  // every ring (1 story or many) is drawn the same way, so all story circles look identical
+  if (ring) {
     return (
       <SegmentedRing segments={segments} size={size} seen={seen} loading={loading}>
         {photo}
@@ -237,7 +238,7 @@ export function Pill({
   return (
     <button
       onClick={onClick}
-      className={`shrink-0 rounded-full font-medium transition ${large ? "px-5 py-2.5 text-sm" : compact ? "px-4 py-2 text-[11px]" : "px-4 py-2 text-sm"} ${active ? "bg-gradient-brand text-primary-foreground glow" : "border border-border bg-card text-foreground"}`}
+      className={`shrink-0 rounded-full font-medium transition ${large ? "px-4 py-2 text-[11px] sm:px-5 sm:py-2.5 sm:text-sm" : compact ? "px-4 py-2 text-[11px]" : "px-4 py-2 text-sm"} ${active ? "bg-gradient-brand text-primary-foreground glow" : "border border-border bg-card text-foreground"}`}
     >
       {children}
     </button>
@@ -272,8 +273,8 @@ export function UserRow({
     <>
       <Avatar src={img} name={name} size={large ? 48 : 40} />
       <div className="min-w-0 flex-1">
-        <p className={`truncate font-semibold ${large ? "text-base" : "text-sm"}`}>{name}</p>
-        <p className={`truncate text-muted-foreground ${large ? "text-sm" : "text-xs"}`}>{sub}</p>
+        <p className={`truncate font-semibold ${large ? "text-[13px] sm:text-base" : "text-sm"}`}>{name}</p>
+        <p className={`truncate text-muted-foreground ${large ? "text-[11px] sm:text-sm" : "text-xs"}`}>{sub}</p>
       </div>
     </>
   );
@@ -294,7 +295,7 @@ export function UserRow({
         <button
           onClick={onToggle}
           disabled={pending}
-          className={`shrink-0 font-medium transition disabled:opacity-60 ${large ? "rounded-xl px-4 py-1.5 text-sm" : "rounded-lg px-3 py-1 text-xs"} ${following || requested ? "bg-elevated text-muted-foreground" : "border border-primary text-primary"}`}
+          className={`shrink-0 font-medium transition disabled:opacity-60 ${large ? "rounded-xl px-3 py-1 text-[11px] sm:px-4 sm:py-1.5 sm:text-sm" : "rounded-lg px-3 py-1 text-xs"} ${following || requested ? "bg-elevated text-muted-foreground" : "border border-primary text-primary"}`}
         >
           {followLabel(following, requested)}
         </button>

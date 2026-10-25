@@ -1,5 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { PageShell } from "@/components/page-shell";
@@ -21,14 +20,8 @@ export const Route = createFileRoute("/u/$username")({
 function UserProfilePage() {
   const { username } = Route.useParams();
   const { profile: me } = useAuth();
-  const navigate = useNavigate();
   const handle = username.replace(/^@/, "").toLowerCase();
-  const isMe = me?.username === handle;
-
-  // Your own @name opens the regular /profile page.
-  useEffect(() => {
-    if (isMe) navigate({ to: "/profile", replace: true });
-  }, [isMe, navigate]);
+  const isMe = !!me && me.username === handle;
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["profile", handle],
@@ -36,7 +29,11 @@ function UserProfilePage() {
     enabled: !isMe,
   });
 
-  if (isMe || isLoading) {
+  // Your own link (e.g. you scan your own QR code) shows your own profile right here,
+  // without a redirect that could leave the page stuck on a spinner.
+  if (isMe && me) return <ProfileView key={me.id} profile={me} isMe />;
+
+  if (isLoading) {
     return (
       <div className="grid min-h-screen place-items-center" role="status" aria-label="Loading">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

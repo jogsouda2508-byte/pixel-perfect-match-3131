@@ -23,6 +23,8 @@ import { BottomNav, SideNav, UserRow } from "@/components/ediraa";
 import { ComposerLauncher } from "@/components/composer";
 import { ReelsIcon, ShareIcon } from "@/components/icons";
 import { Gallery, type GalleryItem } from "@/components/gallery";
+import { ProfileQrSheet } from "@/components/profile-qr";
+import { profileUrl } from "@/lib/public-url";
 import {
   Dialog,
   DialogContent,
@@ -150,8 +152,10 @@ export function ProfileView({
     }
   };
 
+  // The Share profile buttons open the QR code screen; its "Share profile" button shares the link.
+  const [qrOpen, setQrOpen] = useState(false);
   const shareProfile = async () => {
-    const url = `${window.location.origin}/u/${encodeURIComponent(profile.username)}`;
+    const url = profileUrl(profile.username);
     try {
       if (typeof navigator.share === "function") {
         await navigator.share({ title: name, url });
@@ -259,7 +263,14 @@ export function ProfileView({
             <div className="mt-3 flex items-center gap-5">
               {/* shrink-0 + aspect-square: the whole round photo is always shown, never squeezed or cut. */}
               <div className="relative shrink-0">
-                <div className="aspect-square rounded-full bg-gradient-brand p-[3px]">
+                <div
+                  className="aspect-square rounded-full bg-gradient-brand p-[2px]"
+                  // same thin multi-colour gradient as the story ring
+                  style={{
+                    backgroundImage:
+                      "linear-gradient(45deg, #fbbf24 0%, #f43f5e 28%, #d946ef 52%, #6366f1 76%, #22d3ee 100%)",
+                  }}
+                >
                   {profile.avatar_url ? (
                     <button
                       type="button"
@@ -270,11 +281,11 @@ export function ProfileView({
                       <img
                         src={profile.avatar_url}
                         alt={name}
-                        className="block aspect-square h-20 w-20 shrink-0 rounded-full border-4 border-background object-cover md:h-24 md:w-24"
+                        className="block aspect-square h-20 w-20 shrink-0 rounded-full border-[3px] border-background object-cover md:h-24 md:w-24"
                       />
                     </button>
                   ) : (
-                    <div className="grid aspect-square h-20 w-20 shrink-0 place-items-center rounded-full border-4 border-background bg-elevated text-2xl font-bold md:h-24 md:w-24">
+                    <div className="grid aspect-square h-20 w-20 shrink-0 place-items-center rounded-full border-[3px] border-background bg-elevated text-2xl font-bold md:h-24 md:w-24">
                       {name.slice(0, 1).toUpperCase() || "?"}
                     </div>
                   )}
@@ -348,7 +359,7 @@ export function ProfileView({
                 </Link>
                 <button
                   type="button"
-                  onClick={() => void shareProfile()}
+                  onClick={() => setQrOpen(true)}
                   className="grid min-h-10 flex-1 place-items-center rounded-xl bg-elevated px-3 text-sm font-semibold hover:bg-elevated/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   Share profile
@@ -385,7 +396,7 @@ export function ProfileView({
                 </button>
                 <button
                   type="button"
-                  onClick={() => void shareProfile()}
+                  onClick={() => setQrOpen(true)}
                   aria-label="Share profile"
                   className="grid min-h-10 w-12 shrink-0 place-items-center rounded-xl bg-elevated hover:bg-elevated/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
@@ -550,6 +561,14 @@ export function ProfileView({
         )}
       </main>
       <BottomNav showCreate={isMe} />
+      {qrOpen && (
+        <ProfileQrSheet
+          username={profile.username}
+          url={profileUrl(profile.username)}
+          onClose={() => setQrOpen(false)}
+          onShare={() => void shareProfile()}
+        />
+      )}
       {profile.avatar_url && (
         <DialogPrimitive.Root open={photoOpen} onOpenChange={setPhotoOpen}>
           <DialogPrimitive.Portal>
