@@ -1,0 +1,6 @@
+VOICE FIX - how to apply
+1. DELETE this file from your project if it exists:  src/routes/chat.id.tsx
+   (it is a wrong duplicate; the correct one is chat.$id.tsx with a dollar sign)
+2. Unzip this into your project ROOT and choose Replace. The paths inside are already src/... and supabase/...
+3. Make sure you ran supabase/migrations/20261028000000_voice_messages.sql in the Supabase SQL Editor (safe to run twice).
+4. Stop npm run dev, start it again, hard-refresh the browser.

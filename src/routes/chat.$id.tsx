@@ -27,7 +27,7 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { getConversation, getMessages, markRead, sendMessage } from "@/lib/chat";
 import type { MessageRow } from "@/integrations/supabase/types";
-import { sendVoiceMessage, voiceSupported } from "@/lib/voice";
+import { sendVoiceMessage } from "@/lib/voice";
 import { timeAgo } from "@/lib/time";
 
 // Loaded on first open only: the emoji data is large and most visits never need it.
@@ -60,9 +60,7 @@ function ConversationDetail({ id }: { id: string }) {
   const emojiWrapRef = useRef<HTMLDivElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const [canVoice, setCanVoice] = useState(false);
   const [cancelling, setCancelling] = useState(false);
-  useEffect(() => setCanVoice(voiceSupported()), []);
 
   const contact = useQuery({
     queryKey: ["chat-contact", id, user?.id],
@@ -501,7 +499,7 @@ function ConversationDetail({ id }: { id: string }) {
                 />
               </>
             )}
-            {draft.trim() || !canVoice ? (
+            {draft.trim() ? (
               <Button
                 type="submit"
                 aria-label="Send message"

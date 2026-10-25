@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { friendlyError } from "@/lib/engage";
+import { isMissingFunctionError } from "@/lib/db-errors";
 import type { MessageRow } from "@/integrations/supabase/types";
 
 // the generated database types don't know the voice function yet
@@ -9,6 +10,10 @@ const db = supabase as unknown as SupabaseClient;
 /** Keeps every file well under the bucket's 5 MB limit on every browser. */
 export const VOICE_MAX_SECONDS = 120;
 export const VOICE_MIN_SECONDS = 1;
+
+const VOICE_MIGRATION_HINT =
+  "Voice messages need a one-time database update. In Supabase open SQL Editor, run " +
+  "supabase/migrations/20261028000000_voice_messages.sql, then try again.";
 
 const FORMATS = [
   { mime: "audio/webm;codecs=opus", type: "audio/webm", ext: "webm" },
@@ -54,6 +59,7 @@ export async function sendVoiceMessage(
     .upload(path, blob, { contentType: type, cacheControl: "31536000", upsert: false });
   if (uploadError) {
     console.error("Voice upload failed", uploadError);
+    if (/bucket not found/i.test(uploadError.message ?? "")) throw new Error(VOICE_MIGRATION_HINT);
     throw new Error("Couldn't upload your voice message. Please try again.");
   }
   const { data: pub } = supabase.storage.from("voice").getPublicUrl(path);
@@ -64,6 +70,7 @@ export async function sendVoiceMessage(
   });
   if (error) {
     void supabase.storage.from("voice").remove([path]);
+    if (isMissingFunctionError(error)) throw new Error(VOICE_MIGRATION_HINT);
     throw friendlyError(error, "Couldn't send your voice message.");
   }
   return data as MessageRow;
