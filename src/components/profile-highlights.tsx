@@ -13,8 +13,8 @@ import {
 } from "@/lib/highlights";
 import { fetchStories, type StoryItem } from "@/lib/social";
 
-const RING =
-  "linear-gradient(45deg, #fbbf24 0%, #f43f5e 28%, #d946ef 52%, #6366f1 76%, #22d3ee 100%)";
+// Thick solid grey ring (matches the reference: ring ≈ 3px, white gap ≈ 3px around a 64px photo)
+const RING = "#E4E7EB";
 const SIZE = 64;
 
 /** A photo, or the first frame of a video, filling its box. */
@@ -104,8 +104,8 @@ export function ProfileHighlights({
               className="flex w-full flex-col items-center gap-1.5 focus-visible:outline-none"
             >
               <span
-                className="rounded-full p-[2px] shadow-sm"
-                style={{ backgroundImage: RING }}
+                className="rounded-full p-[3px]"
+                style={{ backgroundColor: RING }}
               >
                 <span
                   className="block overflow-hidden rounded-full border-[3px] border-background bg-elevated"

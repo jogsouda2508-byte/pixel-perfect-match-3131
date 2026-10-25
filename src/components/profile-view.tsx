@@ -251,28 +251,25 @@ export function ProfileView({
               {/* shrink-0 + aspect-square: the whole round photo is always shown, never squeezed or cut. */}
               <div className="relative shrink-0">
                 <div
-                  className="aspect-square rounded-full bg-gradient-brand p-[2px]"
-                  // same thin multi-colour gradient as the story ring
-                  style={{
-                    backgroundImage:
-                      "linear-gradient(45deg, #fbbf24 0%, #f43f5e 28%, #d946ef 52%, #6366f1 76%, #22d3ee 100%)",
-                  }}
+                  className="aspect-square h-20 w-20 rounded-full p-[3px] md:h-24 md:w-24"
+                  // thick solid grey ring, same as the story highlights (outer size unchanged)
+                  style={{ backgroundColor: "#E4E7EB" }}
                 >
                   {profile.avatar_url ? (
                     <button
                       type="button"
                       onClick={() => setPhotoOpen(true)}
                       aria-label="View profile photo"
-                      className="block rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="block h-full w-full rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       <img
                         src={profile.avatar_url}
                         alt={name}
-                        className="block aspect-square h-20 w-20 shrink-0 rounded-full border-[3px] border-background object-cover md:h-24 md:w-24"
+                        className="block aspect-square h-full w-full shrink-0 rounded-full border-[3px] border-background object-cover"
                       />
                     </button>
                   ) : (
-                    <div className="grid aspect-square h-20 w-20 shrink-0 place-items-center rounded-full border-[3px] border-background bg-elevated text-2xl font-bold md:h-24 md:w-24">
+                    <div className="grid aspect-square h-full w-full shrink-0 place-items-center rounded-full border-[3px] border-background bg-elevated text-2xl font-bold">
                       {name.slice(0, 1).toUpperCase() || "?"}
                     </div>
                   )}
@@ -281,9 +278,9 @@ export function ProfileView({
                   <Link
                     to="/settings"
                     aria-label="Change profile photo"
-                    className="absolute -bottom-0.5 -right-0.5 grid h-7 w-7 place-items-center rounded-full border-2 border-background bg-primary text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="absolute -bottom-0.5 -right-0.5 grid h-6 w-6 place-items-center rounded-full border-2 border-background bg-black md:h-7 md:w-7 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    <Plus className="h-4 w-4" aria-hidden="true" />
+                    <Plus className="h-3.5 w-3.5 md:h-4 md:w-4" strokeWidth={2.75} aria-hidden="true" />
                   </Link>
                 )}
               </div>
@@ -465,11 +462,20 @@ export function ProfileView({
                   : "Couldn't load posts."}
               </p>
             )}
-            {grid.isSuccess && grid.data.length === 0 && tab === "Tagged" && (
+            {grid.isSuccess && grid.data.length === 0 && tab === "Tagged" && isMe && (
+              <section
+                aria-label="No tagged posts yet"
+                className="mx-auto mt-3 flex max-w-[260px] flex-col items-center px-4 py-6 text-center"
+              >
+                <h2 className="text-[28px] font-bold leading-tight">Photos and videos of you</h2>
+                <p className="mt-3 text-sm font-medium leading-snug">
+                  When people tag you in photos and videos, they'll appear here.
+                </p>
+              </section>
+            )}
+            {grid.isSuccess && grid.data.length === 0 && tab === "Tagged" && !isMe && (
               <p className="glass-card mt-3 p-6 text-center text-sm text-muted-foreground">
-                {isMe
-                  ? "Posts you're tagged in will appear here."
-                  : "No tagged posts to show yet."}
+                No tagged posts to show yet.
               </p>
             )}
             {grid.isSuccess && grid.data.length === 0 && tab === "Posts" && (
