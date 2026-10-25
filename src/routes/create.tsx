@@ -17,6 +17,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { appendHashtagMark, extractHashtags } from "@/lib/post-extras";
 import { createPost } from "@/lib/social";
+import { createPoll } from "@/lib/polls";
 import type { Audience } from "@/integrations/supabase/types";
 
 export const Route = createFileRoute("/create")({
@@ -53,7 +54,7 @@ function CreatePostPage() {
   const [audience, setAudience] = useState<Audience>("Public");
   // Location and tagged people are kept here, so they survive picking a photo or video below.
   const [extras, setExtras] = useState<PostExtrasValue>(EMPTY_EXTRAS);
-  const dirty = !!text.trim() || !!extras.location || extras.tagged.length > 0;
+  const dirty = !!text.trim() || !!extras.location || extras.tagged.length > 0 || !!extras.poll;
 
   // Set once the post is published, so leaving the page afterwards isn't treated as "unsaved".
   const publishedRef = useRef(false);
@@ -81,15 +82,26 @@ function CreatePostPage() {
   }, [warnBeforeLeaving]);
 
   const publish = useMutation({
-    mutationFn: () =>
-      createPost({
+    mutationFn: async () => {
+      const created = await createPost({
         authorId: profile!.id,
         content: text.trim(),
         audience,
         image: null,
         location: extras.location,
         taggedUserIds: extras.tagged.map((person) => person.id),
-      }),
+      });
+      // the poll belongs to the new post; if it fails the post is still published
+      let pollFailed = false;
+      if (extras.poll) {
+        try {
+          await createPoll({ postId: created.id }, extras.poll.question, extras.poll.options);
+        } catch {
+          pollFailed = true;
+        }
+      }
+      return { ...created, pollFailed };
+    },
     onSuccess: async (result) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["feed"] }),
@@ -97,8 +109,10 @@ function CreatePostPage() {
         queryClient.invalidateQueries({ queryKey: ["follow-counts"] }),
         queryClient.invalidateQueries({ queryKey: ["trending"] }),
         queryClient.invalidateQueries({ queryKey: ["notifications"] }),
+        queryClient.invalidateQueries({ queryKey: ["poll"] }),
       ]);
-      if (result.tagsFailed)
+      if (result.pollFailed) toast.warning("Posted, but the poll couldn't be added.");
+      else if (result.tagsFailed)
         toast.warning(
           "Posted, but we couldn't tag everyone. Some people may not be able to see this post.",
         );

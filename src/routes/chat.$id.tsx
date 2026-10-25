@@ -9,17 +9,25 @@ import {
   type KeyboardEvent,
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, Send, Smile } from "lucide-react";
+import { ArrowLeft, Loader2, Play, Send, Smile } from "lucide-react";
 import { Avatar } from "@/components/ediraa";
 import { GroupAvatar, memberLabel } from "@/components/group-ui";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { PageShell } from "@/components/page-shell";
 import { SharedVideoCard } from "@/components/shared-video-card";
+import {
+  MicButton,
+  RecordingBar,
+  useVoiceRecorder,
+  VoiceBubble,
+  type VoiceResult,
+} from "@/components/voice-recorder";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { getConversation, getMessages, markRead, sendMessage } from "@/lib/chat";
 import type { MessageRow } from "@/integrations/supabase/types";
+import { sendVoiceMessage, voiceSupported } from "@/lib/voice";
 import { timeAgo } from "@/lib/time";
 
 // Loaded on first open only: the emoji data is large and most visits never need it.
@@ -52,6 +60,9 @@ function ConversationDetail({ id }: { id: string }) {
   const emojiWrapRef = useRef<HTMLDivElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [canVoice, setCanVoice] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  useEffect(() => setCanVoice(voiceSupported()), []);
 
   const contact = useQuery({
     queryKey: ["chat-contact", id, user?.id],
@@ -169,6 +180,45 @@ function ConversationDetail({ id }: { id: string }) {
       setSending(false);
     }
   };
+
+  /** A recorded voice message: shown at once, then uploaded and sent. */
+  const sendVoice = async ({ blob, seconds }: VoiceResult) => {
+    if (!user) return;
+    const pendingId = `pending-${crypto.randomUUID()}`;
+    const localUrl = URL.createObjectURL(blob);
+    setScreenError("");
+    setMessages((current) => [
+      ...current,
+      {
+        id: pendingId,
+        conversation_id: id,
+        sender_id: user.id,
+        body: "Voice message",
+        created_at: new Date().toISOString(),
+        shared_post_id: null,
+        audio_url: localUrl,
+        audio_seconds: Math.min(600, Math.max(1, Math.round(seconds))),
+        status: "sending",
+      },
+    ]);
+    try {
+      const saved = await sendVoiceMessage(id, user.id, blob, seconds);
+      setMessages((current) => {
+        const withoutPending = current.filter((item) => item.id !== pendingId);
+        if (withoutPending.some((item) => item.id === saved.id)) return withoutPending;
+        return [...withoutPending, saved].sort(
+          (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+        );
+      });
+      void queryClient.invalidateQueries({ queryKey: ["chat-conversations", user.id] });
+    } catch (cause) {
+      setMessages((current) => current.filter((item) => item.id !== pendingId));
+      setScreenError(cause instanceof Error ? cause.message : "Couldn't send your voice message.");
+    } finally {
+      URL.revokeObjectURL(localUrl);
+    }
+  };
+  const voice = useVoiceRecorder((result) => void sendVoice(result));
 
   // Close the picker on outside click / Escape.
   useEffect(() => {
@@ -346,6 +396,14 @@ function ConversationDetail({ id }: { id: string }) {
                     )}
                     {message.shared_post_id ? (
                       <SharedVideoCard postId={message.shared_post_id} own={own} />
+                    ) : message.audio_url ? (
+                      <VoiceBubble
+                        url={message.audio_url}
+                        seconds={message.audio_seconds ?? 1}
+                        own={own}
+                      />
+                    ) : message.story_kind ? (
+                      <StoryMessageBody message={message} own={own} name={name} />
                     ) : (
                       <p className="whitespace-pre-wrap text-sm">{message.body}</p>
                     )}
@@ -409,45 +467,119 @@ function ConversationDetail({ id }: { id: string }) {
             onSubmit={submitMessage}
             className="flex items-end gap-2 border-t border-border p-3"
           >
-            <Button
-              ref={emojiButtonRef}
-              type="button"
-              variant="ghost"
-              aria-label="Add emoji"
-              aria-expanded={emojiOpen}
-              onClick={() => setEmojiOpen((open) => !open)}
-              disabled={!contact.data || history.isError}
-              className={`h-11 w-11 shrink-0 rounded-full p-0 text-primary hover:bg-elevated ${emojiOpen ? "bg-elevated" : ""}`}
-            >
-              <Smile className="h-6 w-6" aria-hidden="true" />
-            </Button>
-            <Textarea
-              ref={composerRef}
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={handleComposerKeyDown}
-              placeholder="Write a message…"
-              aria-label="Write a message"
-              maxLength={2000}
-              rows={1}
-              className="min-h-11 max-h-28 resize-y text-sm"
-              disabled={!contact.data || history.isError}
-            />
-            <Button
-              type="submit"
-              aria-label="Send message"
-              disabled={!draft.trim() || sending || !contact.data || history.isError}
-              className="h-11 w-11 shrink-0 p-0"
-            >
-              {sending ? (
-                <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
-              ) : (
-                <Send className="h-5 w-5" aria-hidden="true" />
-              )}
-            </Button>
+            {voice.recording ? (
+              <RecordingBar
+                seconds={voice.seconds}
+                cancelling={cancelling}
+                onCancel={() => voice.stop(false)}
+              />
+            ) : (
+              <>
+                <Button
+                  ref={emojiButtonRef}
+                  type="button"
+                  variant="ghost"
+                  aria-label="Add emoji"
+                  aria-expanded={emojiOpen}
+                  onClick={() => setEmojiOpen((open) => !open)}
+                  disabled={!contact.data || history.isError}
+                  className={`h-11 w-11 shrink-0 rounded-full p-0 text-primary hover:bg-elevated ${emojiOpen ? "bg-elevated" : ""}`}
+                >
+                  <Smile className="h-6 w-6" aria-hidden="true" />
+                </Button>
+                <Textarea
+                  ref={composerRef}
+                  value={draft}
+                  onChange={(event) => setDraft(event.target.value)}
+                  onKeyDown={handleComposerKeyDown}
+                  placeholder="Write a message…"
+                  aria-label="Write a message"
+                  maxLength={2000}
+                  rows={1}
+                  className="min-h-11 max-h-28 resize-y text-sm"
+                  disabled={!contact.data || history.isError}
+                />
+              </>
+            )}
+            {draft.trim() || !canVoice ? (
+              <Button
+                type="submit"
+                aria-label="Send message"
+                disabled={!draft.trim() || sending || !contact.data || history.isError}
+                className="h-11 w-11 shrink-0 p-0"
+              >
+                {sending ? (
+                  <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Send className="h-5 w-5" aria-hidden="true" />
+                )}
+              </Button>
+            ) : (
+              <MicButton
+                recording={voice.recording}
+                start={voice.start}
+                stop={voice.stop}
+                onCancelling={setCancelling}
+                disabled={!contact.data || history.isError}
+              />
+            )}
           </form>
         </div>
       </section>
     </PageShell>
+  );
+}
+
+/** A story reply or quick reaction: a small preview of the story, then what was sent. */
+function StoryMessageBody({
+  message,
+  own,
+  name,
+}: {
+  message: MessageRow;
+  own: boolean;
+  name: string;
+}) {
+  const reaction = message.story_kind === "reaction";
+  const label = own
+    ? `You ${reaction ? "reacted to" : "replied to"} ${name}'s story`
+    : `${reaction ? "Reacted" : "Replied"} to your story`;
+  return (
+    <div>
+      <div
+        className={`mb-2 flex items-center gap-2.5 rounded-xl p-1.5 pr-3 ${
+          own ? "bg-black/15" : "bg-foreground/5"
+        }`}
+      >
+        {message.story_thumb ? (
+          <img
+            src={message.story_thumb}
+            alt=""
+            loading="lazy"
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+            }}
+            className="h-12 w-9 shrink-0 rounded-lg object-cover"
+          />
+        ) : (
+          <span
+            aria-hidden="true"
+            className="grid h-12 w-9 shrink-0 place-items-center rounded-lg bg-gradient-brand text-primary-foreground"
+          >
+            <Play className="h-4 w-4 fill-current" />
+          </span>
+        )}
+        <span
+          className={`text-xs font-medium ${own ? "text-primary-foreground/90" : "text-muted-foreground"}`}
+        >
+          {label}
+        </span>
+      </div>
+      {reaction ? (
+        <p className="py-0.5 text-4xl leading-none">{message.body}</p>
+      ) : (
+        <p className="whitespace-pre-wrap text-sm">{message.body}</p>
+      )}
+    </div>
   );
 }

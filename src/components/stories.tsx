@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
+  BarChart3,
   ChevronLeft,
   ChevronRight,
   Eye,
@@ -14,6 +15,8 @@ import {
   X,
 } from "lucide-react";
 import { Avatar } from "@/components/ediraa";
+import { PollCard, PollSheet } from "@/components/poll-card";
+import { StoryReplyBar } from "@/components/story-reply-bar";
 import { StoryVideoDialog } from "@/components/story-video-dialog";
 import { useAuth } from "@/lib/auth";
 import {
@@ -29,6 +32,7 @@ import {
   type StoryGroup,
   type StoryItem,
 } from "@/lib/social";
+import { createPoll, pollKey, usePoll, type PollDraft } from "@/lib/polls";
 import { inspectStoryVideo, preloadStoryVideo } from "@/lib/story-video";
 import {
   clearStoryLoadingAuthor,
@@ -395,7 +399,12 @@ function StoryViewer({
   viewersOpenRef.current = viewersOpen;
   // Press and hold on the story to pause it; letting go resumes from the same point.
   const [held, setHeld] = useState(false);
-  const paused = viewersOpen || held;
+  // Typing a reply, or writing a poll, also pauses the story.
+  const [replying, setReplying] = useState(false);
+  const [pollSheetOpen, setPollSheetOpen] = useState(false);
+  const sheetOpenRef = useRef(false);
+  sheetOpenRef.current = pollSheetOpen;
+  const paused = viewersOpen || held || replying || pollSheetOpen;
   // When the current press started, so a long press is never counted as a tap (double-tap like).
   const pressStartRef = useRef<number | null>(null);
   // Where the current press began, to tell a sideways swipe from a tap or a hold.
@@ -479,6 +488,9 @@ function StoryViewer({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // keys belong to the message box / poll sheet while they are in use
+      if (sheetOpenRef.current || (e.target as HTMLElement | null)?.closest?.("input, textarea"))
+        return;
       if (e.key === "Escape") {
         if (viewersOpenRef.current) setViewersOpen(false);
         else onClose();
@@ -519,6 +531,8 @@ function StoryViewer({
     // my own story: keep the counts fresh while I watch it
     refetchInterval: isMine ? 10_000 : false,
   });
+  // The poll on the story on screen (null when there is none).
+  const poll = usePoll({ storyId: itemId });
   const like = useMutation({
     mutationFn: (args: { storyId: string; liked: boolean }) =>
       setStoryLike(args.storyId, args.liked),
@@ -554,6 +568,12 @@ function StoryViewer({
   const partOfMany = isVideo && item.segment_count > 1;
   const stats = engagement.data ?? null;
 
+  const addPoll = async (draft: PollDraft) => {
+    await createPoll({ storyId: item.id }, draft.question, draft.options);
+    await qc.invalidateQueries({ queryKey: pollKey("story", item.id) });
+    toast.success("Poll added to your story");
+  };
+
   // The heart button updates at once (optimistic) and is saved in the background; if saving
   // fails the heart goes back and a message is shown (see the mutation above).
   const requestLike = (liked: boolean) => {
@@ -567,6 +587,20 @@ function StoryViewer({
     if (liked) setBurst((n) => n + 1);
     requestLike(liked);
   };
+  const heartButton = stats ? (
+    <button
+      type="button"
+      onClick={onHeartButton}
+      aria-pressed={stats.likedByMe}
+      aria-label={stats.likedByMe ? "Unlike story" : "Like story"}
+      className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white/10 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+    >
+      <Heart
+        className={`h-6 w-6 ${stats.likedByMe ? "fill-red-500 text-red-500" : ""}`}
+        aria-hidden="true"
+      />
+    </button>
+  ) : null;
   // Double tap on the story itself: like it (never unlike) and show the heart. On a story I
   // already liked it only shows the heart again, so no second like is sent. Taps on the
   // buttons over the story don't count. There are no swipe / tap-to-navigate zones here.
@@ -765,12 +799,23 @@ function StoryViewer({
         {burst > 0 && (
           <StoryHeartBurst key={burst} onDone={() => setBurst(0)} />
         )}
+        {poll.query.data && (
+          // taps on the poll are for voting, never for pausing or double-tap liking
+          <div
+            className="absolute inset-x-3 bottom-3 z-[6] mx-auto w-[min(100%,17rem)]"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <PollCard storyId={item.id} variant="story" />
+          </div>
+        )}
       </div>
 
-      {/* Bottom bar: my story shows who viewed / liked it; someone else's has a like button. */}
-      {stats && (
-        <div className="flex items-center gap-3 px-4 pb-4 pt-3">
-          {isMine ? (
+      {/* Bottom bar: my story shows who viewed / liked it and can get a poll; someone else's
+          has six quick reactions, a message box and the like button. */}
+      {isMine ? (
+        <div className="flex items-center gap-3 px-4 pb-[max(env(safe-area-inset-bottom),1rem)] pt-3">
+          {stats && (
             <button
               type="button"
               onClick={() => setViewersOpen(true)}
@@ -786,21 +831,37 @@ function StoryViewer({
                 {stats.likes}
               </span>
             </button>
-          ) : (
+          )}
+          {poll.query.isSuccess && !poll.query.data && (
             <button
               type="button"
-              onClick={onHeartButton}
-              aria-pressed={stats.likedByMe}
-              aria-label={stats.likedByMe ? "Unlike story" : "Like story"}
-              className="ml-auto grid h-11 w-11 place-items-center rounded-full bg-white/10 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              onClick={() => setPollSheetOpen(true)}
+              aria-label="Add a poll to this story"
+              className="ml-auto flex min-h-11 items-center gap-2 rounded-full bg-white/10 px-4 text-sm font-medium hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
-              <Heart
-                className={`h-6 w-6 ${stats.likedByMe ? "fill-red-500 text-red-500" : ""}`}
-                aria-hidden="true"
-              />
+              <BarChart3 className="h-5 w-5" aria-hidden="true" />
+              Poll
             </button>
           )}
         </div>
+      ) : (
+        <StoryReplyBar
+          key={item.id}
+          storyId={item.id}
+          authorName={group.name || group.username || "them"}
+          onFocusChange={setReplying}
+          trailing={heartButton}
+        />
+      )}
+
+      {isMine && (
+        <PollSheet
+          open={pollSheetOpen}
+          onOpenChange={setPollSheetOpen}
+          submitLabel="Add to story"
+          onSubmit={addPoll}
+          z={130}
+        />
       )}
 
       {isMine && viewersOpen && (

@@ -1,6 +1,8 @@
 import { useState, type ReactNode } from "react";
-import { Hash, MapPin, Users, X } from "lucide-react";
+import { BarChart3, Hash, MapPin, Users, X } from "lucide-react";
 import { LocationPickerModal } from "@/components/location-picker";
+import { PollSheet } from "@/components/poll-card";
+import type { PollDraft } from "@/lib/polls";
 import { TagPeoplePickerModal } from "@/components/tag-people-picker";
 import { placeSubtitle, type PlaceSelection } from "@/lib/places";
 import type { Audience, TaggedPerson } from "@/integrations/supabase/types";
@@ -9,6 +11,8 @@ import type { Audience, TaggedPerson } from "@/integrations/supabase/types";
 export type PostExtrasValue = {
   location: PlaceSelection | null;
   tagged: TaggedPerson[];
+  /** An optional 2-option poll, created together with the post. */
+  poll?: PollDraft | null | undefined;
 };
 
 export const EMPTY_EXTRAS: PostExtrasValue = { location: null, tagged: [] };
@@ -94,7 +98,8 @@ export function PostExtrasFields({
 }) {
   const [locationOpen, setLocationOpen] = useState(false);
   const [peopleOpen, setPeopleOpen] = useState(false);
-  const { location, tagged } = value;
+  const [pollOpen, setPollOpen] = useState(false);
+  const { location, tagged, poll } = value;
   const stack = tagged.slice(0, 3);
 
   return (
@@ -196,6 +201,40 @@ export function PostExtrasFields({
           </ul>
         )}
       </div>
+
+      {/* Poll */}
+      <div className={`${tileBase} ${poll ? tileFilled : tileEmpty}`}>
+        <button
+          type="button"
+          onClick={() => setPollOpen(true)}
+          aria-label={poll ? `Edit poll: ${poll.question}` : "Add poll"}
+          className={mainButton}
+        >
+          <IconBubble filled={!!poll}>
+            <BarChart3 className="h-4 w-4" />
+          </IconBubble>
+          {poll ? (
+            <span className="min-w-0">
+              <span className="block truncate font-semibold">{poll.question}</span>
+              <span className="block truncate text-xs text-muted-foreground">
+                {poll.options[0]} · {poll.options[1]}
+              </span>
+            </span>
+          ) : (
+            <span className="font-medium">Add Poll</span>
+          )}
+        </button>
+        {poll && (
+          <RemoveButton label="Remove poll" onClick={() => onChange({ ...value, poll: null })} />
+        )}
+      </div>
+      <PollSheet
+        open={pollOpen}
+        onOpenChange={setPollOpen}
+        initial={poll}
+        submitLabel={poll ? "Save poll" : "Add poll"}
+        onSubmit={(draft) => onChange({ ...value, poll: draft })}
+      />
 
       <LocationPickerModal
         open={locationOpen}

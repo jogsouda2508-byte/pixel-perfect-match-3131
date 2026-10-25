@@ -6,6 +6,7 @@ import { Loader2, MessageSquare, Search, UserPlus, Users } from "lucide-react";
 import { Avatar, BottomNav, SideNav } from "@/components/ediraa";
 import { CreateGroupDialog } from "@/components/create-group-dialog";
 import { GroupInvites } from "@/components/group-invites";
+import { NotesTray } from "@/components/notes-tray";
 import { GroupAvatar, memberLabel } from "@/components/group-ui";
 import {
   Dialog,
@@ -87,6 +88,8 @@ function ChatPage() {
         </header>
 
         <GroupInvites />
+
+        <NotesTray />
 
         {conversations.isLoading && (
           <section className="glass-card space-y-3 p-4" aria-label="Loading conversations">

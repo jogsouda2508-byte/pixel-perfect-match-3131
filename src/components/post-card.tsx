@@ -15,6 +15,7 @@ import { CommentsSheet } from "@/components/comments-sheet";
 import { Gallery } from "@/components/gallery";
 import { CommentIcon, HeartIcon, ShareIcon } from "@/components/icons";
 import { EmojiButton } from "@/components/emoji-button";
+import { PollCard } from "@/components/poll-card";
 import { PostMeta } from "@/components/post-meta";
 import { ShareVideoDialog } from "@/components/share-video-dialog";
 import {
@@ -245,6 +246,7 @@ export function PostCard({
           <RichText text={post.content} />
         </p>
       )}
+      <PollCard postId={post.id} />
       {isVideo && post.video_url ? (
         // Tapping a video opens the Reels viewer on it, so the person can keep scrolling
         // down to the next videos instead of being stuck on this one.

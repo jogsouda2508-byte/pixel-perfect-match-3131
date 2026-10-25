@@ -26,6 +26,7 @@ import { Gallery, type GalleryItem } from "@/components/gallery";
 import { ProfileQrSheet } from "@/components/profile-qr";
 import { FollowedBy } from "@/components/followed-by";
 import { ProfileHighlights } from "@/components/profile-highlights";
+import { ProfileNoteBubble, useProfileNote } from "@/components/profile-note";
 import { profileUrl } from "@/lib/public-url";
 import {
   Dialog,
@@ -67,6 +68,7 @@ export function ProfileView({
   const [list, setList] = useState<"followers" | "following" | null>(null);
   const [startingMessage, setStartingMessage] = useState(false);
   const name = profile.full_name || profile.username;
+  const profileNote = useProfileNote(profile.id, isMe);
   const follow = useFollow();
   const joined = Number.isNaN(new Date(profile.created_at).getTime())
     ? ""
@@ -247,9 +249,10 @@ export function ProfileView({
             </div>
 
             {/* Photo on the left, name and counts on the right. */}
-            <div className="mt-3 flex items-center gap-5">
+            <div className={`flex items-center gap-5 ${profileNote.visible ? "mt-14" : "mt-3"}`}>
               {/* shrink-0 + aspect-square: the whole round photo is always shown, never squeezed or cut. */}
               <div className="relative shrink-0">
+                <ProfileNoteBubble note={profileNote.note} isMe={isMe} />
                 <div
                   className="aspect-square h-20 w-20 rounded-full p-[3px] md:h-24 md:w-24"
                   // thick solid grey ring, same as the story highlights (outer size unchanged)
@@ -278,7 +281,7 @@ export function ProfileView({
                   <Link
                     to="/settings"
                     aria-label="Change profile photo"
-                    className="absolute bottom-0.5 right-0.5 grid h-6 w-6 place-items-center rounded-full border-2 border-background bg-black md:h-7 md:w-7 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="absolute bottom-0.5 right-0.5 grid h-6 w-6 place-items-center rounded-full border-2 border-background bg-primary md:h-7 md:w-7 text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <Plus className="h-3.5 w-3.5 md:h-4 md:w-4" strokeWidth={2.75} aria-hidden="true" />
                   </Link>

@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import type { Audience } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
 import { createPost, validateImage } from "@/lib/social";
+import { createPoll } from "@/lib/polls";
 import {
   createVideoThumbnail,
   uploadVideoPost,
@@ -191,6 +192,7 @@ export function ComposerLauncher({
     const currentDuration = duration;
     const currentLocation = postExtras.location;
     const currentTaggedIds = postExtras.tagged.map((person) => person.id);
+    const currentPoll = postExtras.poll ?? null;
     if (!currentFile || !profile || uploadingRef.current) return;
     if (kind === "video" && (!currentThumbnail || currentDuration === null)) return;
 
@@ -220,6 +222,7 @@ export function ComposerLauncher({
     try {
       let postedId: string | undefined;
       let tagsFailed = false;
+      let pollFailed = false;
       if (postedKind === "video") {
         const post = await uploadVideoPost({
           authorId: profile.id,
@@ -235,6 +238,13 @@ export function ComposerLauncher({
         });
         postedId = post.id;
         tagsFailed = post.tagsFailed;
+        if (currentPoll) {
+          try {
+            await createPoll({ postId: post.id }, currentPoll.question, currentPoll.options);
+          } catch {
+            pollFailed = true;
+          }
+        }
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ["video-feed"] }),
           queryClient.invalidateQueries({ queryKey: ["feed"] }),
@@ -252,6 +262,13 @@ export function ComposerLauncher({
         });
         postedId = created.id;
         tagsFailed = created.tagsFailed;
+        if (currentPoll) {
+          try {
+            await createPoll({ postId: created.id }, currentPoll.question, currentPoll.options);
+          } catch {
+            pollFailed = true;
+          }
+        }
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ["feed"] }),
           queryClient.invalidateQueries({ queryKey: ["user-posts"] }),
@@ -260,17 +277,25 @@ export function ComposerLauncher({
         ]);
       }
       void queryClient.invalidateQueries({ queryKey: ["notifications"] });
-      toast.success(tagsFailed ? "Posted, but we couldn't tag everyone" : "Posted", {
-        id: toastId,
-        action: {
-          label: "View",
-          onClick: () => {
-            if (postedKind === "video" && postedId)
-              void navigate({ to: "/videos", search: { video: postedId } });
-            else void navigate({ to: "/home" });
+      void queryClient.invalidateQueries({ queryKey: ["poll"] });
+      toast.success(
+        pollFailed
+          ? "Posted, but the poll couldn't be added"
+          : tagsFailed
+            ? "Posted, but we couldn't tag everyone"
+            : "Posted",
+        {
+          id: toastId,
+          action: {
+            label: "View",
+            onClick: () => {
+              if (postedKind === "video" && postedId)
+                void navigate({ to: "/videos", search: { video: postedId } });
+              else void navigate({ to: "/home" });
+            },
           },
         },
-      });
+      );
       setFile(null);
       setThumbnail(null);
       setDuration(null);

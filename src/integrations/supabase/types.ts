@@ -250,6 +250,13 @@ export type MessageRow = {
   created_at: string;
   /** Set only by the share_post_to_user() RPC; null for ordinary messages. */
   shared_post_id: string | null;
+  /** Set by send_story_reply() (needs 20261028000000_story_replies_polls_notes_voice.sql). */
+  story_id?: string | null;
+  story_thumb?: string | null;
+  story_kind?: "reply" | "reaction" | null;
+  /** Set by send_voice_message() (same migration). */
+  audio_url?: string | null;
+  audio_seconds?: number | null;
 };
 
 export type Database = {
