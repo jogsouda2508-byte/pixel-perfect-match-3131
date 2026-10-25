@@ -28,10 +28,20 @@ type FilesystemPlugin = {
   }): Promise<{ uri: string }>;
   requestPermissions?(): Promise<unknown>;
 };
+type MediaPlugin = {
+  createAlbum(opts: { name: string }): Promise<void>;
+  getAlbums(): Promise<{ albums: { identifier: string; name: string }[] }>;
+  savePhoto(opts: {
+    path: string;
+    albumIdentifier?: string;
+    fileName?: string;
+  }): Promise<unknown>;
+};
 type ClipboardPlugin = { write(opts: { string: string }): Promise<void> };
 
 const Share = registerPlugin<SharePlugin>("Share");
 const Filesystem = registerPlugin<FilesystemPlugin>("Filesystem");
+const Media = registerPlugin<MediaPlugin>("Media");
 const Clipboard = registerPlugin<ClipboardPlugin>("Clipboard");
 
 const has = (name: string) =>
@@ -67,14 +77,43 @@ export async function nativeCopy(text: string): Promise<boolean> {
 export const isNativeApp = (): boolean => Capacitor.isNativePlatform();
 
 /**
- * Saves the QR picture on the phone: first into the Documents folder (a real download). If
- * Android refuses that, it opens the share sheet instead so it can still be saved or sent.
- * Returns "saved", "shared", or false when the plugins aren't in the app.
+ * Saves the QR picture on the phone: first into the Gallery (album "Gicco chat"), then the
+ * Documents folder, and only if Android refuses both, the share sheet.
+ * Returns "gallery", "saved", "shared", or false when the plugins aren't in the app.
  */
 export async function nativeSaveImage(
   blob: Blob,
   fileName: string,
-): Promise<"saved" | "shared" | false> {
+): Promise<"gallery" | "saved" | "shared" | false> {
+  const ALBUM = "Gicco chat";
+  // 1) Best: save into the phone's Gallery (works on every Android, no permission prompt).
+  if (has("Media")) {
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result));
+        r.onerror = () => reject(new Error("read"));
+        r.readAsDataURL(blob);
+      });
+      try {
+        await Media.createAlbum({ name: ALBUM });
+      } catch {
+        /* the album already exists */
+      }
+      const { albums } = await Media.getAlbums();
+      const album = albums.find((a) => a.name === ALBUM);
+      if (album) {
+        await Media.savePhoto({
+          path: dataUrl,
+          albumIdentifier: album.identifier,
+          fileName: fileName.replace(/\.png$/i, ""),
+        });
+        return "gallery";
+      }
+    } catch {
+      /* fall through to the next way */
+    }
+  }
   if (!has("Filesystem")) return false;
   const data = await new Promise<string>((resolve, reject) => {
     const r = new FileReader();

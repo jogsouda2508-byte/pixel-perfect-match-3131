@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Download, Link2, Share2, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Download, Link2, Loader2, Share2, X } from "lucide-react";
 import { toast } from "sonner";
 import { makeQr } from "@/lib/qr";
 import { isNativeApp, nativeCopy, nativeSaveImage, nativeShareLink } from "@/lib/native-share";
@@ -85,6 +85,8 @@ export function ProfileQrSheet({
   const [appsOpen, setAppsOpen] = useState(false);
   // the QR as a picture to press-and-hold to save (phones that can't download files)
   const [preview, setPreview] = useState<string | null>(null);
+  // true from the tap on Download until it is saved: shows the progress straight away
+  const [saving, setSaving] = useState(false);
   const theme = THEMES[themeIdx % THEMES.length]!;
   const modules = useMemo(() => makeQr(url), [url]);
   const label = `@${username}`;
@@ -153,28 +155,58 @@ export function ProfileQrSheet({
     }
   };
 
+  // The PNG is prepared in the background as soon as the page shows, so Download is quick.
+  const pngCache = useRef<{ key: string; promise: Promise<Blob> } | null>(null);
+  const getPng = () => {
+    if (!pngCache.current || pngCache.current.key !== svg) {
+      const promise = makePng();
+      promise.catch(() => {
+        if (pngCache.current?.promise === promise) pngCache.current = null;
+      });
+      pngCache.current = { key: svg, promise };
+    }
+    return pngCache.current.promise;
+  };
+  useEffect(() => {
+    if (svg) void getPng().catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [svg]);
+
+  const toDataUrl = (blob: Blob) =>
+    new Promise<string>((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result));
+      r.onerror = () => reject(new Error("read"));
+      r.readAsDataURL(blob);
+    });
+
   const download = async () => {
-    if (!svg) return;
+    if (!svg || saving) return;
+    setSaving(true);
+    // shows at once, like a normal phone download
+    const id = toast.loading("Downloading QR code…");
     try {
-      const blob = await makePng();
+      const blob = await getPng();
       const fileName = `${username}-qr.png`;
-      // Android app: save into the phone's Documents folder (share sheet only if that is refused)
+      // Android app: Gallery first, then Documents, then the share sheet
       const native = await nativeSaveImage(blob, fileName);
-      if (native === "saved") {
-        toast.success("QR code saved in your Documents folder");
+      if (native === "gallery") {
+        toast.success('Downloaded. Saved in your Gallery, album "Gicco chat"', { id });
         return;
       }
-      if (native === "shared") return;
+      if (native === "saved") {
+        toast.success("Downloaded. Saved in your Documents folder", { id });
+        return;
+      }
+      if (native === "shared") {
+        toast.dismiss(id);
+        return;
+      }
       // Android app without the plugins yet: its web view can't download, so show the picture
       // to press and hold.
       if (isNativeApp()) {
-        const dataUrl = await new Promise<string>((resolve, reject) => {
-          const r = new FileReader();
-          r.onload = () => resolve(String(r.result));
-          r.onerror = () => reject(new Error("read"));
-          r.readAsDataURL(blob);
-        });
-        setPreview(dataUrl);
+        setPreview(await toDataUrl(blob));
+        toast.dismiss(id);
         return;
       }
       // Chrome (laptop or phone): a normal file download straight to Downloads.
@@ -186,9 +218,11 @@ export function ProfileQrSheet({
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(href), 2000);
-      toast.success("QR code saved");
+      toast.success("Downloaded", { id });
     } catch {
-      toast.error("Couldn't save the QR code.");
+      toast.error("Couldn't save the QR code.", { id });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -266,13 +300,17 @@ export function ProfileQrSheet({
           <button
             type="button"
             onClick={() => void download()}
-            disabled={!svg}
-            className={`${actionBtn} disabled:opacity-50`}
+            disabled={!svg || saving}
+            className={`${actionBtn} disabled:opacity-60`}
           >
             <span className={circle}>
-              <Download className="h-6 w-6" aria-hidden="true" />
+              {saving ? (
+                <Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" />
+              ) : (
+                <Download className="h-6 w-6" aria-hidden="true" />
+              )}
             </span>
-            Download
+            {saving ? "Downloading…" : "Download"}
           </button>
         </div>
       </div>

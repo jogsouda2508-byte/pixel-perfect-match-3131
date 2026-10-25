@@ -13,6 +13,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { AuthProvider } from "../lib/auth";
 import { AuthGate } from "../components/auth-gate";
+import { PullToRefresh } from "../components/pull-to-refresh";
 import { PushPrompt } from "../components/push-prompt";
 import { Toaster } from "../components/ui/sonner";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -135,6 +136,7 @@ function RootComponent() {
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
           <Outlet />
           <PushPrompt />
+          <PullToRefresh />
         </AuthGate>
         <Toaster theme="dark" position="top-center" />
       </AuthProvider>
