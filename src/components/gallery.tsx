@@ -1,6 +1,7 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Link } from "@tanstack/react-router";
-import { ChevronLeft, ChevronRight, MessageCircle, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { CommentIcon } from "@/components/icons";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
 export type GalleryItem = {
@@ -138,7 +139,7 @@ export function Gallery({
                 onClick={onClose}
                 className="flex shrink-0 items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-xs font-semibold hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
-                <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                <CommentIcon className="h-4 w-4" aria-hidden="true" />
                 Likes &amp; comments
               </Link>
             </div>

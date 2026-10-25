@@ -3,18 +3,16 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  Heart,
   Loader2,
-  MessageCircle,
   MoreHorizontal,
   Play,
   Send,
-  Share2,
   Star,
   Trash2,
 } from "lucide-react";
 import { Avatar } from "@/components/ediraa";
 import { Gallery } from "@/components/gallery";
+import { CommentIcon, HeartIcon, ShareIcon } from "@/components/icons";
 import { EmojiButton } from "@/components/emoji-button";
 import { PostMeta } from "@/components/post-meta";
 import { ShareVideoDialog } from "@/components/share-video-dialog";
@@ -25,7 +23,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/lib/auth";
+import { formatCount } from "@/lib/format-count";
 import { togglePostLike } from "@/lib/post-cache";
+import { useShareCount } from "@/lib/post-shares";
 import {
   addComment,
   deleteComment,
@@ -70,13 +70,13 @@ export function PostCard({
   // Rows from a database without the video migration have no media_type: treat as image/text.
   const isVideo = post.media_type === "video" && !!post.video_url;
   const savePending = saved.isPending(post.id);
+  const shareCount = useShareCount(post.id);
 
   const [liked, setLiked] = useState(post.liked_by_me);
   const [likes, setLikes] = useState(post.like_count);
   const [commentCount, setCommentCount] = useState(post.comment_count);
   const [showComments, setShowComments] = useState(openComments);
   const [draft, setDraft] = useState("");
-  const [likeBusy, setLikeBusy] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
 
@@ -87,26 +87,89 @@ export function PostCard({
     setCommentCount(post.comment_count);
   }, [post.liked_by_me, post.like_count, post.comment_count]);
 
-  const toggleLike = async () => {
-    if (!user || likeBusy) return;
-    const next = !liked;
-    setLikeBusy(true);
+  // Refs mirror the state so a quick second tap (double-click) always sees the latest value.
+  const likedRef = useRef(post.liked_by_me);
+  const likesRef = useRef(post.like_count);
+  const likeBusyRef = useRef(false);
+  const wantedLike = useRef<boolean | null>(null);
+  useEffect(() => {
+    likedRef.current = post.liked_by_me;
+    likesRef.current = post.like_count;
+  }, [post.liked_by_me, post.like_count]);
+
+  /** Sets the like to an exact state (true = liked). Taps that arrive mid-request are queued. */
+  const setLike = async (next: boolean): Promise<void> => {
+    if (!user) return;
+    if (likeBusyRef.current) {
+      wantedLike.current = next;
+      return;
+    }
+    if (likedRef.current === next) return;
+    const before = likesRef.current;
+    const after = Math.max(0, before + (next ? 1 : -1));
+    likeBusyRef.current = true;
+    likedRef.current = next;
+    likesRef.current = after;
     setLiked(next);
-    setLikes((n) => Math.max(0, n + (next ? 1 : -1)));
+    setLikes(after);
     try {
       await togglePostLike(
         qc,
         user.id,
-        { id: post.id, liked_by_me: liked, like_count: likes },
+        { id: post.id, liked_by_me: !next, like_count: before },
         next,
       );
     } catch {
+      likedRef.current = !next;
+      likesRef.current = before;
       setLiked(!next);
-      setLikes((n) => Math.max(0, n + (next ? -1 : 1)));
+      setLikes(before);
       toast.error("Couldn't update your like. Please try again.");
     } finally {
-      setLikeBusy(false);
+      likeBusyRef.current = false;
+      const wanted = wantedLike.current;
+      wantedLike.current = null;
+      if (wanted !== null) void setLike(wanted);
     }
+  };
+
+  // Heart icon: one click toggles; a double-click always ends up liked (red).
+  const lastLikeClick = useRef(0);
+  const onLikeClick = () => {
+    const now = Date.now();
+    const isDouble = now - lastLikeClick.current < 400;
+    lastLikeClick.current = isDouble ? 0 : now;
+    void setLike(isDouble ? true : !likedRef.current);
+  };
+
+  // Photo: double-click / double-tap likes it and pops a big heart on the picture.
+  // A single click still opens the photo, after a short wait to see if a second click follows.
+  const heartPop = useRef<HTMLSpanElement>(null);
+  const lastPhotoClick = useRef(0);
+  const openTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(openTimer.current), []);
+  const onPhotoClick = () => {
+    const now = Date.now();
+    if (now - lastPhotoClick.current < 300) {
+      lastPhotoClick.current = 0;
+      clearTimeout(openTimer.current);
+      heartPop.current?.animate?.(
+        [
+          { opacity: 0, transform: "scale(0.3)" },
+          { opacity: 1, transform: "scale(1.15)", offset: 0.25 },
+          { opacity: 1, transform: "scale(1)", offset: 0.6 },
+          { opacity: 0, transform: "scale(1.05)" },
+        ],
+        { duration: 850, easing: "ease-out" },
+      );
+      void setLike(true);
+      return;
+    }
+    lastPhotoClick.current = now;
+    openTimer.current = setTimeout(() => {
+      lastPhotoClick.current = 0;
+      setGalleryOpen(true);
+    }, 300);
   };
 
   const remove = useMutation({
@@ -203,19 +266,29 @@ export function PostCard({
       ) : (
         post.image_url && (
           <>
-            <button
-              type="button"
-              onClick={() => setGalleryOpen(true)}
-              aria-label="Open photo"
-              className="mt-3 block w-full overflow-hidden rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <img
-                src={post.image_url}
-                alt=""
-                loading="lazy"
-                className="max-h-[300px] w-full object-cover sm:max-h-[480px]"
-              />
-            </button>
+            <div className="relative mt-3">
+              <button
+                type="button"
+                onClick={onPhotoClick}
+                aria-label="Open photo"
+                className="block w-full touch-manipulation select-none overflow-hidden rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <img
+                  src={post.image_url}
+                  alt=""
+                  loading="lazy"
+                  draggable={false}
+                  className="max-h-[300px] w-full object-cover sm:max-h-[480px]"
+                />
+              </button>
+              <span
+                ref={heartPop}
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 grid place-items-center opacity-0"
+              >
+                <HeartIcon className="h-24 w-24 fill-red-500 text-red-500 drop-shadow-[0_4px_14px_rgba(0,0,0,0.35)]" />
+              </span>
+            </div>
             <Gallery
               items={[
                 {
@@ -232,59 +305,42 @@ export function PostCard({
         )
       )}
 
-      {(likes > 0 || commentCount > 0) && (
-        <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-          <span className="flex items-center gap-2">
-            {likes > 0 && (
-              <>
-                <span className="grid h-5 w-5 place-items-center rounded-full bg-red-500">
-                  <Heart className="h-3 w-3 fill-white text-white" />
-                </span>
-                {likes}
-              </>
-            )}
-          </span>
-          {commentCount > 0 && (
-            <button
-              type="button"
-              onClick={() => setShowComments((v) => !v)}
-              aria-expanded={showComments}
-              className={`rounded-full px-2.5 py-1 text-sm font-semibold text-primary transition hover:bg-primary/10 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${showComments ? "bg-primary/10" : ""}`}
-            >
-              {commentCount} {commentCount === 1 ? "comment" : "comments"}
-            </button>
-          )}
-        </div>
-      )}
-
-      <div className="mt-3 grid grid-cols-4 border-t border-border pt-2 text-sm">
+      {/* Instagram-style action bar: icons only, each with its number beside it; Save sits at the far end. */}
+      <div className="mt-3 flex items-center gap-1 border-t border-border pt-2 text-sm font-semibold">
         <button
-          onClick={toggleLike}
-          disabled={likeBusy}
+          type="button"
+          onClick={onLikeClick}
           aria-pressed={liked}
-          className="flex items-center justify-center gap-1.5 py-2 disabled:opacity-60"
+          aria-label={liked ? `Unlike, ${likes} likes` : `Like, ${likes} likes`}
+          className="flex min-h-10 touch-manipulation items-center gap-1.5 rounded-full px-2.5"
         >
-          <Heart
-            className={`h-5 w-5 ${liked ? "fill-red-500 text-red-500" : ""}`}
+          <HeartIcon
+            className={`h-6 w-6 ${liked ? "fill-red-500 text-red-500" : ""}`}
           />
-          <span className={liked ? "text-red-500" : ""}>Like</span>
+          {formatCount(likes) && <span>{formatCount(likes)}</span>}
         </button>
         <button
+          type="button"
           onClick={() => setShowComments((v) => !v)}
-          className={`flex items-center justify-center gap-1.5 py-2 ${showComments ? "font-semibold text-primary" : ""}`}
+          aria-expanded={showComments}
+          aria-label={`Comments, ${commentCount}`}
+          className="flex min-h-10 items-center gap-1.5 rounded-full px-2.5"
         >
-          <MessageCircle className="h-5 w-5" />
-          Comment
+          <CommentIcon
+            className={`h-6 w-6 ${showComments ? "text-primary" : ""}`}
+            aria-hidden="true"
+          />
+          {formatCount(commentCount) && <span>{formatCount(commentCount)}</span>}
         </button>
         <button
+          type="button"
           onClick={() => setShareOpen(true)}
-          className="flex items-center justify-center gap-1.5 py-2"
+          aria-label={`Share, ${shareCount} shares`}
+          className="flex min-h-10 items-center gap-1.5 rounded-full px-2.5"
         >
-          <Share2 className="h-5 w-5" />
-          Share
+          <ShareIcon className="h-6 w-6" aria-hidden="true" />
+          {formatCount(shareCount) && <span>{formatCount(shareCount)}</span>}
         </button>
-        {/* Every post (video, image or text) is saved with a five-point star, right next to
-            Share: outline = not saved, filled = saved. */}
         <button
           type="button"
           onClick={() => void saved.toggle(post.id)}
@@ -299,13 +355,12 @@ export function PostCard({
                 : "Save post"
           }
           aria-pressed={isSaved}
-          className={`flex items-center justify-center gap-1.5 py-2 disabled:opacity-60 ${isSaved ? "text-warning" : ""}`}
+          className={`ml-auto grid min-h-10 min-w-10 place-items-center rounded-full disabled:opacity-60 ${isSaved ? "text-warning" : ""}`}
         >
           <Star
-            className={`h-5 w-5 ${isSaved ? "fill-warning" : ""}`}
+            className={`h-6 w-6 ${isSaved ? "fill-warning" : ""}`}
             aria-hidden="true"
           />
-          {isSaved ? "Saved" : "Save"}
         </button>
       </div>
 

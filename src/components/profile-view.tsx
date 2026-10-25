@@ -4,16 +4,24 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Building2,
   CalendarDays,
+  Grid3x3,
   Loader2,
   Lock,
   MapPin,
   MessageSquare,
   Play,
+  Plus,
   Settings,
+  SquareUser,
+  UserPlus,
   Video,
+  X,
 } from "lucide-react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { toast } from "sonner";
 import { BottomNav, SideNav, UserRow } from "@/components/ediraa";
+import { ComposerLauncher } from "@/components/composer";
+import { ReelsIcon, ShareIcon } from "@/components/icons";
 import { Gallery, type GalleryItem } from "@/components/gallery";
 import {
   Dialog,
@@ -36,8 +44,10 @@ import { useFollow } from "@/lib/use-follow";
 import { startConversation } from "@/lib/chat";
 import { fetchUserVideos } from "@/lib/videos";
 import type { Profile } from "@/integrations/supabase/types";
+import emptyPostsUrl from "@/assets/empty-posts.jpg";
 
 const tabs = ["Posts", "Reels", "Tagged"] as const;
+const tabIcons = { Posts: Grid3x3, Reels: ReelsIcon, Tagged: SquareUser } as const;
 
 /** Shared by /profile (your own) and /u/<username> (anyone else). */
 export function ProfileView({
@@ -97,6 +107,7 @@ export function ProfileView({
 
   // Every photo and video post, in grid order, for the full-screen gallery.
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
+  const [photoOpen, setPhotoOpen] = useState(false);
   const galleryItems: GalleryItem[] = [];
   const galleryIndexByPost = new Map<string, number>();
   // The Posts and Tagged tabs share one grid and one full-screen gallery.
@@ -136,6 +147,21 @@ export function ProfileView({
       );
     } finally {
       setStartingMessage(false);
+    }
+  };
+
+  const shareProfile = async () => {
+    const url = `${window.location.origin}/u/${encodeURIComponent(profile.username)}`;
+    try {
+      if (typeof navigator.share === "function") {
+        await navigator.share({ title: name, url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      toast.success("Profile link copied");
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      toast.error("Couldn't share the profile link.");
     }
   };
 
@@ -200,86 +226,89 @@ export function ProfileView({
       <SideNav />
       <main className="app-main min-w-0">
         <section className="glass-card overflow-hidden">
-          <div className="relative px-4 pb-4 pt-5">
+          <div className="px-4 pb-3 pt-4">
+            {/* Top bar: @username (with a lock when private) and the settings menu. */}
             <div className="flex items-center justify-between gap-3">
-              {/* shrink-0 + aspect-square: the whole round photo is always shown, never squeezed or cut. */}
-              <div className="aspect-square shrink-0 rounded-full bg-gradient-brand p-[3px]">
-                {profile.avatar_url ? (
-                  <img
-                    src={profile.avatar_url}
-                    alt={name}
-                    className="block aspect-square h-20 w-20 shrink-0 rounded-full border-4 border-background object-cover md:h-24 md:w-24"
+              <h1 className="flex min-w-0 items-center gap-1.5 text-lg font-bold">
+                {profile.is_private && (
+                  <Lock
+                    className="h-4 w-4 shrink-0 text-muted-foreground"
+                    aria-label="Private account"
                   />
-                ) : (
-                  <div className="grid aspect-square h-20 w-20 shrink-0 place-items-center rounded-full border-4 border-background bg-elevated text-2xl font-bold md:h-24 md:w-24">
-                    {name.slice(0, 1).toUpperCase() || "?"}
-                  </div>
                 )}
-              </div>
-              {isMe ? (
-                <div className="flex items-center gap-2">
-                  <Link
-                    to="/settings"
-                    className="rounded-full border border-primary px-3.5 py-1 text-xs font-semibold text-primary sm:px-5 sm:py-2 sm:text-sm"
-                  >
-                    Edit Profile
-                  </Link>
-                  <Link
-                    to="/more"
-                    aria-label="More profile options"
-                    className="grid h-11 w-11 place-items-center rounded-full hover:bg-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <Settings className="h-5 w-5" />
-                  </Link>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => follow.toggle(profile.id, following)}
-                    disabled={
-                      follow.isPending(profile.id) || followState.isLoading
-                    }
-                    className={`min-h-11 rounded-full px-5 py-2 text-sm font-semibold transition disabled:opacity-60 ${following || requested ? "bg-elevated text-muted-foreground" : "bg-gradient-brand text-primary-foreground"}`}
-                  >
-                    {followLabel(following, requested)}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void message()}
-                    disabled={startingMessage}
-                    className="inline-flex min-h-11 items-center gap-2 rounded-full border border-primary px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
-                  >
-                    {startingMessage ? (
-                      <Loader2
-                        className="h-4 w-4 animate-spin"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <MessageSquare className="h-4 w-4" aria-hidden="true" />
-                    )}
-                    Message
-                  </button>
-                </div>
+                <span className="truncate">{profile.username}</span>
+                {profile.account_type === "business" && (
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-elevated px-2 py-0.5 text-xs font-medium text-primary">
+                    <Building2 className="h-3 w-3" />
+                    Business
+                  </span>
+                )}
+              </h1>
+              {isMe && (
+                <Link
+                  to="/more"
+                  aria-label="More profile options"
+                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full hover:bg-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Settings className="h-5 w-5" />
+                </Link>
               )}
             </div>
-            <h1 className="mt-3 flex items-center gap-1.5 text-xl font-bold">
-              {name}
-              {profile.is_private && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-elevated px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                  <Lock className="h-3 w-3" aria-hidden="true" />
-                  Private
-                </span>
-              )}
-              {profile.account_type === "business" && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-elevated px-2 py-0.5 text-xs font-medium text-primary">
-                  <Building2 className="h-3 w-3" />
-                  Business
-                </span>
-              )}
-            </h1>
-            <p className="text-sm text-muted-foreground">@{profile.username}</p>
+
+            {/* Photo on the left, name and counts on the right. */}
+            <div className="mt-3 flex items-center gap-5">
+              {/* shrink-0 + aspect-square: the whole round photo is always shown, never squeezed or cut. */}
+              <div className="relative shrink-0">
+                <div className="aspect-square rounded-full bg-gradient-brand p-[3px]">
+                  {profile.avatar_url ? (
+                    <button
+                      type="button"
+                      onClick={() => setPhotoOpen(true)}
+                      aria-label="View profile photo"
+                      className="block rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <img
+                        src={profile.avatar_url}
+                        alt={name}
+                        className="block aspect-square h-20 w-20 shrink-0 rounded-full border-4 border-background object-cover md:h-24 md:w-24"
+                      />
+                    </button>
+                  ) : (
+                    <div className="grid aspect-square h-20 w-20 shrink-0 place-items-center rounded-full border-4 border-background bg-elevated text-2xl font-bold md:h-24 md:w-24">
+                      {name.slice(0, 1).toUpperCase() || "?"}
+                    </div>
+                  )}
+                </div>
+                {isMe && (
+                  <Link
+                    to="/settings"
+                    aria-label="Change profile photo"
+                    className="absolute -bottom-0.5 -right-0.5 grid h-7 w-7 place-items-center rounded-full border-2 border-background bg-primary text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                  </Link>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold">{name}</p>
+                <div className="mt-1 grid grid-cols-3 text-left">
+                  <Stat n={String(counts.data?.posts ?? 0)} l="Posts" />
+                  <Stat
+                    n={String(counts.data?.followers ?? 0)}
+                    l="Followers"
+                    {...(locked ? {} : { onClick: () => setList("followers") })}
+                  />
+                  <Stat
+                    n={String(counts.data?.following ?? 0)}
+                    l="Following"
+                    {...(locked ? {} : { onClick: () => setList("following") })}
+                  />
+                </div>
+              </div>
+            </div>
+
             {profile.bio && (
-              <p className="mt-2 whitespace-pre-line text-sm leading-relaxed">
+              <p className="mt-3 whitespace-pre-line text-sm leading-relaxed">
                 {profile.bio}
               </p>
             )}
@@ -296,10 +325,7 @@ export function ProfileView({
               </p>
             )}
             {profile.interests.length > 0 && (
-              <ul
-                className="mt-3 flex flex-wrap gap-1.5"
-                aria-label="Interests"
-              >
+              <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Interests">
                 {profile.interests.map((interest) => (
                   <li
                     key={interest}
@@ -310,32 +336,87 @@ export function ProfileView({
                 ))}
               </ul>
             )}
-            <div className="mt-4 grid grid-cols-3 text-center">
-              <Stat n={String(counts.data?.posts ?? 0)} l="Posts" />
-              <Stat
-                n={String(counts.data?.followers ?? 0)}
-                l="Followers"
-                {...(locked ? {} : { onClick: () => setList("followers") })}
-              />
-              <Stat
-                n={String(counts.data?.following ?? 0)}
-                l="Following"
-                {...(locked ? {} : { onClick: () => setList("following") })}
-              />
-            </div>
+
+            {/* Action buttons */}
+            {isMe ? (
+              <div className="mt-4 flex gap-2">
+                <Link
+                  to="/settings"
+                  className="grid min-h-10 flex-1 place-items-center rounded-xl bg-elevated px-3 text-sm font-semibold hover:bg-elevated/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  Edit profile
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => void shareProfile()}
+                  className="grid min-h-10 flex-1 place-items-center rounded-xl bg-elevated px-3 text-sm font-semibold hover:bg-elevated/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  Share profile
+                </button>
+                <Link
+                  to="/discover"
+                  aria-label="Find people to follow"
+                  className="grid min-h-10 w-12 shrink-0 place-items-center rounded-xl bg-elevated hover:bg-elevated/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <UserPlus className="h-5 w-5" aria-hidden="true" />
+                </Link>
+              </div>
+            ) : (
+              <div className="mt-4 flex gap-2">
+                <button
+                  onClick={() => follow.toggle(profile.id, following)}
+                  disabled={follow.isPending(profile.id) || followState.isLoading}
+                  className={`min-h-10 flex-1 rounded-xl px-3 text-sm font-semibold transition disabled:opacity-60 ${following || requested ? "bg-elevated text-muted-foreground" : "bg-gradient-brand text-primary-foreground"}`}
+                >
+                  {followLabel(following, requested)}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void message()}
+                  disabled={startingMessage}
+                  className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-elevated px-3 text-sm font-semibold hover:bg-elevated/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                >
+                  {startingMessage ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <MessageSquare className="h-4 w-4" aria-hidden="true" />
+                  )}
+                  Message
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void shareProfile()}
+                  aria-label="Share profile"
+                  className="grid min-h-10 w-12 shrink-0 place-items-center rounded-xl bg-elevated hover:bg-elevated/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <ShareIcon className="h-5 w-5" aria-hidden="true" />
+                </button>
+              </div>
+            )}
           </div>
+
+          {/* Icon tabs: posts grid, reels, tagged. */}
           <div
+            role="tablist"
+            aria-label="Profile sections"
             className={`grid grid-cols-3 border-t border-border ${locked ? "hidden" : ""}`}
           >
-            {tabs.map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`py-3 text-sm font-semibold ${tab === t ? "border-b-2 border-primary text-primary" : "text-muted-foreground"}`}
-              >
-                {t}
-              </button>
-            ))}
+            {tabs.map((t) => {
+              const TabIcon = tabIcons[t];
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === t}
+                  aria-label={t}
+                  onClick={() => setTab(t)}
+                  className={`grid h-12 place-items-center border-b-2 transition ${tab === t ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+                >
+                  <TabIcon className="h-6 w-6" aria-hidden="true" />
+                </button>
+              );
+            })}
           </div>
         </section>
         {!lockKnown ? (
@@ -373,16 +454,39 @@ export function ProfileView({
                   : "Couldn't load posts."}
               </p>
             )}
-            {grid.isSuccess && grid.data.length === 0 && (
+            {grid.isSuccess && grid.data.length === 0 && tab === "Tagged" && (
               <p className="glass-card mt-3 p-6 text-center text-sm text-muted-foreground">
-                {tab === "Tagged"
-                  ? isMe
-                    ? "Posts you're tagged in will appear here."
-                    : "No tagged posts to show yet."
-                  : isMe
-                    ? "You haven't posted anything yet."
-                    : "No posts to show yet."}
+                {isMe
+                  ? "Posts you're tagged in will appear here."
+                  : "No tagged posts to show yet."}
               </p>
+            )}
+            {grid.isSuccess && grid.data.length === 0 && tab === "Posts" && (
+              <section
+                aria-label="No posts yet"
+                className="mt-3 flex flex-col items-center px-4 py-6 text-center"
+              >
+                <img
+                  src={emptyPostsUrl}
+                  alt=""
+                  aria-hidden="true"
+                  draggable={false}
+                  className="w-64 max-w-full select-none mix-blend-multiply [mask-image:radial-gradient(closest-side,black_78%,transparent)] dark:mix-blend-normal sm:w-72"
+                />
+                <h2 className="mt-2 text-2xl font-bold">
+                  {isMe ? "Create your first post" : "No posts yet"}
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {isMe
+                    ? "Share your point of view."
+                    : `${name} hasn't posted anything yet.`}
+                </p>
+                {isMe && (
+                  <div className="mx-auto mt-3 w-40">
+                    <ComposerLauncher variant="sidebar" />
+                  </div>
+                )}
+              </section>
             )}
             <div className="mt-3 grid grid-cols-3 gap-1.5">
               {grid.data?.map((p) =>
@@ -446,6 +550,41 @@ export function ProfileView({
         )}
       </main>
       <BottomNav showCreate={isMe} />
+      {profile.avatar_url && (
+        <DialogPrimitive.Root open={photoOpen} onOpenChange={setPhotoOpen}>
+          <DialogPrimitive.Portal>
+            <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/95" />
+            <DialogPrimitive.Content
+              onClick={() => setPhotoOpen(false)}
+              className="fixed inset-0 z-50 flex flex-col text-white outline-none"
+            >
+              <DialogPrimitive.Title className="sr-only">
+                {name}'s profile photo
+              </DialogPrimitive.Title>
+              <DialogPrimitive.Description className="sr-only">
+                Full profile photo. Press close or tap outside the photo to return.
+              </DialogPrimitive.Description>
+              <div className="flex justify-end px-3 py-2 pt-[max(env(safe-area-inset-top),0.5rem)]">
+                <DialogPrimitive.Close
+                  aria-label="Close"
+                  className="grid h-11 w-11 place-items-center rounded-full hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                >
+                  <X className="h-6 w-6" />
+                </DialogPrimitive.Close>
+              </div>
+              <div className="flex min-h-0 flex-1 items-center justify-center p-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
+                {/* The entire photo, uncropped and not circular: object-contain inside the screen. */}
+                <img
+                  src={profile.avatar_url}
+                  alt={name}
+                  onClick={(event) => event.stopPropagation()}
+                  className="max-h-full max-w-full rounded-lg object-contain"
+                />
+              </div>
+            </DialogPrimitive.Content>
+          </DialogPrimitive.Portal>
+        </DialogPrimitive.Root>
+      )}
       <Gallery
         items={galleryItems}
         startIndex={galleryIndex}
@@ -480,7 +619,7 @@ function Stat({
     <button
       type="button"
       onClick={onClick}
-      className="rounded-lg py-1 hover:bg-elevated/60"
+      className="rounded-lg py-1 text-left hover:bg-elevated/60"
     >
       {body}
     </button>

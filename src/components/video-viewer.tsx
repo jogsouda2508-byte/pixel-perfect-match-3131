@@ -9,12 +9,9 @@ import {
   AlertCircle,
   Camera,
   Download,
-  Heart,
   Loader2,
-  MessageCircle,
   MoreHorizontal,
   Play,
-  Share2,
   Star,
   Volume2,
   VolumeX,
@@ -24,6 +21,7 @@ import { toast } from "sonner";
 import { Avatar, BottomNav, SideNav } from "@/components/ediraa";
 import { ComposerLauncher } from "@/components/composer";
 import { EmojiButton } from "@/components/emoji-button";
+import { CommentIcon, HeartIcon, ShareIcon } from "@/components/icons";
 import { PostMeta } from "@/components/post-meta";
 import { followLabel } from "@/lib/follow-state";
 import { ShareVideoDialog } from "@/components/share-video-dialog";
@@ -54,7 +52,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/lib/auth";
+import { formatCount } from "@/lib/format-count";
 import { togglePostLike } from "@/lib/post-cache";
+import { useShareCount } from "@/lib/post-shares";
 import { addComment, fetchComments, type CommentView } from "@/lib/social";
 import { timeAgo } from "@/lib/time";
 import { useFollow } from "@/lib/use-follow";
@@ -604,11 +604,11 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                     aria-pressed={state.liked}
                     className="grid h-12 w-12 place-items-center rounded-full bg-black/35 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
                   >
-                    <Heart
+                    <HeartIcon
                       className={`h-6 w-6 ${state.liked ? "fill-red-500 text-red-500" : ""}`}
                     />
                   </button>
-                  <span className="text-sm font-semibold">{state.count}</span>
+                  <span className="text-sm font-semibold">{formatCount(state.count)}</span>
                 </div>
                 <div className="flex flex-col items-center gap-1">
                   <button
@@ -617,20 +617,23 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                     aria-label={`Comments, ${post.comment_count}`}
                     className="grid h-12 w-12 place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                   >
-                    <MessageCircle className="h-6 w-6" aria-hidden="true" />
+                    <CommentIcon className="h-6 w-6" aria-hidden="true" />
                   </button>
                   <span className="text-sm font-semibold">
-                    {post.comment_count}
+                    {formatCount(post.comment_count)}
                   </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShareTarget(post)}
-                  aria-label="Share video"
-                  className="grid h-12 w-12 place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                >
-                  <Share2 className="h-6 w-6" aria-hidden="true" />
-                </button>
+                <div className="flex flex-col items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setShareTarget(post)}
+                    aria-label="Share video"
+                    className="grid h-12 w-12 place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                  >
+                    <ShareIcon className="h-6 w-6" aria-hidden="true" />
+                  </button>
+                  <ShareCountLabel postId={post.id} />
+                </div>
                 <button
                   type="button"
                   onClick={() => void saved.toggle(post.id)}
@@ -754,6 +757,11 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
       </AlertDialog>
     </main>
   );
+}
+
+function ShareCountLabel({ postId }: { postId: string }) {
+  const count = formatCount(useShareCount(postId));
+  return count ? <span className="text-sm font-semibold">{count}</span> : null;
 }
 
 function VideoFeedLoading() {

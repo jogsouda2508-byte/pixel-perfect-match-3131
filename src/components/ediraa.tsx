@@ -1,6 +1,5 @@
 import { Link } from "@tanstack/react-router";
 import logoUrl from "@/assets/logo.png";
-import reelsIconUrl from "@/assets/reels-icon.png";
 import {
   Home,
   Search,
@@ -10,6 +9,7 @@ import {
 } from "lucide-react";
 import { useId, type ComponentType, type ReactNode } from "react";
 import { ComposerLauncher } from "@/components/composer";
+import { ReelsIcon } from "@/components/icons";
 import { UnreadBadge, useChatUnread } from "@/lib/use-chat-unread";
 import { followLabel } from "@/lib/follow-state";
 
@@ -272,17 +272,6 @@ export function UserRow({
 }
 
 type NavIcon = ComponentType<{ className?: string }>;
-
-/** The Reels tab uses the brand play-button picture instead of a line icon. */
-const ReelsIcon: NavIcon = ({ className }) => (
-  <img
-    src={reelsIconUrl}
-    alt=""
-    aria-hidden="true"
-    draggable={false}
-    className={`select-none rounded-[5px] object-contain ${className ?? ""}`}
-  />
-);
 
 const items = [
   { to: "/home", label: "Home", icon: Home },

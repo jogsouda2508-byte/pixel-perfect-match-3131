@@ -678,6 +678,8 @@ export type Database = {
         Args: { p_post_id: string; p_recipient_id: string };
         Returns: string;
       };
+      /** How many times a post was sent to someone (0 if I can't see the post). */
+      get_post_share_count: { Args: { p_post_id: string }; Returns: number };
     };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };

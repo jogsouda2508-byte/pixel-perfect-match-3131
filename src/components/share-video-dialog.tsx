@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth";
 import { fetchFollowList } from "@/lib/social";
+import { shareCountKey } from "@/lib/post-shares";
 import { shareVideoWithUser } from "@/lib/video-share";
 
 /**
@@ -111,6 +112,9 @@ function RecipientList({
       const label = kind === "video" ? "Video" : "Post";
       if (okCount > 0) {
         void qc.invalidateQueries({ queryKey: ["chat-conversations"] });
+        // Every person it was sent to counts once: show the new number right away, then confirm.
+        qc.setQueryData<number>(shareCountKey(postId), (n) => (n ?? 0) + okCount);
+        void qc.invalidateQueries({ queryKey: shareCountKey(postId) });
         toast.success(okCount === 1 ? `${label} sent` : `${label} sent to ${okCount} people`);
       }
       if (Object.keys(failed).length === 0) {

@@ -37,6 +37,10 @@ vi.mock("@/lib/video-share", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/video-share")>();
   return { ...actual, shareVideoWithUser };
 });
+vi.mock("@/lib/post-shares", () => ({
+  shareCountKey: (id: string) => ["post-share-count", id],
+  useShareCount: () => 158,
+}));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { PostCard } from "@/components/post-card";
@@ -85,6 +89,32 @@ beforeEach(() => {
   vi.clearAllMocks();
   saveState.saved = false;
   followList.people = [];
+});
+
+describe("PostCard action bar", () => {
+  it("is icon-only with the like, comment and share numbers beside the icons", () => {
+    const { container } = renderCard(post({ like_count: 30_300, comment_count: 223 }));
+
+    const like = screen.getByRole("button", { name: /^Like, 30300 likes/ });
+    const comment = screen.getByRole("button", { name: /^Comments, 223/ });
+    const share = screen.getByRole("button", { name: /^Share, 158 shares/ });
+    expect(like).toHaveTextContent("30.3K");
+    expect(comment).toHaveTextContent("223");
+    expect(share).toHaveTextContent("158");
+    // No text labels any more.
+    for (const word of ["Comment", "Share", "Save"]) {
+      expect(container.textContent).not.toContain(word);
+    }
+    // Save keeps its star, at the far end of the row.
+    const save = screen.getByRole("button", { name: "Save post" });
+    expect(save.className).toMatch(/ml-auto/);
+    expect(save.querySelector("svg")).not.toBeNull();
+  });
+
+  it("shows no number for zero likes or comments", () => {
+    renderCard(post({ like_count: 0, comment_count: 0 }));
+    expect(screen.getByRole("button", { name: /^Like, 0 likes/ })).toHaveTextContent(/^$/);
+  });
 });
 
 describe("PostCard video posts", () => {
