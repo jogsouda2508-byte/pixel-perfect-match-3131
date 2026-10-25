@@ -278,7 +278,7 @@ export function ProfileView({
                   <Link
                     to="/settings"
                     aria-label="Change profile photo"
-                    className="absolute -bottom-0.5 -right-0.5 grid h-6 w-6 place-items-center rounded-full border-2 border-background bg-black md:h-7 md:w-7 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="absolute bottom-0.5 right-0.5 grid h-6 w-6 place-items-center rounded-full border-2 border-background bg-black md:h-7 md:w-7 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <Plus className="h-3.5 w-3.5 md:h-4 md:w-4" strokeWidth={2.75} aria-hidden="true" />
                   </Link>
