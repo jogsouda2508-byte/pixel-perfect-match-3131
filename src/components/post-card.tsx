@@ -11,6 +11,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Avatar } from "@/components/ediraa";
+import { CommentsSheet } from "@/components/comments-sheet";
 import { Gallery } from "@/components/gallery";
 import { CommentIcon, HeartIcon, ShareIcon } from "@/components/icons";
 import { EmojiButton } from "@/components/emoji-button";
@@ -22,6 +23,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/lib/auth";
 import { formatCount } from "@/lib/format-count";
 import { togglePostLike } from "@/lib/post-cache";
@@ -76,6 +78,7 @@ export function PostCard({
   const [likes, setLikes] = useState(post.like_count);
   const [commentCount, setCommentCount] = useState(post.comment_count);
   const [showComments, setShowComments] = useState(openComments);
+  const isMobile = useIsMobile();
   const [draft, setDraft] = useState("");
   const [shareOpen, setShareOpen] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -370,7 +373,16 @@ export function PostCard({
         onClose={() => setShareOpen(false)}
       />
 
-      {showComments && (
+      {isMobile && (
+        <CommentsSheet
+          postId={post.id}
+          open={showComments}
+          onOpenChange={setShowComments}
+          onAdded={() => setCommentCount((n) => n + 1)}
+          onRemoved={() => setCommentCount((n) => Math.max(0, n - 1))}
+        />
+      )}
+      {!isMobile && showComments && (
         <Comments
           postId={post.id}
           draft={draft}

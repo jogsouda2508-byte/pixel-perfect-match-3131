@@ -19,6 +19,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Avatar, BottomNav, SideNav } from "@/components/ediraa";
+import { CommentsSheet } from "@/components/comments-sheet";
 import { ComposerLauncher } from "@/components/composer";
 import { EmojiButton } from "@/components/emoji-button";
 import { CommentIcon, HeartIcon, ShareIcon } from "@/components/icons";
@@ -51,6 +52,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/lib/auth";
 import { formatCount } from "@/lib/format-count";
 import { togglePostLike } from "@/lib/post-cache";
@@ -78,6 +80,7 @@ function formatTime(seconds: number): string {
 export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
   const follow = useFollow();
   const saved = useSaved();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -766,11 +769,25 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
         post={shareTarget}
         onClose={() => setShareTarget(null)}
       />
-      <VideoComments
-        post={commentsVideo}
-        onClose={() => setCommentsVideo(null)}
-        currentUser={profile}
-      />
+      {isMobile ? (
+        <CommentsSheet
+          postId={commentsVideo?.id ?? null}
+          open={!!commentsVideo}
+          onOpenChange={(open) => !open && setCommentsVideo(null)}
+          onAdded={() =>
+            void queryClient.invalidateQueries({ queryKey: ["video-feed"] })
+          }
+          onRemoved={() =>
+            void queryClient.invalidateQueries({ queryKey: ["video-feed"] })
+          }
+        />
+      ) : (
+        <VideoComments
+          post={commentsVideo}
+          onClose={() => setCommentsVideo(null)}
+          currentUser={profile}
+        />
+      )}
       <AlertDialog
         open={!!deleteVideo}
         onOpenChange={(open) => !open && setDeleteVideo(null)}
