@@ -3,13 +3,14 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
+  Heart,
   Loader2,
-  MessageSquare,
+  MessageCircle,
   MoreHorizontal,
+  Play,
   Send,
   Share2,
   Star,
-  ThumbsUp,
   Trash2,
 } from "lucide-react";
 import { Avatar } from "@/components/ediraa";
@@ -17,7 +18,6 @@ import { Gallery } from "@/components/gallery";
 import { EmojiButton } from "@/components/emoji-button";
 import { PostMeta } from "@/components/post-meta";
 import { ShareVideoDialog } from "@/components/share-video-dialog";
-import { VideoPlayer } from "@/components/video-player";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -151,29 +151,6 @@ export function PostCard({
             </p>
           </div>
         </Link>
-        {/* Every post (video, image or text) is saved with a five-point star:
-            outline = not saved, filled = saved. One code path, so any future post type gets it too. */}
-        <button
-          type="button"
-          onClick={() => void saved.toggle(post.id)}
-          disabled={savePending}
-          aria-label={
-            isSaved
-              ? isVideo
-                ? "Remove video from saved"
-                : "Remove from saved"
-              : isVideo
-                ? "Save video"
-                : "Save post"
-          }
-          aria-pressed={isSaved}
-          className={`grid h-9 w-9 place-items-center rounded-full hover:bg-elevated disabled:opacity-60 ${isSaved ? "text-warning" : "text-muted-foreground"}`}
-        >
-          <Star
-            className={`h-5 w-5 ${isSaved ? "fill-warning" : ""}`}
-            aria-hidden="true"
-          />
-        </button>
         {mine && (
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -203,11 +180,26 @@ export function PostCard({
         </p>
       )}
       {isVideo && post.video_url ? (
-        <VideoPlayer
-          src={post.video_url}
-          poster={post.thumbnail_url}
-          label={`Video by ${name}`}
-        />
+        // Tapping a video opens the Reels viewer on it, so the person can keep scrolling
+        // down to the next videos instead of being stuck on this one.
+        <Link
+          to="/videos"
+          search={{ video: post.id }}
+          aria-label={`Watch video by ${name}`}
+          className="group relative mt-3 grid max-h-[50dvh] min-h-48 w-full place-items-center overflow-hidden rounded-xl bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:max-h-[70dvh]"
+        >
+          {post.thumbnail_url && (
+            <img
+              src={post.thumbnail_url}
+              alt=""
+              loading="lazy"
+              className="max-h-[50dvh] w-full object-contain sm:max-h-[70dvh]"
+            />
+          )}
+          <span className="pointer-events-none absolute grid h-14 w-14 place-items-center rounded-full bg-black/50 text-white transition group-hover:bg-black/65">
+            <Play className="h-7 w-7 fill-white" aria-hidden="true" />
+          </span>
+        </Link>
       ) : (
         post.image_url && (
           <>
@@ -245,8 +237,8 @@ export function PostCard({
           <span className="flex items-center gap-2">
             {likes > 0 && (
               <>
-                <span className="grid h-5 w-5 place-items-center rounded-full bg-primary">
-                  <ThumbsUp className="h-3 w-3 fill-primary-foreground text-primary-foreground" />
+                <span className="grid h-5 w-5 place-items-center rounded-full bg-red-500">
+                  <Heart className="h-3 w-3 fill-white text-white" />
                 </span>
                 {likes}
               </>
@@ -265,29 +257,55 @@ export function PostCard({
         </div>
       )}
 
-      <div className="mt-3 grid grid-cols-3 border-t border-border pt-2 text-sm">
+      <div className="mt-3 grid grid-cols-4 border-t border-border pt-2 text-sm">
         <button
           onClick={toggleLike}
           disabled={likeBusy}
           aria-pressed={liked}
-          className={`flex items-center justify-center gap-2 py-2 disabled:opacity-60 ${liked ? "text-primary" : ""}`}
+          className="flex items-center justify-center gap-1.5 py-2 disabled:opacity-60"
         >
-          <ThumbsUp className={`h-5 w-5 ${liked ? "fill-primary" : ""}`} />
-          Like
+          <Heart
+            className={`h-5 w-5 ${liked ? "fill-red-500 text-red-500" : ""}`}
+          />
+          <span className={liked ? "text-red-500" : ""}>Like</span>
         </button>
         <button
           onClick={() => setShowComments((v) => !v)}
-          className={`flex items-center justify-center gap-2 py-2 ${showComments ? "font-semibold text-primary" : ""}`}
+          className={`flex items-center justify-center gap-1.5 py-2 ${showComments ? "font-semibold text-primary" : ""}`}
         >
-          <MessageSquare className="h-5 w-5" />
+          <MessageCircle className="h-5 w-5" />
           Comment
         </button>
         <button
           onClick={() => setShareOpen(true)}
-          className="flex items-center justify-center gap-2 py-2"
+          className="flex items-center justify-center gap-1.5 py-2"
         >
           <Share2 className="h-5 w-5" />
           Share
+        </button>
+        {/* Every post (video, image or text) is saved with a five-point star, right next to
+            Share: outline = not saved, filled = saved. */}
+        <button
+          type="button"
+          onClick={() => void saved.toggle(post.id)}
+          disabled={savePending}
+          aria-label={
+            isSaved
+              ? isVideo
+                ? "Remove video from saved"
+                : "Remove from saved"
+              : isVideo
+                ? "Save video"
+                : "Save post"
+          }
+          aria-pressed={isSaved}
+          className={`flex items-center justify-center gap-1.5 py-2 disabled:opacity-60 ${isSaved ? "text-warning" : ""}`}
+        >
+          <Star
+            className={`h-5 w-5 ${isSaved ? "fill-warning" : ""}`}
+            aria-hidden="true"
+          />
+          {isSaved ? "Saved" : "Save"}
         </button>
       </div>
 

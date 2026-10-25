@@ -89,6 +89,8 @@ export function Gallery({
                   src={item.src}
                   poster={item.poster ?? undefined}
                   controls
+                  controlsList="nofullscreen"
+                  disablePictureInPicture
                   autoPlay
                   playsInline
                   className="max-h-full max-w-full rounded-lg"

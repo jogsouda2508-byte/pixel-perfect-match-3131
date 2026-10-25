@@ -1,14 +1,14 @@
 import { Link } from "@tanstack/react-router";
 import logoUrl from "@/assets/logo.png";
+import reelsIconUrl from "@/assets/reels-icon.png";
 import {
   Home,
   Search,
   MessageSquare,
   User,
   BadgeCheck,
-  Video,
 } from "lucide-react";
-import { useId, type ReactNode } from "react";
+import { useId, type ComponentType, type ReactNode } from "react";
 import { ComposerLauncher } from "@/components/composer";
 import { UnreadBadge, useChatUnread } from "@/lib/use-chat-unread";
 import { followLabel } from "@/lib/follow-state";
@@ -148,7 +148,7 @@ export function Avatar({
     <img
       src={src}
       alt=""
-      className="h-full w-full rounded-full border-2 border-background object-cover"
+      className="aspect-square h-full w-full shrink-0 rounded-full border-2 border-background object-cover"
     />
   ) : (
     <div
@@ -167,7 +167,7 @@ export function Avatar({
   }
   return (
     <div
-      className={ring ? "rounded-full bg-gradient-brand p-[2px]" : ""}
+      className={`shrink-0 ${ring ? "rounded-full bg-gradient-brand p-[2px]" : ""}`}
       style={{ width: size, height: size }}
     >
       {photo}
@@ -271,9 +271,22 @@ export function UserRow({
   );
 }
 
+type NavIcon = ComponentType<{ className?: string }>;
+
+/** The Reels tab uses the brand play-button picture instead of a line icon. */
+const ReelsIcon: NavIcon = ({ className }) => (
+  <img
+    src={reelsIconUrl}
+    alt=""
+    aria-hidden="true"
+    draggable={false}
+    className={`select-none rounded-[5px] object-contain ${className ?? ""}`}
+  />
+);
+
 const items = [
   { to: "/home", label: "Home", icon: Home },
-  { to: "/videos", label: "Reels", icon: Video },
+  { to: "/videos", label: "Reels", icon: ReelsIcon },
   { to: "/chat", label: "Chat", icon: MessageSquare },
   { to: "/discover", label: "Search", icon: Search },
   { to: "/profile", label: "Profile", icon: User },
@@ -305,7 +318,7 @@ function NavItem({
 }: {
   to: "/home" | "/videos" | "/chat" | "/discover" | "/profile";
   label: string;
-  icon: typeof Home;
+  icon: NavIcon;
 }) {
   const chatUnread = useChatUnread();
   const count = to === "/chat" ? chatUnread : 0;

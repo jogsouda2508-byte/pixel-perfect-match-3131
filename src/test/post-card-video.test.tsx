@@ -88,14 +88,16 @@ beforeEach(() => {
 });
 
 describe("PostCard video posts", () => {
-  it("plays the actual video with native controls and a poster", () => {
+  it("shows the poster and opens the continuous-scroll Reels viewer on tap", () => {
     const { container } = renderCard(videoPost());
 
-    const video = container.querySelector("video");
-    expect(video).not.toBeNull();
-    expect(video).toHaveAttribute("src", "https://cdn.example/videos/a.mp4");
-    expect(video).toHaveAttribute("poster", "https://cdn.example/videos/a.jpg");
-    expect(video?.hasAttribute("controls")).toBe(true);
+    // No inline single-video player: tapping goes to /videos, where the person can keep scrolling.
+    expect(container.querySelector("video")).toBeNull();
+    expect(container.querySelector("img")).toHaveAttribute(
+      "src",
+      "https://cdn.example/videos/a.jpg",
+    );
+    expect(container.querySelector('a[href="/videos"] img')).not.toBeNull();
   });
 
   it("uses a star (not a bookmark) to save videos, and shows it filled when saved", () => {

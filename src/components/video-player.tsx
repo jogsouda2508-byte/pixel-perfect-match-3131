@@ -74,6 +74,8 @@ export function VideoPlayer({
       src={src}
       poster={poster ?? undefined}
       controls
+      controlsList="nofullscreen"
+      disablePictureInPicture
       playsInline
       preload="metadata"
       aria-label={label}

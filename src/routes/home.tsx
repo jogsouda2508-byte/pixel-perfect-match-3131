@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { Search, Bell, Loader2 } from "lucide-react";
+import { Bell, Loader2 } from "lucide-react";
 import {
   Avatar,
   BottomNav,
@@ -128,13 +128,6 @@ function HomePage() {
           </div>
           <div className="order-2 flex shrink-0 items-center gap-4 md:order-2">
             <Link
-              to="/discover"
-              aria-label="Search"
-              className="grid h-11 w-11 place-items-center rounded-full hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <Search className="h-6 w-6" />
-            </Link>
-            <Link
               to="/notifications"
               aria-label={`Notifications${(unread.data ?? 0) > 0 ? `, ${unread.data} unread` : ""}`}
               className="relative rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -148,13 +141,6 @@ function HomePage() {
                   <span className="sr-only"> unread</span>
                 </span>
               )}
-            </Link>
-            <Link
-              to="/profile"
-              aria-label="Profile"
-              className="grid h-11 w-11 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <Avatar src={me} name={myName} size={34} />
             </Link>
           </div>
         </header>
@@ -293,7 +279,7 @@ function HomePage() {
           </p>
         </section>
       </aside>
-      <BottomNav showCreate />
+      <BottomNav />
     </div>
   );
 }

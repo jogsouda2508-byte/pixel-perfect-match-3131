@@ -36,7 +36,6 @@ import { useFollow } from "@/lib/use-follow";
 import { startConversation } from "@/lib/chat";
 import { fetchUserVideos } from "@/lib/videos";
 import type { Profile } from "@/integrations/supabase/types";
-import coverUrl from "@/assets/profile-cover.jpg";
 
 const tabs = ["Posts", "Reels", "Tagged"] as const;
 
@@ -201,45 +200,38 @@ export function ProfileView({
       <SideNav />
       <main className="app-main min-w-0">
         <section className="glass-card overflow-hidden">
-          <div className="relative">
-            <img
-              src={coverUrl}
-              alt=""
-              aria-hidden="true"
-              className="h-40 w-full object-cover md:h-52 xl:h-60"
-            />
-            {isMe && (
-              <Link
-                to="/more"
-                aria-label="More profile options"
-                className="absolute right-3 top-3 grid h-11 w-11 place-items-center rounded-full bg-background/80 backdrop-blur focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <Settings className="h-5 w-5" />
-              </Link>
-            )}
-          </div>
-          <div className="relative px-4 pb-4">
-            <div className="-mt-10 flex items-end justify-between">
-              <div className="rounded-full bg-gradient-brand p-[3px]">
+          <div className="relative px-4 pb-4 pt-5">
+            <div className="flex items-center justify-between gap-3">
+              {/* shrink-0 + aspect-square: the whole round photo is always shown, never squeezed or cut. */}
+              <div className="aspect-square shrink-0 rounded-full bg-gradient-brand p-[3px]">
                 {profile.avatar_url ? (
                   <img
                     src={profile.avatar_url}
                     alt={name}
-                    className="h-20 w-20 rounded-full border-4 border-background object-cover md:h-24 md:w-24"
+                    className="block aspect-square h-20 w-20 shrink-0 rounded-full border-4 border-background object-cover md:h-24 md:w-24"
                   />
                 ) : (
-                  <div className="grid h-20 w-20 place-items-center rounded-full border-4 border-background bg-elevated text-2xl font-bold md:h-24 md:w-24">
+                  <div className="grid aspect-square h-20 w-20 shrink-0 place-items-center rounded-full border-4 border-background bg-elevated text-2xl font-bold md:h-24 md:w-24">
                     {name.slice(0, 1).toUpperCase() || "?"}
                   </div>
                 )}
               </div>
               {isMe ? (
-                <Link
-                  to="/settings"
-                  className="rounded-full border border-primary px-3.5 py-1 text-xs font-semibold text-primary sm:px-5 sm:py-2 sm:text-sm"
-                >
-                  Edit Profile
-                </Link>
+                <div className="flex items-center gap-2">
+                  <Link
+                    to="/settings"
+                    className="rounded-full border border-primary px-3.5 py-1 text-xs font-semibold text-primary sm:px-5 sm:py-2 sm:text-sm"
+                  >
+                    Edit Profile
+                  </Link>
+                  <Link
+                    to="/more"
+                    aria-label="More profile options"
+                    className="grid h-11 w-11 place-items-center rounded-full hover:bg-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <Settings className="h-5 w-5" />
+                  </Link>
+                </div>
               ) : (
                 <div className="flex items-center gap-2">
                   <button
@@ -453,7 +445,7 @@ export function ProfileView({
           </>
         )}
       </main>
-      <BottomNav />
+      <BottomNav showCreate={isMe} />
       <Gallery
         items={galleryItems}
         startIndex={galleryIndex}

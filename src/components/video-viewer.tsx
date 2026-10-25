@@ -11,7 +11,6 @@ import {
   Download,
   Heart,
   Loader2,
-  Maximize,
   MessageCircle,
   MoreHorizontal,
   Play,
@@ -266,20 +265,6 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
     setCurrentTime(video.currentTime);
   };
 
-  const enterFullscreen = async (post: VideoFeedRow) => {
-    const video = videoRefs.current.get(post.id) as
-      | (HTMLVideoElement & { webkitEnterFullscreen?: () => void })
-      | undefined;
-    if (!video) return;
-    try {
-      if (video.requestFullscreen) await video.requestFullscreen();
-      else if (video.webkitEnterFullscreen) video.webkitEnterFullscreen();
-      else toast.error("Full screen isn't supported in this browser.");
-    } catch {
-      toast.error("Couldn't open full screen.");
-    }
-  };
-
   const download = async (post: VideoFeedRow) => {
     if (downloading[post.id]) return;
     setDownloading((state) => ({ ...state, [post.id]: true }));
@@ -411,6 +396,8 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                     poster={post.thumbnail_url ?? undefined}
                     muted={muted}
                     playsInline
+                    disablePictureInPicture
+                    controlsList="nofullscreen"
                     loop
                     preload={active ? "auto" : "metadata"}
                     onTimeUpdate={(event) => {
@@ -646,30 +633,6 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => void download(post)}
-                  disabled={!!downloading[post.id]}
-                  aria-label="Download video"
-                  className="grid h-12 w-12 place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
-                >
-                  {downloading[post.id] ? (
-                    <Loader2
-                      className="h-6 w-6 animate-spin"
-                      aria-hidden="true"
-                    />
-                  ) : (
-                    <Download className="h-6 w-6" aria-hidden="true" />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void enterFullscreen(post)}
-                  aria-label="Full screen"
-                  className="grid h-12 w-12 place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                >
-                  <Maximize className="h-6 w-6" aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
                   onClick={() => void saved.toggle(post.id)}
                   disabled={saved.isPending(post.id)}
                   aria-label={
@@ -684,6 +647,22 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                     className={`h-6 w-6 ${saved.isSaved(post.id) ? "fill-warning text-warning" : ""}`}
                     aria-hidden="true"
                   />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void download(post)}
+                  disabled={!!downloading[post.id]}
+                  aria-label="Download video"
+                  className="grid h-12 w-12 place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
+                >
+                  {downloading[post.id] ? (
+                    <Loader2
+                      className="h-6 w-6 animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <Download className="h-6 w-6" aria-hidden="true" />
+                  )}
                 </button>
                 <DropdownMenu>
                   <DropdownMenuTrigger
