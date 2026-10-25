@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
+import { Drawer as DrawerPrimitive } from "vaul";
 import { Avatar } from "@/components/ediraa";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/lib/auth";
 import { fetchFollowList } from "@/lib/social";
 import { shareCountKey } from "@/lib/post-shares";
@@ -34,6 +36,42 @@ export function ShareVideoDialog({
   kind?: "video" | "post";
   onClose: () => void;
 }) {
+  const isMobile = useIsMobile();
+
+  // Phones: a bottom sheet, the same style as the comments sheet. The title, search box and
+  // Send button stay fixed; only the list of people scrolls.
+  if (isMobile) {
+    return (
+      <DrawerPrimitive.Root
+        open={!!post}
+        onOpenChange={(open) => !open && onClose()}
+        shouldScaleBackground={false}
+      >
+        <DrawerPrimitive.Portal>
+          <DrawerPrimitive.Overlay className="fixed inset-0 z-[60] bg-black/50" />
+          <DrawerPrimitive.Content
+            onOpenAutoFocus={(event) => event.preventDefault()}
+            className="fixed inset-x-0 bottom-0 z-[60] flex h-[75dvh] max-h-[90dvh] flex-col rounded-t-[28px] bg-background text-foreground outline-none"
+          >
+            <div
+              aria-hidden="true"
+              className="mx-auto mt-2.5 h-[3px] w-9 shrink-0 rounded-full bg-muted-foreground/60"
+            />
+            <DrawerPrimitive.Title className="shrink-0 pt-3 text-center text-base font-medium">
+              Share {kind}
+            </DrawerPrimitive.Title>
+            <DrawerPrimitive.Description className="shrink-0 px-4 pb-3 pt-1 text-center text-sm text-muted-foreground">
+              Send this {kind} to someone you follow.
+            </DrawerPrimitive.Description>
+            <div className="flex min-h-0 flex-1 flex-col px-4 pb-[max(env(safe-area-inset-bottom),1rem)]">
+              {post && <RecipientList postId={post.id} kind={kind} onDone={onClose} sheet />}
+            </div>
+          </DrawerPrimitive.Content>
+        </DrawerPrimitive.Portal>
+      </DrawerPrimitive.Root>
+    );
+  }
+
   return (
     <Dialog open={!!post} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[85dvh] grid-rows-[auto_auto_minmax(0,1fr)] overflow-hidden [&>button]:grid [&>button]:h-11 [&>button]:w-11 [&>button]:place-items-center">
@@ -52,9 +90,12 @@ function RecipientList({
   postId,
   kind,
   onDone,
+  sheet = false,
 }: {
   postId: string;
   kind: "video" | "post";
+  /** Phone bottom sheet: fill the sheet so only the list scrolls. */
+  sheet?: boolean;
   /** Called after everything was sent, so the dialog closes by itself. */
   onDone: () => void;
 }) {
@@ -132,8 +173,8 @@ function RecipientList({
   };
 
   return (
-    <div className="flex min-h-0 flex-col gap-3">
-      <label className="relative block">
+    <div className={`flex min-h-0 flex-col gap-3 ${sheet ? "flex-1" : ""}`}>
+      <label className="relative block shrink-0">
         <Search
           className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground"
           aria-hidden="true"
@@ -143,11 +184,11 @@ function RecipientList({
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Search people you follow"
           aria-label="Search people you follow"
-          className="min-h-11 pl-10"
+          className="min-h-11 pl-10 placeholder:text-[13px]"
         />
       </label>
 
-      <div className="min-h-0 overflow-y-auto">
+      <div className={`min-h-0 overflow-y-auto ${sheet ? "flex-1" : ""}`}>
         {following.isLoading && (
           <div className="space-y-3 py-2" aria-label="Loading people">
             {[0, 1, 2].map((item) => (
@@ -234,7 +275,7 @@ function RecipientList({
         type="button"
         disabled={sending || selectedIds.length === 0}
         onClick={() => void sendAll()}
-        className="min-h-11 w-full rounded-full"
+        className="min-h-11 w-full shrink-0 rounded-full"
       >
         {sending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : "Send"}
       </Button>
