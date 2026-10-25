@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Download, Link2, Share2, X } from "lucide-react";
 import { toast } from "sonner";
 import { makeQr } from "@/lib/qr";
+import { isNativeApp, nativeCopy, nativeSaveImage, nativeShareLink } from "@/lib/native-share";
 
 /** Background + QR colour pairs. The COLOR pill cycles through them (like Instagram). */
 const THEMES = [
@@ -73,16 +74,17 @@ export function ProfileQrSheet({
   username,
   url,
   onClose,
-  onShare,
 }: {
   username: string;
   /** the full profile link the QR code opens, e.g. https://site.com/u/name */
   url: string;
   onClose: () => void;
-  /** opens the phone's share sheet (or copies the link) */
-  onShare: () => void;
 }) {
   const [themeIdx, setThemeIdx] = useState(0);
+  // our own "send to" list, used when the phone / webview has no built-in share sheet
+  const [appsOpen, setAppsOpen] = useState(false);
+  // the QR as a picture to press-and-hold to save (phones that can't download files)
+  const [preview, setPreview] = useState<string | null>(null);
   const theme = THEMES[themeIdx % THEMES.length]!;
   const modules = useMemo(() => makeQr(url), [url]);
   const label = `@${username}`;
@@ -100,7 +102,7 @@ export function ProfileQrSheet({
   }, [onClose]);
 
   const copyLink = async () => {
-    if (await copyText(url)) {
+    if ((await nativeCopy(url)) || (await copyText(url))) {
       toast.success("Profile link copied");
     } else {
       // last resort: show the link so it can be copied by hand
@@ -108,12 +110,27 @@ export function ProfileQrSheet({
     }
   };
 
-  const download = async () => {
-    if (!svg) return;
+  /** Share profile: the phone's own share sheet when there is one, else our list of apps. */
+  const shareProfile = async () => {
+    // Android app: the real Android share sheet
+    if (await nativeShareLink({ title: label, text: `${label} on Gicco chat`, url })) return;
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: label, text: `${label} on Gicco chat`, url });
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        // any other failure: fall through to the list below
+      }
+    }
+    setAppsOpen(true);
+  };
+
+  const makePng = async (): Promise<Blob> => {
+    const blobUrl = URL.createObjectURL(
+      new Blob([svg], { type: "image/svg+xml;charset=utf-8" }),
+    );
     try {
-      const blobUrl = URL.createObjectURL(
-        new Blob([svg], { type: "image/svg+xml;charset=utf-8" }),
-      );
       const img = new Image();
       await new Promise<void>((resolve, reject) => {
         img.onload = () => resolve();
@@ -128,21 +145,63 @@ export function ProfileQrSheet({
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, 1000, 1000);
       ctx.drawImage(img, 0, 0, 1000, 1000);
-      URL.revokeObjectURL(blobUrl);
       const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/png"));
       if (!blob) throw new Error("png");
+      return blob;
+    } finally {
+      URL.revokeObjectURL(blobUrl);
+    }
+  };
+
+  const download = async () => {
+    if (!svg) return;
+    try {
+      const blob = await makePng();
+      const fileName = `${username}-qr.png`;
+      // Android app: save into the phone's Documents folder (share sheet only if that is refused)
+      const native = await nativeSaveImage(blob, fileName);
+      if (native === "saved") {
+        toast.success("QR code saved in your Documents folder");
+        return;
+      }
+      if (native === "shared") return;
+      // Android app without the plugins yet: its web view can't download, so show the picture
+      // to press and hold.
+      if (isNativeApp()) {
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve(String(r.result));
+          r.onerror = () => reject(new Error("read"));
+          r.readAsDataURL(blob);
+        });
+        setPreview(dataUrl);
+        return;
+      }
+      // Chrome (laptop or phone): a normal file download straight to Downloads.
+      const href = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `${username}-qr.png`;
+      a.href = href;
+      a.download = fileName;
       document.body.appendChild(a);
       a.click();
       a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      setTimeout(() => URL.revokeObjectURL(href), 2000);
       toast.success("QR code saved");
     } catch {
       toast.error("Couldn't save the QR code.");
     }
   };
+
+  const text = encodeURIComponent(`${label} on Gicco chat: ${url}`);
+  const link = encodeURIComponent(url);
+  const apps = [
+    { name: "WhatsApp", href: `https://wa.me/?text=${text}` },
+    { name: "Telegram", href: `https://t.me/share/url?url=${link}&text=${encodeURIComponent(`${label} on Gicco chat`)}` },
+    { name: "Facebook", href: `https://www.facebook.com/sharer/sharer.php?u=${link}` },
+    { name: "X", href: `https://twitter.com/intent/tweet?text=${text}` },
+    { name: "Messages", href: `sms:?&body=${text}` },
+    { name: "Email", href: `mailto:?subject=${encodeURIComponent(`${label} on Gicco chat`)}&body=${text}` },
+  ];
 
   const actionBtn =
     "flex w-24 flex-col items-center gap-2 rounded-xl text-center text-[13px] font-medium leading-tight text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900";
@@ -192,7 +251,7 @@ export function ProfileQrSheet({
         </div>
 
         <div className="flex justify-around rounded-3xl bg-white px-2 py-4 shadow-xl">
-          <button type="button" onClick={onShare} className={actionBtn}>
+          <button type="button" onClick={() => void shareProfile()} className={actionBtn}>
             <span className={circle}>
               <Share2 className="h-6 w-6" aria-hidden="true" />
             </span>
@@ -217,6 +276,85 @@ export function ProfileQrSheet({
           </button>
         </div>
       </div>
+
+      {appsOpen && (
+        <div
+          className="absolute inset-0 z-10 flex items-end bg-black/50"
+          onClick={() => setAppsOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-label="Share profile"
+            className="w-full rounded-t-3xl bg-white p-5 text-neutral-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="mb-3 text-center text-sm font-semibold">Share profile</p>
+            <div className="grid grid-cols-3 gap-3">
+              {apps.map((a) => (
+                <a
+                  key={a.name}
+                  href={a.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setAppsOpen(false)}
+                  className="grid min-h-12 place-items-center rounded-xl bg-neutral-100 px-2 py-3 text-center text-[13px] font-medium"
+                >
+                  {a.name}
+                </a>
+              ))}
+              <button
+                type="button"
+                onClick={() => {
+                  setAppsOpen(false);
+                  void copyLink();
+                }}
+                className="grid min-h-12 place-items-center rounded-xl bg-neutral-100 px-2 py-3 text-center text-[13px] font-medium"
+              >
+                Copy link
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAppsOpen(false)}
+              className="mt-4 w-full rounded-xl py-2 text-sm font-semibold text-neutral-600"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {preview && (
+        <div
+          className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-black/85 p-6"
+          onClick={() => setPreview(null)}
+        >
+          <img
+            src={preview}
+            alt={`QR code for ${label}`}
+            className="w-full max-w-xs rounded-3xl bg-white"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <p className="text-center text-sm text-white">
+            Press and hold the picture, then choose "Download image" or "Save image".
+          </p>
+          <a
+            href={preview}
+            download={`${username}-qr.png`}
+            onClick={(e) => e.stopPropagation()}
+            className="rounded-full bg-white px-6 py-2 text-sm font-semibold text-neutral-900"
+          >
+            Save image
+          </a>
+          <button
+            type="button"
+            onClick={() => setPreview(null)}
+            className="text-sm font-semibold text-white/80"
+          >
+            Close
+          </button>
+        </div>
+      )}
     </div>
   );
 }

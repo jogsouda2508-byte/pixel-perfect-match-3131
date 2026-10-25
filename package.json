@@ -21,7 +21,10 @@
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",
+    "@capacitor/clipboard": "^8.0.1",
     "@capacitor/core": "^8.5.3",
+    "@capacitor/filesystem": "^8.1.5",
+    "@capacitor/share": "^8.0.3",
     "@emoji-mart/data": "^1.2.1",
     "@emoji-mart/react": "^1.1.1",
     "@hookform/resolvers": "^5.2.2",
