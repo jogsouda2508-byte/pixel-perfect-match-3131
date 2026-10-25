@@ -283,6 +283,39 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
     }
   };
 
+  // Tap on the video: one tap plays/pauses (after a short wait to see if a second tap follows);
+  // a double tap likes the video and pops a big heart, like on photo posts.
+  const heartPops = useRef(new Map<string, HTMLSpanElement>());
+  const lastTap = useRef({ id: "", time: 0 });
+  const tapTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(tapTimer.current), []);
+  const onVideoTap = (post: VideoFeedRow, active: boolean) => {
+    if (!active) return;
+    const now = Date.now();
+    if (lastTap.current.id === post.id && now - lastTap.current.time < 300) {
+      lastTap.current = { id: "", time: 0 };
+      clearTimeout(tapTimer.current);
+      heartPops.current.get(post.id)?.animate?.(
+        [
+          { opacity: 0, transform: "scale(0.3)" },
+          { opacity: 1, transform: "scale(1.15)", offset: 0.25 },
+          { opacity: 1, transform: "scale(1)", offset: 0.6 },
+          { opacity: 0, transform: "scale(1.05)" },
+        ],
+        { duration: 850, easing: "ease-out" },
+      );
+      // Double tap only ever likes (never un-likes).
+      if (!post.liked_by_me) void toggleLike(post);
+      return;
+    }
+    lastTap.current = { id: post.id, time: now };
+    clearTimeout(tapTimer.current);
+    tapTimer.current = setTimeout(() => {
+      lastTap.current = { id: "", time: 0 };
+      setPlaying((value) => !value);
+    }, 300);
+  };
+
   const toggleLike = async (post: VideoFeedRow) => {
     if (!user || pendingLikes.current.has(post.id)) return;
     pendingLikes.current.add(post.id);
@@ -383,9 +416,19 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
               className="relative h-[100dvh] min-h-[100dvh] snap-start snap-always overflow-hidden bg-black text-white"
             >
               <div
-                className="absolute inset-0 grid place-items-center"
-                onClick={() => active && setPlaying((value) => !value)}
+                className="absolute inset-0 grid touch-manipulation select-none place-items-center"
+                onClick={() => onVideoTap(post, active)}
               >
+                <span
+                  ref={(element) => {
+                    if (element) heartPops.current.set(post.id, element);
+                    else heartPops.current.delete(post.id);
+                  }}
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 z-[5] grid place-items-center opacity-0"
+                >
+                  <HeartIcon className="h-24 w-24 fill-red-500 text-red-500 drop-shadow-[0_4px_14px_rgba(0,0,0,0.35)]" />
+                </span>
                 {index === activeIndex || preloadNext ? (
                   <video
                     ref={(element) => {
@@ -433,7 +476,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                     }}
                     onClick={(event) => {
                       event.stopPropagation();
-                      if (active) setPlaying((value) => !value);
+                      onVideoTap(post, active);
                     }}
                     className="h-full w-full object-contain"
                     aria-label={`Video by ${post.author_name || post.author_username}`}

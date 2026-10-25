@@ -228,7 +228,7 @@ export function ProfileView({
         <section className="glass-card overflow-hidden">
           <div className="px-4 pb-3 pt-4">
             {/* Top bar: @username (with a lock when private) and the settings menu. */}
-            <div className="flex items-center justify-between gap-3">
+            <div className="-mx-4 -mt-4 flex items-center justify-between gap-3 bg-[linear-gradient(135deg,#f1e6ff_0%,#e6ecff_100%)] px-4 py-2 dark:bg-none dark:bg-elevated">
               <h1 className="flex min-w-0 items-center gap-1.5 text-lg font-bold">
                 {profile.is_private && (
                   <Lock
@@ -248,7 +248,7 @@ export function ProfileView({
                 <Link
                   to="/more"
                   aria-label="More profile options"
-                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full hover:bg-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full hover:bg-white/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-card"
                 >
                   <Settings className="h-5 w-5" />
                 </Link>

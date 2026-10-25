@@ -1,25 +1,14 @@
 import { Link } from "@tanstack/react-router";
 import logoUrl from "@/assets/logo.png";
-import {
-  Home,
-  Search,
-  MessageSquare,
-  User,
-  BadgeCheck,
-} from "lucide-react";
+import { Home, Search, MessageSquare, User, BadgeCheck } from "lucide-react";
 import { useId, type ComponentType, type ReactNode } from "react";
 import { ComposerLauncher } from "@/components/composer";
 import { ReelsIcon } from "@/components/icons";
 import { UnreadBadge, useChatUnread } from "@/lib/use-chat-unread";
 import { followLabel } from "@/lib/follow-state";
+import { useAuth } from "@/lib/auth";
 
-export function Logo({
-  size = 96,
-  className = "",
-}: {
-  size?: number;
-  className?: string;
-}) {
+export function Logo({ size = 96, className = "" }: { size?: number; className?: string }) {
   return (
     <img
       src={logoUrl}
@@ -94,11 +83,7 @@ function SegmentedRing({
   const arc = circumference / segments - gap;
   return (
     <div className="relative" style={{ width: size, height: size }}>
-      <svg
-        viewBox="0 0 100 100"
-        className="absolute inset-0 h-full w-full"
-        aria-hidden="true"
-      >
+      <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden="true">
         <defs>
           <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" style={{ stopColor: "var(--primary)" }} />
@@ -232,16 +217,8 @@ export function UserRow({
     <>
       <Avatar src={img} name={name} size={large ? 48 : 40} />
       <div className="min-w-0 flex-1">
-        <p
-          className={`truncate font-semibold ${large ? "text-base" : "text-sm"}`}
-        >
-          {name}
-        </p>
-        <p
-          className={`truncate text-muted-foreground ${large ? "text-sm" : "text-xs"}`}
-        >
-          {sub}
-        </p>
+        <p className={`truncate font-semibold ${large ? "text-base" : "text-sm"}`}>{name}</p>
+        <p className={`truncate text-muted-foreground ${large ? "text-sm" : "text-xs"}`}>{sub}</p>
       </div>
     </>
   );
@@ -271,7 +248,7 @@ export function UserRow({
   );
 }
 
-type NavIcon = ComponentType<{ className?: string }>;
+type NavIcon = ComponentType<{ className?: string; strokeWidth?: number }>;
 
 const items = [
   { to: "/home", label: "Home", icon: Home },
@@ -300,6 +277,18 @@ export function BottomNav({ showCreate = false }: { showCreate?: boolean }) {
   );
 }
 
+/** Selected Home: solid rounded house with a small arched door cut out (Instagram style). */
+function HomeSelectedIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="currentColor" aria-hidden="true">
+      <path
+        fillRule="evenodd"
+        d="M10.7 2.9a2 2 0 0 1 2.6 0l7 5.8a2 2 0 0 1 .7 1.5v9.3a2.5 2.5 0 0 1-2.5 2.5H4.5A2.5 2.5 0 0 1 2 19.5v-9.3a2 2 0 0 1 .7-1.5ZM9.5 22v-5.5a2.5 2.5 0 0 1 5 0V22Z"
+      />
+    </svg>
+  );
+}
+
 function NavItem({
   to,
   label,
@@ -310,24 +299,44 @@ function NavItem({
   icon: NavIcon;
 }) {
   const chatUnread = useChatUnread();
+  const { profile } = useAuth();
   const count = to === "/chat" ? chatUnread : 0;
+  const isProfile = to === "/profile";
+  const avatar = isProfile ? profile?.avatar_url : null;
+  const base =
+    "relative flex min-h-12 min-w-0 flex-1 items-center justify-center px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset";
+  // Icon-only: no text, no dot, no background. Selected = stronger colour / filled Home.
   return (
     <Link
       to={to}
+      aria-label={label}
       activeOptions={{ exact: true }}
-      activeProps={{
-        className:
-          "relative flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 text-primary after:absolute after:left-1/2 after:top-0.5 after:h-1 after:w-1 after:-translate-x-1/2 after:rounded-full after:bg-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
-        "aria-current": "page",
-      }}
-      inactiveProps={{
-        className:
-          "relative flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
-      }}
+      activeProps={{ className: `${base} text-foreground`, "aria-current": "page" }}
+      inactiveProps={{ className: `${base} text-muted-foreground` }}
     >
-      <Icon className="h-5 w-5" aria-hidden="true" />
-      <UnreadBadge count={count} className="absolute right-1/4 top-0.5" />
-      <span className="text-[11px] leading-tight">{label}</span>
+      {({ isActive }: { isActive: boolean }) => (
+        <>
+          <span className="grid h-9 w-14 place-items-center">
+            {avatar ? (
+              <img
+                src={avatar}
+                alt=""
+                aria-hidden="true"
+                className={`h-7 w-7 rounded-full object-cover ${isActive ? "ring-2 ring-primary" : ""}`}
+              />
+            ) : isActive && to === "/home" ? (
+              <HomeSelectedIcon />
+            ) : (
+              <Icon
+                  className="h-6 w-6"
+                  strokeWidth={isActive ? 2.6 : 2}
+                  aria-hidden="true"
+                />
+            )}
+          </span>
+          <UnreadBadge count={count} className="absolute right-1/4 top-0.5" />
+        </>
+      )}
     </Link>
   );
 }
@@ -345,8 +354,7 @@ export function SideNav() {
           to={i.to}
           activeOptions={{ exact: true }}
           activeProps={{
-            className:
-              "flex items-center gap-3 rounded-xl px-3 py-2.5 bg-elevated text-primary",
+            className: "flex items-center gap-3 rounded-xl px-3 py-2.5 bg-elevated text-primary",
           }}
           inactiveProps={{
             className:
@@ -355,9 +363,7 @@ export function SideNav() {
         >
           <i.icon className="h-5 w-5" />
           {i.label}
-          {i.to === "/chat" && (
-            <UnreadBadge count={chatUnread} className="ml-auto" />
-          )}
+          {i.to === "/chat" && <UnreadBadge count={chatUnread} className="ml-auto" />}
         </Link>
       ))}
       <ComposerLauncher variant="sidebar" />
