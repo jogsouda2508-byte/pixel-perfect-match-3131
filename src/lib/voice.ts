@@ -30,6 +30,18 @@ export function voiceSupported(): boolean {
   );
 }
 
+/** Why recording can't start here, in words a person can act on. */
+export function voiceUnsupportedMessage(): string {
+  if (typeof window !== "undefined" && window.isSecureContext === false)
+    return "Voice messages need a secure (https) connection.";
+  return "Voice messages aren't supported on this device.";
+}
+
+/** Shown when the person tapped "Don't allow" (or blocked the microphone earlier). */
+export const MIC_DENIED_MESSAGE =
+  "Microphone is blocked. Allow it when asked, or turn it on in your phone's " +
+  "Settings > Apps > this app > Permissions > Microphone.";
+
 /** The best recording format this browser can make (undefined = let the browser choose). */
 export function pickVoiceFormat() {
   if (typeof MediaRecorder === "undefined") return undefined;

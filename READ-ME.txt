@@ -1,6 +1,8 @@
-VOICE FIX - how to apply
-1. DELETE this file from your project if it exists:  src/routes/chat.id.tsx
-   (it is a wrong duplicate; the correct one is chat.$id.tsx with a dollar sign)
-2. Unzip this into your project ROOT and choose Replace. The paths inside are already src/... and supabase/...
-3. Make sure you ran supabase/migrations/20261028000000_voice_messages.sql in the Supabase SQL Editor (safe to run twice).
-4. Stop npm run dev, start it again, hard-refresh the browser.
+ANDROID MIC FIX - how to apply
+1. Unzip into your project ROOT and choose Replace (paths are src/... and scripts/...).
+2. In the project root run:   node scripts/add-android-mic-permission.mjs
+   (adds the RECORD_AUDIO permission to android/app/src/main/AndroidManifest.xml; safe to run twice)
+3. Then run:                  npx cap sync android
+4. Rebuild and run the app from Android Studio. UNINSTALL the old app from the phone first.
+5. Open a chat, hold the mic: Android shows 'Allow <app> to record audio?'. Tap Allow, then hold the mic again.
+Also make sure you did NOT recreate src/routes/chat.id.tsx (only chat.$id.tsx must exist).

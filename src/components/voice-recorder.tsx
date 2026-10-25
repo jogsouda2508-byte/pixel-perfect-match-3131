@@ -3,10 +3,12 @@ import { toast } from "sonner";
 import { Mic, Pause, Play, Trash2 } from "lucide-react";
 import {
   formatClock,
+  MIC_DENIED_MESSAGE,
   pickVoiceFormat,
   VOICE_MAX_SECONDS,
   VOICE_MIN_SECONDS,
   voiceSupported,
+  voiceUnsupportedMessage,
 } from "@/lib/voice";
 
 export type VoiceResult = { blob: Blob; seconds: number };
@@ -40,7 +42,7 @@ export function useVoiceRecorder(onFinish: (r: VoiceResult) => void) {
   const start = async () => {
     if (recRef.current || startingRef.current) return;
     if (!voiceSupported()) {
-      toast.error("Voice messages aren't supported on this device.");
+      toast.error(voiceUnsupportedMessage());
       return;
     }
     startingRef.current = true;
@@ -87,8 +89,12 @@ export function useVoiceRecorder(onFinish: (r: VoiceResult) => void) {
       rec.start();
       setSeconds(0);
       setRecording(true);
-    } catch {
-      toast.error("Allow microphone access to record a voice message.");
+    } catch (error) {
+      const name = error instanceof DOMException ? error.name : "";
+      if (name === "NotFoundError") toast.error("No microphone was found on this device.");
+      else if (name === "NotReadableError")
+        toast.error("The microphone is being used by another app. Close it and try again.");
+      else toast.error(MIC_DENIED_MESSAGE);
     } finally {
       startingRef.current = false;
     }
