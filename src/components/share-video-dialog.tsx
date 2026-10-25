@@ -251,13 +251,13 @@ function RecipientList({
                   </div>
                   <span
                     aria-hidden="true"
-                    className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border-2 ${
+                    className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border-2 ${
                       isSelected
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-border"
                     }`}
                   >
-                    {isSelected && <Check className="h-4 w-4" />}
+                    {isSelected && <Check className="h-3 w-3" />}
                   </span>
                 </button>
                 {error && (

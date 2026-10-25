@@ -140,7 +140,7 @@ export function CommentsSheet({
                 type="button"
                 aria-label={`Add ${emoji}`}
                 onClick={() => setDraft((d) => (d + emoji).slice(0, MAX_LENGTH))}
-                className="grid h-10 w-10 place-items-center text-[28px] leading-none active:scale-90"
+                className="grid h-9 w-9 place-items-center text-[21px] leading-none active:scale-90"
               >
                 {emoji}
               </button>

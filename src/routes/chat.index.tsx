@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { Drawer as DrawerPrimitive } from "vaul";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, MessageSquare, Search, UserPlus, Users } from "lucide-react";
 import { Avatar, BottomNav, SideNav } from "@/components/ediraa";
@@ -18,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { fetchPeople } from "@/lib/social";
 import { listConversations, startConversation } from "@/lib/chat";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { timeAgo } from "@/lib/time";
@@ -200,6 +202,7 @@ function NewMessageDialog({
   currentUserId: string;
 }) {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [scope, setScope] = useState<"all" | "following">("all");
@@ -236,23 +239,17 @@ function NewMessageDialog({
     }
   };
 
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        onOpenChange(next);
-        if (!next) {
-          setSearch("");
-          setError("");
-        }
-      }}
-    >
-      <DialogContent className="phone-compact-sheet max-h-[85dvh] grid-rows-[auto_auto_auto_minmax(0,1fr)] overflow-hidden [&>button]:grid [&>button]:h-11 [&>button]:w-11 [&>button]:place-items-center">
-        <DialogHeader>
-          <DialogTitle>New message</DialogTitle>
-          <DialogDescription>Choose someone to start a private conversation.</DialogDescription>
-        </DialogHeader>
-        <label className="relative block">
+  const handleOpenChange = (next: boolean) => {
+    onOpenChange(next);
+    if (!next) {
+      setSearch("");
+      setError("");
+    }
+  };
+
+  const body = (
+    <>
+        <label className="relative block shrink-0">
           <Search
             className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground"
             aria-hidden="true"
@@ -265,7 +262,7 @@ function NewMessageDialog({
             className="min-h-11 pl-10"
           />
         </label>
-        <div className="flex gap-2">
+        <div className="flex shrink-0 gap-2">
           {(["all", "following"] as const).map((item) => (
             <Button
               key={item}
@@ -278,7 +275,7 @@ function NewMessageDialog({
             </Button>
           ))}
         </div>
-        <div className="min-h-0 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {people.isLoading && (
             <div className="space-y-3 py-2" aria-label="Loading people">
               {[0, 1, 2].map((item) => (
@@ -335,6 +332,51 @@ function NewMessageDialog({
             </p>
           )}
         </div>
+    </>
+  );
+
+  // Phones: a bottom sheet, same style as the comments / share / new group sheets. The title,
+  // search box and tabs stay put; only the list of people scrolls.
+  if (isMobile) {
+    return (
+      <DrawerPrimitive.Root
+        open={open}
+        onOpenChange={handleOpenChange}
+        shouldScaleBackground={false}
+      >
+        <DrawerPrimitive.Portal>
+          <DrawerPrimitive.Overlay className="fixed inset-0 z-[60] bg-black/50" />
+          <DrawerPrimitive.Content
+            onOpenAutoFocus={(event) => event.preventDefault()}
+            className="phone-compact-sheet fixed inset-x-0 bottom-0 z-[60] flex h-[85dvh] max-h-[90dvh] flex-col rounded-t-[28px] bg-background text-foreground outline-none"
+          >
+            <div
+              aria-hidden="true"
+              className="mx-auto mt-2.5 h-[3px] w-9 shrink-0 rounded-full bg-muted-foreground/60"
+            />
+            <DrawerPrimitive.Title className="shrink-0 pt-3 text-center text-base font-medium">
+              New message
+            </DrawerPrimitive.Title>
+            <DrawerPrimitive.Description className="shrink-0 px-4 pb-3 pt-1 text-center text-sm text-muted-foreground">
+              Choose someone to start a private conversation.
+            </DrawerPrimitive.Description>
+            <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 pb-[max(env(safe-area-inset-bottom),1rem)]">
+              {body}
+            </div>
+          </DrawerPrimitive.Content>
+        </DrawerPrimitive.Portal>
+      </DrawerPrimitive.Root>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="phone-compact-sheet max-h-[85dvh] grid-rows-[auto_auto_auto_minmax(0,1fr)] overflow-hidden [&>button]:grid [&>button]:h-11 [&>button]:w-11 [&>button]:place-items-center">
+        <DialogHeader>
+          <DialogTitle>New message</DialogTitle>
+          <DialogDescription>Choose someone to start a private conversation.</DialogDescription>
+        </DialogHeader>
+        {body}
       </DialogContent>
     </Dialog>
   );

@@ -17,11 +17,14 @@ export function MemberPicker({
   onChange,
   excludeIds = [],
   max = 50,
+  fill = false,
 }: {
   selected: PickedPerson[];
   onChange: (next: PickedPerson[]) => void;
   excludeIds?: string[];
   max?: number;
+  /** Fill the space it is given: search stays put and only the list scrolls (phone sheet). */
+  fill?: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [term, setTerm] = useState("");
@@ -43,9 +46,12 @@ export function MemberPicker({
   };
 
   return (
-    <div className="space-y-3">
+    <div className={fill ? "flex min-h-0 flex-1 flex-col gap-3" : "space-y-3"}>
       {selected.length > 0 && (
-        <div className="flex flex-wrap gap-2" aria-label="Selected people">
+        <div
+          className={`flex flex-wrap gap-2 ${fill ? "max-h-20 shrink-0 overflow-y-auto" : ""}`}
+          aria-label="Selected people"
+        >
           {selected.map((p) => (
             <button
               key={p.id}
@@ -61,7 +67,7 @@ export function MemberPicker({
           ))}
         </div>
       )}
-      <label className="relative block">
+      <label className={`relative block ${fill ? "shrink-0" : ""}`}>
         <Search
           className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
           aria-hidden="true"
@@ -74,7 +80,9 @@ export function MemberPicker({
           className="w-full rounded-xl border border-border bg-elevated/40 py-2.5 pl-9 pr-3 text-sm outline-none placeholder:text-muted-foreground focus:border-primary"
         />
       </label>
-      <div className="max-h-56 divide-y divide-border overflow-y-auto rounded-xl border border-border">
+      <div
+        className={`divide-y divide-border overflow-y-auto rounded-xl border border-border ${fill ? "min-h-0 flex-1" : "max-h-56"}`}
+      >
         {people.isLoading && (
           <div className="grid place-items-center p-4">
             <Loader2 className="h-5 w-5 animate-spin text-primary" />
@@ -101,9 +109,9 @@ export function MemberPicker({
                 <span className="block truncate text-xs text-muted-foreground">@{p.username}</span>
               </span>
               <span
-                className={`grid h-6 w-6 place-items-center rounded-full border ${picked ? "border-transparent bg-gradient-brand text-primary-foreground" : "border-border"}`}
+                className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border ${picked ? "border-transparent bg-gradient-brand text-primary-foreground" : "border-border"}`}
               >
-                {picked && <Check className="h-4 w-4" aria-hidden="true" />}
+                {picked && <Check className="h-3 w-3" aria-hidden="true" />}
               </span>
             </button>
           );
