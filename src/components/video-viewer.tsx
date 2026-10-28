@@ -179,20 +179,26 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
     return () => observer.disconnect();
   }, [items.length]);
 
+  const [pageVisible, setPageVisible] = useState(true);
+
   useEffect(() => {
-    const pauseAll = () => {
-      videoRefs.current.forEach((video) => video.pause());
-      setPlaying(false);
-    };
+    const videos = videoRefs.current;
     const visibilityChanged = () => {
-      if (document.visibilityState === "hidden") pauseAll();
+      const visible = document.visibilityState !== "hidden";
+      if (!visible) videos.forEach((video) => video.pause());
+      setPageVisible(visible);
     };
     document.addEventListener("visibilitychange", visibilityChanged);
     return () => {
       document.removeEventListener("visibilitychange", visibilityChanged);
-      pauseAll();
+      videos.forEach((video) => video.pause());
     };
   }, []);
+
+  // Every newly active video starts playing automatically (like Reels).
+  useEffect(() => {
+    setPlaying(true);
+  }, [activeId]);
 
   useEffect(() => {
     videoRefs.current.forEach((video, id) => {
@@ -201,17 +207,22 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
     const current = activeVideo
       ? videoRefs.current.get(activeVideo.id)
       : undefined;
-    if (!current || document.visibilityState === "hidden") return;
+    if (!current || !pageVisible) return;
     current.muted = muted;
     if (playing) {
-      void current.play().catch((error: unknown) => {
-        console.error("Autoplay failed", error);
-        setPlaying(false);
+      current.play().catch(() => {
+        // Browser blocked autoplay with sound: retry muted instead of stopping.
+        current.muted = true;
+        setMuted(true);
+        current.play().catch((error: unknown) => {
+          console.error("Autoplay failed", error);
+          setPlaying(false);
+        });
       });
     } else {
       current.pause();
     }
-  }, [activeId, activeVideo, muted, playing]);
+  }, [activeId, activeVideo, muted, playing, pageVisible]);
 
   useEffect(() => {
     if (
@@ -539,9 +550,11 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
               </div>
 
               {active && (
-                <div className="absolute inset-x-0 bottom-14 z-20 px-3 md:bottom-0">
+                <div className="absolute inset-x-0 bottom-[57px] z-20 px-0 leading-none md:bottom-0 md:px-3">
                   <div className="flex items-center gap-2 text-xs tabular-nums text-white/85">
-                    <span aria-hidden="true">{formatTime(currentTime)}</span>
+                    <span aria-hidden="true" className="hidden md:inline">
+                      {formatTime(currentTime)}
+                    </span>
                     <input
                       type="range"
                       min={0}
@@ -553,21 +566,23 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                       }
                       aria-label="Seek video"
                       aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
-                      className="h-6 flex-1 cursor-pointer accent-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                      className="video-seek h-1 w-full flex-1 cursor-pointer accent-white focus-visible:outline-none md:h-6 md:focus-visible:ring-2 md:focus-visible:ring-white"
+                      style={{ ["--seek-progress" as string]: `${progress}%` }}
                     />
-                    <span aria-hidden="true">{formatTime(duration)}</span>
+                    <span aria-hidden="true" className="hidden md:inline">
+                      {formatTime(duration)}
+                    </span>
                   </div>
                 </div>
               )}
               <header className="absolute inset-x-0 top-0 z-10 flex items-center justify-end bg-gradient-to-b from-black/65 to-transparent p-3 pt-[max(env(safe-area-inset-top),0.75rem)]">
                 <div className="flex items-center gap-2">
-                  <ComposerLauncher variant="video" />
                   <button
                     type="button"
                     onClick={toggleMute}
                     aria-label={muted ? "Unmute video" : "Mute video"}
                     aria-pressed={!muted}
-                    className="grid h-11 w-11 place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    className="grid h-11 w-11 cursor-pointer place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                   >
                     {muted ? (
                       <VolumeX className="h-5 w-5" />
@@ -648,7 +663,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                         : `Like, ${state.count} likes`
                     }
                     aria-pressed={state.liked}
-                    className="grid h-12 w-12 place-items-center rounded-full bg-black/35 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
+                    className="grid h-12 w-12 cursor-pointer place-items-center rounded-full bg-black/35 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
                   >
                     <HeartIcon
                       className={`h-6 w-6 ${state.liked ? "fill-red-500 text-red-500" : ""}`}
@@ -661,7 +676,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                     type="button"
                     onClick={() => setCommentsVideo(post)}
                     aria-label={`Comments, ${post.comment_count}`}
-                    className="grid h-12 w-12 place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    className="grid h-12 w-12 cursor-pointer place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                   >
                     <CommentIcon className="h-6 w-6" aria-hidden="true" />
                   </button>
@@ -674,7 +689,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                     type="button"
                     onClick={() => setShareTarget(post)}
                     aria-label="Share video"
-                    className="grid h-12 w-12 place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    className="grid h-12 w-12 cursor-pointer place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                   >
                     <ShareIcon className="h-6 w-6" aria-hidden="true" />
                   </button>
@@ -690,7 +705,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                       : "Save video"
                   }
                   aria-pressed={saved.isSaved(post.id)}
-                  className="grid h-12 w-12 place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
+                  className="grid h-12 w-12 cursor-pointer place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
                 >
                   <Star
                     className={`h-6 w-6 ${saved.isSaved(post.id) ? "fill-warning text-warning" : ""}`}
@@ -702,7 +717,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                   onClick={() => void download(post)}
                   disabled={!!downloading[post.id]}
                   aria-label="Download video"
-                  className="grid h-12 w-12 place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
+                  className="grid h-12 w-12 cursor-pointer place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
                 >
                   {downloading[post.id] ? (
                     <Loader2
@@ -716,18 +731,21 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     aria-label="Video options"
-                    className="grid h-12 w-12 place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    className="grid h-12 w-12 cursor-pointer place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                   >
                     <MoreHorizontal className="h-6 w-6" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => void copyLink(post)}>
+                    <DropdownMenuItem
+                      onClick={() => void copyLink(post)}
+                      className="cursor-pointer"
+                    >
                       Copy video link
                     </DropdownMenuItem>
                     {own && (
                       <DropdownMenuItem
                         onClick={() => setDeleteVideo(post)}
-                        className="text-destructive focus:text-destructive"
+                        className="cursor-pointer text-destructive focus:text-destructive"
                       >
                         Delete video
                       </DropdownMenuItem>

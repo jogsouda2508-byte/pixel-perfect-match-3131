@@ -861,6 +861,7 @@ function StoryViewer({
           submitLabel="Add to story"
           onSubmit={addPoll}
           z={130}
+          compact
         />
       )}
 

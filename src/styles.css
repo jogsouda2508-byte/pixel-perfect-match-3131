@@ -652,3 +652,42 @@ html {
     animation-duration: 1ms;
   }
 }
+
+/* Mobile: very thin video seek bar, flush with the bottom edge (desktop keeps native look) */
+@media (max-width: 767px) {
+  .video-seek {
+    -webkit-appearance: none;
+    appearance: none;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    display: block;
+  }
+  .video-seek::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 0;
+    background: linear-gradient(to right, #fff var(--seek-progress, 0%), rgba(255,255,255,0.3) var(--seek-progress, 0%));
+  }
+  .video-seek::-moz-range-track {
+    height: 4px;
+    background: rgba(255,255,255,0.3);
+  }
+  .video-seek::-moz-range-progress {
+    height: 4px;
+    background: #fff;
+  }
+  .video-seek::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 0;
+    height: 0;
+    margin-top: 0;
+    border: 0;
+    background: transparent;
+  }
+  .video-seek::-moz-range-thumb {
+    width: 0;
+    height: 0;
+    border: 0;
+    background: transparent;
+  }
+}

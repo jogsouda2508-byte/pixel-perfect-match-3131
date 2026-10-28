@@ -202,6 +202,7 @@ export function PollSheet({
   submitLabel = "Add poll",
   onSubmit,
   z,
+  compact = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -209,6 +210,8 @@ export function PollSheet({
   submitLabel?: string;
   onSubmit: (draft: PollDraft) => void | Promise<void>;
   z?: number | undefined;
+  /** Smaller sheet and fonts on phones (used on the story poll). */
+  compact?: boolean;
 }) {
   const [question, setQuestion] = useState("");
   const [a, setA] = useState("");
@@ -238,12 +241,14 @@ export function PollSheet({
   };
 
   const field =
-    "w-full rounded-xl border border-border bg-elevated/40 px-3.5 py-3 text-base outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring";
+    `w-full rounded-xl border border-border bg-elevated/40 px-3.5 py-3 text-base ${compact ? "max-md:rounded-lg max-md:px-3 max-md:py-2 max-md:text-sm" : ""} outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring`;
+  const label = `mb-1.5 block text-sm font-semibold ${compact ? "max-md:mb-1 max-md:text-xs" : ""}`;
 
   return (
     <BottomSheet
       open={open}
       onOpenChange={onOpenChange}
+      compact={compact}
       title="Create a poll"
       description="Ask a question with two answers. People see live results after they vote."
       {...(z !== undefined ? { z } : {})}
@@ -252,7 +257,7 @@ export function PollSheet({
           <button
             type="button"
             onClick={() => onOpenChange(false)}
-            className="min-h-12 flex-1 rounded-full border border-border bg-card text-sm font-semibold hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className={`min-h-12 flex-1 rounded-full border border-border bg-card text-sm font-semibold ${compact ? "max-md:min-h-10 max-md:text-xs" : ""} hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
           >
             Cancel
           </button>
@@ -260,7 +265,7 @@ export function PollSheet({
             type="button"
             onClick={() => void submit()}
             disabled={!ready || busy}
-            className="flex min-h-12 flex-[1.4] items-center justify-center gap-2 rounded-full bg-gradient-brand text-sm font-semibold text-primary-foreground glow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            className={`flex min-h-12 flex-[1.4] items-center justify-center gap-2 rounded-full bg-gradient-brand text-sm font-semibold ${compact ? "max-md:min-h-10 max-md:text-xs" : ""} text-primary-foreground glow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50`}
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
             {submitLabel}
@@ -268,9 +273,9 @@ export function PollSheet({
         </>
       }
     >
-      <div className="space-y-4">
+      <div className={compact ? "space-y-4 max-md:space-y-2.5" : "space-y-4"}>
         <div>
-          <label htmlFor="poll-question" className="mb-1.5 block text-sm font-semibold">
+          <label htmlFor="poll-question" className={label}>
             Question
           </label>
           <input
@@ -281,7 +286,7 @@ export function PollSheet({
             maxLength={POLL_QUESTION_MAX}
             className={field}
           />
-          <p className="mt-1 text-right text-xs text-muted-foreground">
+          <p className={`mt-1 text-right text-xs text-muted-foreground ${compact ? "max-md:mt-0.5 max-md:text-[11px]" : ""}`}>
             {question.length}/{POLL_QUESTION_MAX}
           </p>
         </div>
@@ -292,7 +297,7 @@ export function PollSheet({
           ] as const
         ).map(([id, label, value, set, hint]) => (
           <div key={id}>
-            <label htmlFor={id} className="mb-1.5 block text-sm font-semibold">
+            <label htmlFor={id} className={label}>
               {label}
             </label>
             <input
