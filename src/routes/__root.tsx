@@ -14,6 +14,7 @@ import appCss from "../styles.css?url";
 import { AuthProvider } from "../lib/auth";
 import { AuthGate } from "../components/auth-gate";
 import { PullToRefresh } from "../components/pull-to-refresh";
+import { NativeBackButton } from "../components/native-back-button";
 import { PushPrompt } from "../components/push-prompt";
 import { Toaster } from "../components/ui/sonner";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -136,6 +137,7 @@ function RootComponent() {
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
           <Outlet />
           <PushPrompt />
+          <NativeBackButton />
           <PullToRefresh />
         </AuthGate>
         <Toaster theme="dark" position="top-center" />

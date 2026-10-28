@@ -363,7 +363,7 @@ html {
     box-shadow: none;
   }
   /* Titles and tab rows sit just under the status bar (cards start right at it). */
-  .app-main > :first-child:not(.glass-card) {
+  .app-main > :first-child:not(.glass-card):not(.wa-chat) {
     padding-top: 0.75rem;
   }
 }
@@ -528,8 +528,8 @@ html {
 .wa-chat {
   --wa-bg: #efeae2;
   --wa-doodle: rgba(11, 20, 26, 0.045);
-  --wa-header: #f0f2f5;
-  --wa-header-fg: #111b21;
+  --wa-header: #ece8fd; /* light tint of the app's purple */
+  --wa-header-fg: #1e1a3c;
   --wa-out: #d9fdd3;
   --wa-in: #ffffff;
   --wa-text: #111b21;
@@ -552,8 +552,8 @@ html {
 .dark .wa-chat {
   --wa-bg: #0b141a;
   --wa-doodle: rgba(255, 255, 255, 0.035);
-  --wa-header: #202c33;
-  --wa-header-fg: #e9edef;
+  --wa-header: #2b2650; /* deep purple tint */
+  --wa-header-fg: #ece9ff;
   --wa-out: #005c4b;
   --wa-in: #202c33;
   --wa-text: #e9edef;

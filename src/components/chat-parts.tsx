@@ -343,14 +343,19 @@ export function AttachMenu({
       kind: "document",
       label: "Document",
       color: "#7f66ff",
-      icon: <FileText className="h-6 w-6" />,
+      icon: <FileText className="h-[18px] w-[18px] sm:h-6 sm:w-6" />,
     },
-    { kind: "camera", label: "Camera", color: "#ff2e74", icon: <Camera className="h-6 w-6" /> },
+    {
+      kind: "camera",
+      label: "Camera",
+      color: "#ff2e74",
+      icon: <Camera className="h-[18px] w-[18px] sm:h-6 sm:w-6" />,
+    },
     {
       kind: "gallery",
       label: "Gallery",
       color: "#bf59cf",
-      icon: <ImageIcon className="h-6 w-6" />,
+      icon: <ImageIcon className="h-[18px] w-[18px] sm:h-6 sm:w-6" />,
     },
   ];
   return (
@@ -358,7 +363,7 @@ export function AttachMenu({
       ref={ref}
       role="menu"
       aria-label="Attach"
-      className="wa-menu-in absolute bottom-full left-3 z-30 mb-2 grid w-[min(20rem,calc(100vw-1.5rem))] grid-cols-3 gap-2 rounded-2xl bg-[var(--wa-menu)] p-4 shadow-xl"
+      className="wa-menu-in absolute bottom-full left-3 z-30 mb-2 grid w-[min(15.5rem,calc(100vw-1.5rem))] grid-cols-3 gap-1 rounded-2xl bg-[var(--wa-menu)] p-2.5 shadow-xl ring-1 ring-black/5 sm:w-[min(20rem,calc(100vw-1.5rem))] sm:gap-2 sm:p-4"
     >
       {items.map((it) => (
         <button
@@ -366,10 +371,10 @@ export function AttachMenu({
           type="button"
           role="menuitem"
           onClick={() => onPick(it.kind)}
-          className="flex flex-col items-center gap-1.5 rounded-xl p-1 text-xs text-[var(--wa-icon)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex flex-col items-center gap-1 rounded-xl p-1 text-[11px] font-medium text-[var(--wa-icon)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-1.5 sm:text-xs"
         >
           <span
-            className="grid h-12 w-12 place-items-center rounded-full text-white shadow-sm"
+            className="grid h-10 w-10 place-items-center rounded-full text-white shadow-sm sm:h-12 sm:w-12"
             style={{ backgroundColor: it.color }}
           >
             {it.icon}
