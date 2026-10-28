@@ -29,7 +29,13 @@ function toError(error: DbError, fallback: string): Error {
 
 /** Only plain text can be edited; voice, shared posts and story replies can only be deleted. */
 export function isEditable(message: MessageRow): boolean {
-  return !message.audio_url && !message.shared_post_id && !message.story_kind;
+  return (
+    !message.audio_url &&
+    !message.shared_post_id &&
+    !message.story_kind &&
+    !message.image_url &&
+    !message.file_url
+  );
 }
 
 export async function editMessage(messageId: string, body: string): Promise<MessageRow> {
@@ -42,21 +48,33 @@ export async function editMessage(messageId: string, body: string): Promise<Mess
 }
 
 const VOICE_PATH = "/storage/v1/object/public/voice/";
+const MEDIA_PATH = "/storage/v1/object/public/chat-media/";
+
+function storagePath(url: string | null | undefined, marker: string): string | null {
+  const at = (url ?? "").indexOf(marker);
+  if (at === -1) return null;
+  const path = decodeURIComponent((url ?? "").slice(at + marker.length).split("?")[0] ?? "");
+  return path || null;
+}
 
 /** Deletes the message for everyone in the chat (and a voice message's audio file). */
-export async function deleteMessage(message: Pick<MessageRow, "id" | "audio_url">): Promise<void> {
+export async function deleteMessage(
+  message: Pick<MessageRow, "id" | "audio_url"> &
+    Partial<Pick<MessageRow, "image_url" | "file_url">>,
+): Promise<void> {
   const { error } = await db.rpc("delete_message", { p_message: message.id });
   if (error) {
     console.error("Deleting a message failed", error);
     throw toError(error, "Couldn't delete your message. Please try again.");
   }
   // best effort: the message is already gone, a leftover file is harmless
-  const url = message.audio_url ?? "";
-  const at = url.indexOf(VOICE_PATH);
-  if (at !== -1) {
-    const path = decodeURIComponent(url.slice(at + VOICE_PATH.length).split("?")[0] ?? "");
-    if (path) void supabase.storage.from("voice").remove([path]);
-  }
+  const voicePath = storagePath(message.audio_url, VOICE_PATH);
+  if (voicePath) void supabase.storage.from("voice").remove([voicePath]);
+  const mediaPaths = [message.image_url, message.file_url].flatMap((u) => {
+    const p = storagePath(u, MEDIA_PATH);
+    return p ? [p] : [];
+  });
+  if (mediaPaths.length) void supabase.storage.from("chat-media").remove(mediaPaths);
 }
 
 /**

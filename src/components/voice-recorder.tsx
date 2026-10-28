@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Mic, Pause, Play, Trash2 } from "lucide-react";
+import { Avatar } from "@/components/ediraa";
 import {
   formatClock,
   MIC_DENIED_MESSAGE,
@@ -156,17 +157,17 @@ export function MicButton({
         if (recording) stop(true);
         else void start();
       }}
-      className={`relative grid h-11 w-11 shrink-0 touch-none select-none place-items-center rounded-full text-primary-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 ${
-        recording ? "scale-125 bg-destructive" : "bg-gradient-brand"
+      className={`relative grid h-11 w-11 shrink-0 touch-none sm:h-12 sm:w-12 select-none place-items-center rounded-full bg-[var(--wa-accent)] text-white shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 ${
+        recording ? "scale-125" : ""
       }`}
     >
       {recording && (
         <span
           aria-hidden="true"
-          className="voice-pulse absolute inset-0 rounded-full bg-destructive"
+          className="voice-pulse absolute inset-0 rounded-full bg-[var(--wa-accent)]"
         />
       )}
-      <Mic className="relative h-5 w-5" aria-hidden="true" />
+      <Mic className="relative h-5 w-5 sm:h-6 sm:w-6" aria-hidden="true" />
     </button>
   );
 }
@@ -185,10 +186,29 @@ export function RecordingBar({
     <div
       role="status"
       aria-live="off"
-      className={`flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-full border px-3 transition-colors ${
-        cancelling ? "border-destructive bg-destructive/10" : "border-border bg-elevated/60"
-      }`}
+      className="flex min-h-11 min-w-0 flex-1 items-center gap-2.5 rounded-full bg-[var(--wa-input)] sm:min-h-12 sm:gap-3 px-3 text-[var(--wa-input-fg)] shadow-sm"
     >
+      <span
+        aria-hidden="true"
+        className="voice-dot h-2.5 w-2.5 shrink-0 rounded-full bg-destructive"
+      />
+      <span className="w-9 shrink-0 text-sm tabular-nums sm:w-10 sm:text-base">
+        {formatClock(seconds)}
+      </span>
+      <span aria-hidden="true" className="flex h-5 flex-1 items-center gap-[3px] overflow-hidden">
+        {Array.from({ length: 18 }, (_, i) => (
+          <span
+            key={i}
+            className="voice-wave w-[3px] shrink-0 rounded-full bg-[var(--wa-accent)]"
+            style={{ animationDelay: `${(i % 6) * 90}ms` }}
+          />
+        ))}
+      </span>
+      <span
+        className={`shrink-0 text-xs sm:text-sm ${cancelling ? "font-semibold text-destructive" : "text-[var(--wa-meta)]"}`}
+      >
+        {cancelling ? "Release to cancel" : "‹ Slide to cancel"}
+      </span>
       <button
         type="button"
         onClick={onCancel}
@@ -197,46 +217,57 @@ export function RecordingBar({
       >
         <Trash2 className="h-4 w-4" aria-hidden="true" />
       </button>
-      <span
-        aria-hidden="true"
-        className="voice-dot h-2.5 w-2.5 shrink-0 rounded-full bg-destructive"
-      />
-      <span className="w-10 shrink-0 text-sm font-semibold tabular-nums">
-        {formatClock(seconds)}
-      </span>
-      <span aria-hidden="true" className="flex h-5 flex-1 items-center gap-[3px] overflow-hidden">
-        {Array.from({ length: 18 }, (_, i) => (
-          <span
-            key={i}
-            className="voice-wave w-[3px] shrink-0 rounded-full bg-primary"
-            style={{ animationDelay: `${(i % 6) * 90}ms` }}
-          />
-        ))}
-      </span>
-      <span className="shrink-0 text-xs text-muted-foreground">
-        {cancelling ? "Release to cancel" : "‹ Slide to cancel"}
-      </span>
     </div>
   );
 }
 
 let playing: HTMLAudioElement | null = null;
+const SPEEDS = [1, 1.5, 2] as const;
+const BAR_COUNT = 34;
 
-/** A voice message in the chat: play / pause, a waveform you can tap to seek, and its length. */
-export function VoiceBubble({ url, seconds, own }: { url: string; seconds: number; own: boolean }) {
+/**
+ * A voice message, laid out like WhatsApp: play button, a thin waveform with a moving dot,
+ * the length underneath (and `footer` - the time / ticks - at the right of that line), and the
+ * sender's photo with a small mic. While it plays, the photo turns into a 1x / 1.5x / 2x button.
+ */
+export function VoiceBubble({
+  url,
+  seconds,
+  own,
+  avatarUrl,
+  name,
+  footer,
+}: {
+  url: string;
+  seconds: number;
+  own: boolean;
+  avatarUrl?: string | null | undefined;
+  name?: string | undefined;
+  footer?: ReactNode;
+}) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [failed, setFailed] = useState(false);
+  const [speedIdx, setSpeedIdx] = useState(0);
+  const [heard, setHeard] = useState(false);
   const total = Math.max(1, seconds);
 
-  // a steady, unique-looking waveform for every message
+  // a smooth, even waveform that is the same every time for the same message
   const bars = useMemo(() => {
     let h = 2166136261;
     for (let i = 0; i < url.length; i++) h = Math.imul(h ^ url.charCodeAt(i), 16777619);
-    return Array.from({ length: 30 }, () => {
+    const rnd = () => {
       h = Math.imul(h ^ (h >>> 15), 2246822507) >>> 0;
-      return 20 + (h % 80);
+      return (h % 1000) / 1000;
+    };
+    const raw = Array.from({ length: BAR_COUNT + 2 }, rnd);
+    return Array.from({ length: BAR_COUNT }, (_, i) => {
+      // neighbours are blended, so it flows up and down instead of jumping
+      const v = raw[i]! * 0.25 + raw[i + 1]! * 0.5 + raw[i + 2]! * 0.25;
+      const t = Math.min(1, Math.max(0, (v - 0.25) / 0.5));
+      const swell = 0.6 + 0.4 * Math.sin((Math.PI * (i + 0.5)) / BAR_COUNT);
+      return Math.round(22 + 78 * t * swell);
     });
   }, [url]);
 
@@ -257,6 +288,7 @@ export function VoiceBubble({ url, seconds, own }: { url: string; seconds: numbe
     }
     if (playing && playing !== a) playing.pause();
     playing = a;
+    a.playbackRate = SPEEDS[speedIdx] ?? 1;
     setFailed(false);
     void a.play().catch(() => setFailed(true));
   };
@@ -268,28 +300,25 @@ export function VoiceBubble({ url, seconds, own }: { url: string; seconds: numbe
     a.currentTime = f * total;
     setProgress(f);
   };
+  const cycleSpeed = () => {
+    const next = (speedIdx + 1) % SPEEDS.length;
+    setSpeedIdx(next);
+    if (audioRef.current) audioRef.current.playbackRate = SPEEDS[next] ?? 1;
+  };
 
-  const tone = own
-    ? {
-        btn: "bg-primary-foreground text-primary",
-        off: "bg-primary-foreground/40",
-        on: "bg-primary-foreground",
-        txt: "text-primary-foreground/80",
-      }
-    : {
-        btn: "bg-primary text-primary-foreground",
-        off: "bg-foreground/25",
-        on: "bg-primary",
-        txt: "text-muted-foreground",
-      };
+  // WhatsApp: the dot is blue until you have listened, green after
+  const knob = heard ? "bg-[var(--wa-accent)]" : "bg-[var(--wa-tick)]";
 
   return (
-    <div className="flex w-56 max-w-full items-center gap-2.5 py-0.5">
+    <div className="flex w-[min(15.5rem,66vw)] max-w-full items-center gap-1.5 py-0.5 sm:w-[min(17rem,72vw)] sm:gap-2">
       <audio
         ref={audioRef}
         src={url}
         preload="none"
-        onPlay={() => setIsPlaying(true)}
+        onPlay={() => {
+          setIsPlaying(true);
+          setHeard(true);
+        }}
         onPause={() => setIsPlaying(false)}
         onEnded={() => {
           setIsPlaying(false);
@@ -303,18 +332,18 @@ export function VoiceBubble({ url, seconds, own }: { url: string; seconds: numbe
         type="button"
         onClick={toggle}
         aria-label={isPlaying ? "Pause voice message" : "Play voice message"}
-        className={`grid h-10 w-10 shrink-0 place-items-center rounded-full shadow-sm transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${tone.btn}`}
+        className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[var(--wa-icon)] transition active:scale-90 sm:h-9 sm:w-9 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {isPlaying ? (
-          <Pause className="h-4 w-4 fill-current" aria-hidden="true" />
+          <Pause className="h-6 w-6 fill-current sm:h-7 sm:w-7" aria-hidden="true" />
         ) : (
-          <Play className="ml-0.5 h-4 w-4 fill-current" aria-hidden="true" />
+          <Play className="h-6 w-6 fill-current sm:h-7 sm:w-7" aria-hidden="true" />
         )}
       </button>
       <div className="min-w-0 flex-1">
         <div
           onClick={seek}
-          className="flex h-7 cursor-pointer items-center gap-[2px]"
+          className="relative flex h-6 cursor-pointer items-center justify-between"
           role="progressbar"
           aria-label="Voice message progress"
           aria-valuemin={0}
@@ -324,14 +353,48 @@ export function VoiceBubble({ url, seconds, own }: { url: string; seconds: numbe
           {bars.map((h, i) => (
             <span
               key={i}
-              className={`w-[3px] flex-1 rounded-full ${i / bars.length < progress ? tone.on : tone.off}`}
+              className={`w-[2px] shrink-0 rounded-full ${
+                i / bars.length < progress ? "bg-[var(--wa-icon)]" : "bg-[var(--wa-meta)]/45"
+              }`}
               style={{ height: `${h}%` }}
             />
           ))}
+          <span
+            aria-hidden="true"
+            className={`pointer-events-none absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full shadow ${knob}`}
+            style={{ left: `${Math.min(97, Math.max(2, progress * 100))}%` }}
+          />
         </div>
-        <p className={`mt-0.5 text-xs tabular-nums ${tone.txt}`}>
-          {failed ? "Couldn't play" : formatClock(isPlaying ? progress * total : total)}
-        </p>
+        <div className="mt-0.5 flex items-center justify-between gap-2 text-[10px] leading-none text-[var(--wa-meta)] sm:text-[11px]">
+          <span className="tabular-nums">
+            {failed ? "Couldn't play" : formatClock(isPlaying ? progress * total : total)}
+          </span>
+          {footer}
+        </div>
+      </div>
+      <div className="relative h-10 w-10 shrink-0 sm:h-11 sm:w-11">
+        {isPlaying ? (
+          <button
+            type="button"
+            onClick={cycleSpeed}
+            aria-label={`Playback speed ${SPEEDS[speedIdx]}x`}
+            className="grid h-full w-full place-items-center rounded-full bg-black/10 text-sm font-semibold text-[var(--wa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-white/15"
+          >
+            {SPEEDS[speedIdx]}x
+          </button>
+        ) : (
+          <>
+            <Avatar src={avatarUrl} name={name} size={40} />
+            <span
+              aria-hidden="true"
+              className={`absolute -bottom-0.5 -left-1 grid h-5 w-5 place-items-center rounded-full ${
+                own ? "bg-[var(--wa-out)]" : "bg-[var(--wa-in)]"
+              } ${heard ? "text-[var(--wa-accent)]" : "text-[var(--wa-tick)]"}`}
+            >
+              <Mic className="h-3.5 w-3.5 fill-current" />
+            </span>
+          </>
+        )}
       </div>
     </div>
   );

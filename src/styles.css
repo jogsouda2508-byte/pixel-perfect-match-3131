@@ -520,3 +520,135 @@ html {
     animation: none;
   }
 }
+
+/* ---------------------------------------------------------------------
+   WhatsApp-style chat. Everything is scoped to .wa-chat, so no other
+   screen changes colour. Light + dark follow the app's theme.
+   --------------------------------------------------------------------- */
+.wa-chat {
+  --wa-bg: #efeae2;
+  --wa-doodle: rgba(11, 20, 26, 0.045);
+  --wa-header: #f0f2f5;
+  --wa-header-fg: #111b21;
+  --wa-out: #d9fdd3;
+  --wa-in: #ffffff;
+  --wa-text: #111b21;
+  --wa-meta: #667781;
+  --wa-tick: #53bdeb;
+  --wa-accent: #00a884;
+  --wa-accent-fg: #ffffff;
+  --wa-input: #ffffff;
+  --wa-input-fg: #111b21;
+  --wa-quote: rgba(11, 20, 26, 0.06);
+  --wa-pill: #ffffff;
+  --wa-pill-border: rgba(11, 20, 26, 0.1);
+  --wa-day: rgba(255, 255, 255, 0.92);
+  --wa-day-fg: #54656f;
+  --wa-menu: #ffffff;
+  --wa-icon: #54656f;
+  background-color: var(--wa-bg);
+  color: var(--wa-text);
+}
+.dark .wa-chat {
+  --wa-bg: #0b141a;
+  --wa-doodle: rgba(255, 255, 255, 0.035);
+  --wa-header: #202c33;
+  --wa-header-fg: #e9edef;
+  --wa-out: #005c4b;
+  --wa-in: #202c33;
+  --wa-text: #e9edef;
+  --wa-meta: #8696a0;
+  --wa-tick: #53bdeb;
+  --wa-accent: #00a884;
+  --wa-input: #2a3942;
+  --wa-input-fg: #e9edef;
+  --wa-quote: rgba(0, 0, 0, 0.22);
+  --wa-pill: #202c33;
+  --wa-pill-border: rgba(255, 255, 255, 0.12);
+  --wa-day: #182229;
+  --wa-day-fg: #8696a0;
+  --wa-menu: #233138;
+  --wa-icon: #8696a0;
+}
+.wa-wallpaper {
+  background-image:
+    radial-gradient(circle at 12px 12px, var(--wa-doodle) 2px, transparent 2.5px),
+    radial-gradient(circle at 42px 38px, var(--wa-doodle) 1.5px, transparent 2px);
+  background-size: 56px 56px;
+}
+.wa-tail {
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+.wa-tail-out {
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+}
+@keyframes wa-flash {
+  0%,
+  60% {
+    background-color: rgba(0, 168, 132, 0.28);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+.wa-flash {
+  animation: wa-flash 1.4s ease-out;
+}
+@keyframes wa-heart-pop {
+  0% {
+    transform: translate(-50%, -50%) scale(0.3);
+    opacity: 0;
+  }
+  25% {
+    transform: translate(-50%, -50%) scale(1.25);
+    opacity: 1;
+  }
+  45% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -62%) scale(1.05);
+    opacity: 0;
+  }
+}
+.wa-heart-pop {
+  animation: wa-heart-pop 800ms ease-out both;
+}
+@keyframes wa-react-in {
+  0% {
+    transform: scale(0.4);
+  }
+  70% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.wa-react-in {
+  animation: wa-react-in 260ms ease-out both;
+}
+@keyframes wa-menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.wa-menu-in {
+  animation: wa-menu-in 140ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wa-flash,
+  .wa-react-in,
+  .wa-menu-in {
+    animation: none;
+  }
+  .wa-heart-pop {
+    animation-duration: 1ms;
+  }
+}

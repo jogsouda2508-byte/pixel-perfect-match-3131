@@ -259,6 +259,23 @@ export type MessageRow = {
   audio_seconds?: number | null;
   /** Set by edit_message() (needs 20261029000000_edit_delete_messages.sql). */
   edited_at?: string | null;
+  /** Set by send_chat_message() (needs 20261030000000_chat_whatsapp.sql). */
+  reply_to_id?: string | null;
+  image_url?: string | null;
+  image_w?: number | null;
+  image_h?: number | null;
+  file_url?: string | null;
+  file_name?: string | null;
+  file_size?: number | null;
+};
+
+/** One person's reaction to one message (needs 20261030000000_chat_whatsapp.sql). */
+export type MessageReactionRow = {
+  message_id: string;
+  user_id: string;
+  conversation_id: string;
+  emoji: string;
+  created_at: string;
 };
 
 export type Database = {

@@ -1,0 +1,22 @@
+WHATSAPP-STYLE CHAT
+===================
+1. Copy the src/ and supabase/ folders from this zip into your project root, choose "Replace".
+   (This .txt file is not part of the app. Nothing needs to be deleted. No new npm packages.)
+2. Supabase -> SQL Editor -> run:
+     supabase/migrations/20261030000000_chat_whatsapp.sql
+   Needs the earlier migrations already run. Safe to run more than once. It only ADDS things.
+   Until you run it: normal text, voice, delete and edit keep working as before, and the new look
+   works; replies, reactions, photos and files will show a message asking you to run it.
+3. npm run dev
+
+WHAT'S NEW (chat screen only)
+- WhatsApp look: wallpaper, green / white bubbles with tails, day separators ("Today"),
+  time inside the bubble, blue double ticks when read, dark mode supported.
+- Voice message like WhatsApp: play icon, thin waveform with a moving dot, length at the
+  bottom-left, time at the bottom-right, sender photo with a mic, 1x / 1.5x / 2x while playing.
+- Reply: swipe a message to the right (or long-press > Reply). Tap the quote to jump to the original.
+- Reactions: DOUBLE-TAP any message or photo = red heart under it. Long-press for 6 quick
+  reactions. Tap the heart to see who reacted (tap your own to remove it).
+- Attach (paperclip) and Camera buttons: Camera / Gallery / Document. Photos are previewed
+  with a caption box before sending, tap a photo to view it full screen.
+- Long-press menu: Reply, Copy, and (your own messages) Edit / Delete.

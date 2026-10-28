@@ -20,7 +20,9 @@ export function SharedVideoCard({ postId, own }: { postId: string; own: boolean 
     staleTime: 60_000,
   });
 
-  const muted = own ? "text-primary-foreground/80" : "text-muted-foreground";
+  // neutral grey reads well on both the green (sent) and white / dark (received) bubbles
+  void own;
+  const muted = "text-muted-foreground";
 
   if (video.isLoading) return <Skeleton className="h-56 w-44 rounded-xl" />;
 
@@ -84,7 +86,9 @@ function SharedPostCard({ postId, own }: { postId: string; own: boolean }) {
     enabled: !!user,
     staleTime: 60_000,
   });
-  const muted = own ? "text-primary-foreground/80" : "text-muted-foreground";
+  // neutral grey reads well on both the green (sent) and white / dark (received) bubbles
+  void own;
+  const muted = "text-muted-foreground";
 
   if (query.isLoading) return <Skeleton className="h-32 w-56 rounded-xl" />;
   if (query.isError || !query.data) {
