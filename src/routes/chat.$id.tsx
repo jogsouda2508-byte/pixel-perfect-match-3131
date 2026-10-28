@@ -702,7 +702,7 @@ function ConversationDetail({ id }: { id: string }) {
   return (
     <PageShell showBottomNav={false}>
       <section className="wa-chat wa-wallpaper -mx-4 -mb-5 flex h-dvh flex-col overflow-hidden border-0 border-border sm:mx-0 sm:mb-0 sm:h-auto sm:min-h-[calc(100dvh-6rem)] sm:rounded-2xl sm:border">
-        <header className="flex min-h-16 items-center gap-1 bg-[var(--wa-header)] px-2 py-2 text-[var(--wa-header-fg)] shadow-sm">
+        <header className="wa-header flex min-h-16 items-center gap-1 px-2 py-2">
           <Link
             to="/chat"
             aria-label="Back to chats"
@@ -846,7 +846,7 @@ function ConversationDetail({ id }: { id: string }) {
                       {...(isImage && message.image_url
                         ? { onTap: () => setLightbox(message.image_url!) }
                         : {})}
-                      outerClassName={groups.length ? "mb-3.5" : ""}
+                      outerClassName={groups.length ? "mb-4" : ""}
                       className={`${bg} ${
                         isImage ? "p-[3px]" : "px-[9px] py-[6px]"
                       } break-words rounded-lg text-sm leading-[1.35] sm:text-[15px] text-[var(--wa-text)] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] ${

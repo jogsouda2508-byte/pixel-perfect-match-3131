@@ -526,7 +526,7 @@ html {
    screen changes colour. Light + dark follow the app's theme.
    --------------------------------------------------------------------- */
 .wa-chat {
-  --wa-bg: #efeae2;
+  --wa-bg: #e9e4fb;
   --wa-doodle: rgba(11, 20, 26, 0.045);
   --wa-header: #ece8fd; /* light tint of the app's purple */
   --wa-header-fg: #1e1a3c;
@@ -570,11 +570,52 @@ html {
   --wa-menu: #233138;
   --wa-icon: #8696a0;
 }
+/* Light mode: soft purple wallpaper (portrait on phones, landscape on bigger screens). */
 .wa-wallpaper {
+  background-image: url("/chat-bg-mobile.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+@media (min-width: 640px) {
+  .wa-wallpaper {
+    background-image: url("/chat-bg-desktop.jpg");
+  }
+}
+/* Dark mode keeps the original dark doodle wallpaper. */
+.dark .wa-wallpaper {
   background-image:
     radial-gradient(circle at 12px 12px, var(--wa-doodle) 2px, transparent 2.5px),
     radial-gradient(circle at 42px 38px, var(--wa-doodle) 1.5px, transparent 2px);
   background-size: 56px 56px;
+  background-position: 0 0;
+  background-repeat: repeat;
+}
+/* Chat header: light purple -> pink gradient with soft wave lines. */
+.wa-header {
+  --wa-meta: rgba(255, 255, 255, 0.82);
+  color: #fff;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 80' preserveAspectRatio='none'%3E%3Cpath d='M0 52 C60 20 110 76 180 46 S300 14 400 44' fill='none' stroke='white' stroke-opacity='.35' stroke-width='1.5'/%3E%3Cpath d='M0 66 C70 40 130 82 210 58 S330 30 400 60' fill='none' stroke='white' stroke-opacity='.22' stroke-width='1.5'/%3E%3C/svg%3E"),
+    radial-gradient(circle at 92% 0%, rgba(255, 255, 255, 0.38), transparent 42%),
+    radial-gradient(circle at 8% 120%, rgba(255, 143, 208, 0.45), transparent 45%),
+    linear-gradient(115deg, #8f7bf8 0%, #a68cf8 45%, #c39af3 75%, #f2aada 100%);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  text-shadow: 0 1px 2px rgba(60, 30, 120, 0.35);
+  box-shadow: 0 2px 10px rgba(130, 100, 220, 0.25);
+}
+.dark .wa-header {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 80' preserveAspectRatio='none'%3E%3Cpath d='M0 52 C60 20 110 76 180 46 S300 14 400 44' fill='none' stroke='white' stroke-opacity='.2' stroke-width='1.5'/%3E%3Cpath d='M0 66 C70 40 130 82 210 58 S330 30 400 60' fill='none' stroke='white' stroke-opacity='.12' stroke-width='1.5'/%3E%3C/svg%3E"),
+    radial-gradient(circle at 92% 0%, rgba(255, 255, 255, 0.14), transparent 42%),
+    linear-gradient(115deg, #2b2650 0%, #3d2f7a 55%, #5b3a8f 100%);
+}
+.wa-header > a:first-child:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+.wa-header a img {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
 }
 .wa-tail {
   clip-path: polygon(0 0, 100% 0, 0 100%);

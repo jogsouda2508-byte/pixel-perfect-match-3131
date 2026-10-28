@@ -209,8 +209,8 @@ export function ReactionPill({
       type="button"
       onClick={onClick}
       aria-label={`${total} reaction${total === 1 ? "" : "s"}: ${shown.join(" ")}. See who reacted`}
-      className={`absolute -bottom-3.5 z-10 flex items-center gap-0.5 rounded-full border border-[var(--wa-pill-border)] bg-[var(--wa-pill)] px-1.5 py-[3px] text-[13px] leading-none shadow-sm sm:text-[14px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-        own ? "right-2" : "left-2"
+      className={`absolute -bottom-4 z-10 flex items-center gap-0.5 rounded-full border border-[var(--wa-pill-border)] bg-[var(--wa-pill)] px-1.5 py-[3px] text-[13px] leading-none shadow-sm sm:text-[14px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+        own ? "right-3" : "left-3"
       }`}
     >
       <span key={shown.join("")} className="wa-react-in inline-flex">
