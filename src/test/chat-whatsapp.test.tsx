@@ -184,6 +184,25 @@ describe("bubble gestures", () => {
     expect(handlers.onReply).not.toHaveBeenCalled();
   });
 
+  it("a swipe on a touch screen keeps going when the browser hands the finger over", () => {
+    const { handlers, bubble } = setup();
+    const text = screen.getByText("hi there");
+    fireEvent.pointerDown(text, { clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(text, { clientX: 40, clientY: 11 });
+    // the browser releases its own hold on the inner text when the swipe takes the finger
+    fireEvent.lostPointerCapture(text);
+    fireEvent.pointerMove(bubble, { clientX: 120, clientY: 12 });
+    fireEvent.pointerUp(bubble, { clientX: 120, clientY: 12 });
+    expect(handlers.onReply).toHaveBeenCalledTimes(1);
+  });
+
+  it("a very long swipe slides the bubble only so far", () => {
+    const { bubble } = setup();
+    fireEvent.pointerDown(bubble, { clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(bubble, { clientX: 400, clientY: 12 });
+    expect(bubble.style.transform).toContain("120px");
+  });
+
   it("moving the mouse over a bubble without pressing does not slide it", () => {
     const { handlers, bubble } = setup();
     fireEvent.pointerMove(bubble, { clientX: 10, clientY: 10, pointerType: "mouse" });

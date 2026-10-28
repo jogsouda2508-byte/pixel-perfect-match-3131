@@ -6,8 +6,15 @@ import { QUICK_REACTIONS } from "@/lib/chat-extras";
 
 const HOLD_MS = 450;
 const MOVE_TOLERANCE_PX = 10;
-const SWIPE_TRIGGER_PX = 56;
-const SWIPE_MAX_PX = 84;
+/** how far a drag must go (after it has clearly started) before letting go replies */
+const SWIPE_TRIGGER_PX = 64;
+/** the bubble never slides further than this, however far the finger goes */
+const SWIPE_MAX_PX = 120;
+/** sideways movement that turns a touch into a swipe (a bit of slack so thumbs can swipe loosely) */
+const SWIPE_START_PX = 8;
+/** past the trigger point the bubble follows the finger at this fraction (a rubber-band feel) */
+const SWIPE_RESISTANCE = 0.4;
+const SWIPE_SETTLE = "transform 260ms cubic-bezier(0.22, 1, 0.36, 1)";
 const DOUBLE_TAP_MS = 300;
 const TAP_SLOP_PX = 24;
 
@@ -55,7 +62,12 @@ export function PressableBubble({
   // a swipe / hold only counts while a finger or the mouse button is actually down
   const pressed = useRef(false);
   const lastTap = useRef({ at: 0, x: 0, y: 0 });
-  const [offset, setOffset] = useState(0);
+  // The drag is painted straight onto the elements (no React state), so following the finger
+  // never re-renders the bubble: that is what keeps it smooth.
+  const iconRef = useRef<HTMLSpanElement>(null);
+  const offsetRef = useRef(0);
+  const frame = useRef<number | undefined>(undefined);
+  const armed = useRef(false);
 
   const clear = () => {
     if (timer.current !== undefined) {
@@ -72,9 +84,75 @@ export function PressableBubble({
     () => () => {
       if (timer.current !== undefined) window.clearTimeout(timer.current);
       if (tapTimer.current !== undefined) window.clearTimeout(tapTimer.current);
+      if (frame.current !== undefined) window.cancelAnimationFrame(frame.current);
     },
     [],
   );
+
+  /** puts the current drag distance on screen: the bubble slides, the reply icon fades in */
+  const paint = () => {
+    const value = offsetRef.current;
+    const el = ref.current;
+    if (el) el.style.transform = value ? `translate3d(${value}px, 0, 0)` : "";
+    const icon = iconRef.current;
+    if (icon) {
+      const progress = Math.min(1, value / SWIPE_TRIGGER_PX);
+      const pop = value >= SWIPE_TRIGGER_PX ? 1.1 : 0.6 + 0.4 * progress;
+      icon.style.opacity = String(progress);
+      icon.style.transform = `translate3d(${Math.min(value * 0.5, 40)}px, -50%, 0) scale(${pop})`;
+    }
+  };
+  /** the finger moved: remember the distance and paint once per screen frame */
+  const drag = (raw: number) => {
+    const past = raw - SWIPE_TRIGGER_PX;
+    offsetRef.current =
+      past <= 0 ? raw : Math.min(SWIPE_MAX_PX, SWIPE_TRIGGER_PX + past * SWIPE_RESISTANCE);
+    const crossed = offsetRef.current >= SWIPE_TRIGGER_PX;
+    if (crossed && !armed.current) {
+      try {
+        navigator.vibrate?.(8); // a tiny tick when "reply" is armed, where the phone allows it
+      } catch {
+        /* no vibration: fine */
+      }
+    }
+    armed.current = crossed;
+    if (frame.current !== undefined) return;
+    if (typeof window.requestAnimationFrame !== "function") {
+      paint();
+      return;
+    }
+    frame.current = window.requestAnimationFrame(() => {
+      frame.current = undefined;
+      paint();
+    });
+  };
+  /** lets go: the bubble glides back to its place */
+  const settle = () => {
+    if (frame.current !== undefined) {
+      window.cancelAnimationFrame(frame.current);
+      frame.current = undefined;
+    }
+    offsetRef.current = 0;
+    armed.current = false;
+    const el = ref.current;
+    if (el) {
+      el.style.transition = SWIPE_SETTLE;
+      el.style.willChange = "";
+    }
+    const icon = iconRef.current;
+    if (icon) icon.style.transition = "opacity 200ms ease-out, transform 260ms ease-out";
+    paint();
+  };
+  /** the drag has started: no easing while the finger is down, so it follows exactly */
+  const beginDrag = () => {
+    const el = ref.current;
+    if (el) {
+      el.style.transition = "none";
+      el.style.willChange = "transform";
+    }
+    const icon = iconRef.current;
+    if (icon) icon.style.transition = "none";
+  };
 
   if (!enabled)
     return (
@@ -89,21 +167,19 @@ export function PressableBubble({
   const finishSwipe = (commit: boolean) => {
     const wasSwiping = swiping.current;
     swiping.current = false;
-    if (wasSwiping && commit && offset >= SWIPE_TRIGGER_PX) onReply?.();
-    setOffset(0);
+    const reply = wasSwiping && commit && offsetRef.current >= SWIPE_TRIGGER_PX;
+    settle();
+    if (reply) onReply?.();
   };
-  const progress = Math.min(1, offset / SWIPE_TRIGGER_PX);
 
   return (
     <div className={`relative max-w-[85%] ${outerClassName}`} style={{ touchAction: "pan-y" }}>
       {onReply && (
         <span
           aria-hidden="true"
+          ref={iconRef}
           className="pointer-events-none absolute left-0 top-1/2 grid h-8 w-8 place-items-center rounded-full bg-black/10 text-[var(--wa-icon)] dark:bg-white/10"
-          style={{
-            opacity: progress,
-            transform: `translate(${Math.min(offset, SWIPE_MAX_PX) * 0.4}px, -50%) scale(${0.6 + 0.4 * progress})`,
-          }}
+          style={{ opacity: 0, transform: "translate3d(0, -50%, 0) scale(0.6)" }}
         >
           <Reply className="h-4 w-4" />
         </span>
@@ -111,11 +187,7 @@ export function PressableBubble({
       <div
         ref={ref}
         className={`relative select-none ${className}`}
-        style={{
-          WebkitTouchCallout: "none",
-          transform: offset ? `translateX(${offset}px)` : undefined,
-          transition: swiping.current ? "none" : "transform 180ms ease-out",
-        }}
+        style={{ WebkitTouchCallout: "none" }}
         onPointerDown={(e) => {
           if (e.pointerType === "mouse" && e.button !== 0) return;
           pressed.current = true;
@@ -136,9 +208,11 @@ export function PressableBubble({
             clear();
           }
           if (!onReply || fired.current) return;
-          if (!swiping.current && dx > 14 && dx > Math.abs(dy) * 1.6) {
+          if (!swiping.current && dx > SWIPE_START_PX && dx > Math.abs(dy) * 1.2) {
             swiping.current = true;
             swiped.current = true;
+            clear(); // a swipe is never also a long press
+            beginDrag();
             try {
               e.currentTarget.setPointerCapture(e.pointerId);
             } catch {
@@ -146,11 +220,9 @@ export function PressableBubble({
             }
           }
           if (swiping.current) {
-            // a little resistance past the trigger point
-            const raw = Math.max(0, dx);
-            setOffset(
-              raw <= SWIPE_TRIGGER_PX ? raw : SWIPE_TRIGGER_PX + (raw - SWIPE_TRIGGER_PX) * 0.3,
-            );
+            // measured from where the swipe began, so the bubble starts moving from rest
+            // (no jump) and then follows the finger 1:1
+            drag(Math.max(0, dx - SWIPE_START_PX));
           }
         }}
         onPointerUp={(e) => {
@@ -187,7 +259,11 @@ export function PressableBubble({
           clear();
           finishSwipe(false);
         }}
-        onLostPointerCapture={() => {
+        onLostPointerCapture={(e) => {
+          // On touch screens the browser first holds the finger on the text inside the bubble;
+          // taking over the finger for the swipe releases that hold and fires this event on the
+          // inner element. That is not the finger lifting, so it must not end the swipe.
+          if (e.target !== e.currentTarget) return;
           pressed.current = false;
           if (swiping.current) finishSwipe(false);
         }}
@@ -195,7 +271,7 @@ export function PressableBubble({
           if (swiping.current) return; // the pointer is captured: keep following it
           pressed.current = false;
           clear();
-          if (offset) setOffset(0);
+          if (offsetRef.current) settle();
         }}
         onContextMenu={(e) => {
           // right-click, or the phone's own long-press: use our menu instead of the system one
