@@ -23,6 +23,7 @@ describe("push helpers", () => {
     expect(pushStateText("needs-install")).toMatch(/Add to Home Screen/);
     expect(pushStateText("denied")).toMatch(/blocked/);
     expect(pushStateText("unsupported")).toMatch(/doesn't support/);
+    expect(pushStateText("needs-app-update")).toMatch(/latest version of the app/);
     expect(pushStateText("on")).toMatch(/on/);
   });
 });

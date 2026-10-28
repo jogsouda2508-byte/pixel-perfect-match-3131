@@ -1,7 +1,15 @@
 import { supabase } from "@/integrations/supabase/client";
+import {
+  disableNativePush,
+  enableNativePush,
+  getNativePushState,
+  isNativePlatform,
+} from "@/lib/native-push";
 
 /**
  * Web Push (notifications while the app / tab is closed).
+ * Inside the Android app (Capacitor) there is no Web Push: the same functions below hand over
+ * to src/lib/native-push.ts, which uses Firebase Cloud Messaging.
  * The service worker is /sw.js; the server side is the `send-push` Edge Function.
  * Nothing here asks for permission by itself: `enablePush` must be called from a tap.
  */
@@ -18,7 +26,9 @@ export type PushState =
   /** not asked yet, or asked but not subscribed */
   | "off"
   /** this browser is subscribed */
-  | "on";
+  | "on"
+  /** the installed Android app was built before notifications were added: install the new one */
+  | "needs-app-update";
 
 const SW_URL = "/sw.js";
 
@@ -73,6 +83,8 @@ async function currentSubscription(): Promise<PushSubscription | null> {
 /** What the UI should show right now. */
 export async function getPushState(): Promise<PushState> {
   if (typeof window === "undefined") return "unsupported";
+  // The Android app has no Web Push: it uses Firebase through the native plugin instead.
+  if (isNativePlatform()) return getNativePushState();
   // iPhone Safari (in a normal tab) has no PushManager until the app is on the Home Screen.
   if (isIosDevice() && !isStandalone()) return "needs-install";
   if (!isPushSupported()) return "unsupported";
@@ -82,13 +94,21 @@ export async function getPushState(): Promise<PushState> {
   return "off";
 }
 
-export type EnableResult = "on" | "denied" | "dismissed" | "unsupported" | "needs-install" | "not-configured";
+export type EnableResult =
+  | "on"
+  | "denied"
+  | "dismissed"
+  | "unsupported"
+  | "needs-install"
+  | "not-configured"
+  | "needs-app-update";
 
 /**
  * Asks for permission (call this from a tap!), subscribes this browser and saves the
  * subscription for the signed-in person.
  */
 export async function enablePush(): Promise<EnableResult> {
+  if (isNativePlatform()) return enableNativePush();
   const state = await getPushState();
   if (state === "unsupported" || state === "needs-install" || state === "not-configured") return state;
   if (state === "denied") return "denied";
@@ -128,6 +148,7 @@ export async function enablePush(): Promise<EnableResult> {
 
 /** Turns notifications off for this browser: removes the saved row, then unsubscribes. */
 export async function disablePush(): Promise<void> {
+  if (isNativePlatform()) return disableNativePush();
   const sub = await currentSubscription();
   if (!sub) return;
   const { error } = await supabase.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
@@ -158,7 +179,11 @@ export function pushStateText(state: PushState): string {
     case "off":
       return "Get notified about messages, likes, comments and follows, even when the app is closed.";
     case "denied":
-      return "Notifications are blocked. Allow them for this site in your browser settings, then come back.";
+      return isNativePlatform()
+        ? "Notifications are blocked. Open your phone's Settings > Apps > Gicco > Notifications, allow them, then come back."
+        : "Notifications are blocked. Allow them for this site in your browser settings, then come back.";
+    case "needs-app-update":
+      return "This version of the app can't show notifications yet. Please install the latest version of the app.";
     case "needs-install":
       return "On iPhone, first tap Share → Add to Home Screen, then open Gicco from your Home Screen to turn notifications on.";
     case "not-configured":

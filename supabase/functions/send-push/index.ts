@@ -1,5 +1,7 @@
 // Supabase Edge Function: send-push
-// Sends a Web Push notification to every saved browser of the given people.
+// Sends a notification to every saved device of the given people:
+//   - browsers (Web Push, table push_subscriptions)
+//   - the Android app (Firebase Cloud Messaging, table device_tokens)
 //
 // Called by Postgres (pg_net, from the triggers in
 // supabase/migrations/20261023000000_push_triggers.sql) with the header
@@ -7,12 +9,15 @@
 // so nobody else can make this function send notifications.
 //
 // Secrets (supabase secrets set ...):
-//   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (mailto:you@example.com),
 //   PUSH_WEBHOOK_SECRET
+//   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (mailto:you@example.com)  -> browsers
+//   FCM_SERVICE_ACCOUNT (the whole Firebase service-account JSON file)            -> Android
+// Either group may be left out; at least one must be set.
 // SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are provided by Supabase automatically.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
+import { getAccessToken, parseServiceAccount, sendFcm } from "./fcm.ts";
 import {
   isGoneStatus,
   parsePushRequest,
@@ -35,11 +40,14 @@ Deno.serve(async (req) => {
   const publicKey = Deno.env.get("VAPID_PUBLIC_KEY");
   const privateKey = Deno.env.get("VAPID_PRIVATE_KEY");
   const subject = Deno.env.get("VAPID_SUBJECT");
-  if (!publicKey || !privateKey || !subject) {
-    console.error("send-push: VAPID secrets are missing");
+  const webReady = !!(publicKey && privateKey && subject);
+  const serviceAccount = parseServiceAccount(Deno.env.get("FCM_SERVICE_ACCOUNT"));
+  if (!webReady && !serviceAccount) {
+    console.error("send-push: neither the VAPID secrets nor FCM_SERVICE_ACCOUNT are set");
     return json(500, { error: "Push is not configured." });
   }
-  webpush.setVapidDetails(subject, publicKey, privateKey);
+  if (webReady) webpush.setVapidDetails(subject!, publicKey!, privateKey!);
+  else console.warn("send-push: VAPID secrets are missing, browsers will not be notified");
 
   let parsed;
   try {
@@ -50,30 +58,39 @@ Deno.serve(async (req) => {
   if (!parsed.ok) return json(400, { error: parsed.error });
 
   const recipients = recipientsWithoutSender(parsed.value);
-  if (recipients.length === 0) return json(200, { sent: 0, removed: 0, failed: 0 });
+  if (recipients.length === 0) {
+    return json(200, { sent: 0, removed: 0, failed: 0, android: { sent: 0, removed: 0, failed: 0 } });
+  }
 
-  // service role: reads every person's subscriptions (RLS would hide them from the browser)
+  // service role: reads every person's devices (RLS would hide them from the browser)
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     { auth: { persistSession: false } },
   );
-  const { data: subs, error } = await supabase
-    .from("push_subscriptions")
-    .select("id, endpoint, p256dh, auth")
-    .in("user_id", recipients);
-  if (error) {
-    console.error("send-push: loading subscriptions failed", error);
+  const [webRows, phoneRows] = await Promise.all([
+    webReady
+      ? supabase.from("push_subscriptions").select("id, endpoint, p256dh, auth").in("user_id", recipients)
+      : Promise.resolve({ data: [], error: null }),
+    serviceAccount
+      ? supabase.from("device_tokens").select("id, token").in("user_id", recipients)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (webRows.error) {
+    console.error("send-push: loading subscriptions failed", webRows.error);
     return json(500, { error: "Couldn't load subscriptions." });
   }
+  // device_tokens only exists after its migration: a missing table must not stop browser push
+  if (phoneRows.error) console.error("send-push: loading device tokens failed", phoneRows.error);
 
-  const payload = JSON.stringify(toPayload(parsed.value));
+  const pushPayload = toPayload(parsed.value);
+  const payload = JSON.stringify(pushPayload);
   const gone: string[] = [];
   let sent = 0;
   let failed = 0;
 
   await Promise.all(
-    (subs ?? []).map(async (s) => {
+    (webRows.data ?? []).map(async (s) => {
       try {
         await webpush.sendNotification(
           { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
@@ -98,5 +115,45 @@ Deno.serve(async (req) => {
     if (delError) console.error("send-push: removing dead subscriptions failed", delError);
   }
 
-  return json(200, { sent, removed: gone.length, failed });
+  // Android app (Firebase Cloud Messaging)
+  let phoneSent = 0;
+  let phoneFailed = 0;
+  const deadPhones: string[] = [];
+  const phones = phoneRows.error ? [] : (phoneRows.data ?? []);
+  if (serviceAccount && phones.length > 0) {
+    try {
+      const accessToken = await getAccessToken(serviceAccount);
+      await Promise.all(
+        phones.map(async (p) => {
+          try {
+            const r = await sendFcm(serviceAccount, accessToken, p.token, pushPayload);
+            if (r.ok) phoneSent++;
+            else if (r.dead) deadPhones.push(p.id);
+            else {
+              phoneFailed++;
+              console.error("send-push: FCM delivery failed", r.status, r.code);
+            }
+          } catch (e) {
+            phoneFailed++;
+            console.error("send-push: FCM request failed", (e as Error).message);
+          }
+        }),
+      );
+    } catch (e) {
+      phoneFailed += phones.length;
+      console.error("send-push: FCM sign-in failed", (e as Error).message);
+    }
+  }
+  // UNREGISTERED = the app was uninstalled or its token rotated: forget it
+  if (deadPhones.length > 0) {
+    const { error: delError } = await supabase.from("device_tokens").delete().in("id", deadPhones);
+    if (delError) console.error("send-push: removing dead device tokens failed", delError);
+  }
+
+  return json(200, {
+    sent,
+    removed: gone.length,
+    failed,
+    android: { sent: phoneSent, removed: deadPhones.length, failed: phoneFailed },
+  });
 });

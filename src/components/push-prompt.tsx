@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Bell, Loader2, X } from "lucide-react";
+import { useRouter } from "@tanstack/react-router";
 import { useAuth } from "@/lib/auth";
+import {
+  initNativePush,
+  isNativePlatform,
+  setNativePushHandlers,
+  syncNativePush,
+} from "@/lib/native-push";
 import {
   disablePush,
   enablePush,
@@ -47,7 +54,13 @@ export function usePush() {
     try {
       const result = await enablePush();
       if (result === "on") toast.success("Notifications are on");
-      else if (result === "denied") toast.error("Notifications are blocked in your browser settings.");
+      else if (result === "denied")
+        toast.error(
+          isNativePlatform()
+            ? "Notifications are blocked. Allow them in your phone's Settings > Apps > Gicco."
+            : "Notifications are blocked in your browser settings.",
+        );
+      else if (result === "needs-app-update") toast.error(pushStateText("needs-app-update"));
       await refresh();
       return result;
     } catch (e) {
@@ -85,11 +98,37 @@ export function PushPrompt() {
   const { state, busy, turnOn } = usePush();
   const [ready, setReady] = useState(false);
   const [hidden, setHidden] = useState(false);
+  const router = useRouter();
   const signedIn = !!user && !!profile;
 
   // Start the service worker once someone is signed in (harmless, and needed for push).
+  // The Android app doesn't use it: it gets its notifications from Firebase instead.
   useEffect(() => {
-    if (signedIn) void registerServiceWorker();
+    if (signedIn && !isNativePlatform()) void registerServiceWorker();
+  }, [signedIn]);
+
+  // Android app: open the right screen when a notification is tapped (also from a cold start),
+  // and show a small banner when one arrives while the app is open.
+  useEffect(() => {
+    if (!isNativePlatform()) return;
+    setNativePushHandlers({
+      onOpen: (path) => router.history.push(path),
+      onForeground: ({ title, body, path }) => {
+        // already looking at that screen (e.g. the same chat): nothing to announce
+        if (path && window.location.pathname === path.split("?")[0]) return;
+        toast(title || "New notification", {
+          ...(body ? { description: body } : {}),
+          ...(path ? { action: { label: "Open", onClick: () => router.history.push(path) } } : {}),
+        });
+      },
+    });
+    void initNativePush();
+    return () => setNativePushHandlers({});
+  }, [router]);
+
+  // Android app: refresh this phone's notification token each time a signed-in person opens the app.
+  useEffect(() => {
+    if (signedIn) void syncNativePush();
   }, [signedIn]);
 
   useEffect(() => {
