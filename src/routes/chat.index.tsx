@@ -69,7 +69,7 @@ function ChatPage() {
             <Button
               type="button"
               variant="outline"
-              className="min-h-11 flex-1 rounded-full sm:flex-none"
+              className="min-h-11 flex-1 rounded-full max-sm:min-h-9 max-sm:gap-1.5 max-sm:px-3 max-sm:text-xs max-sm:[&_svg]:size-3.5 sm:flex-none"
               onClick={() => setNewGroupOpen(true)}
             >
               <Users aria-hidden="true" />
@@ -78,7 +78,7 @@ function ChatPage() {
             <Button
               type="button"
               variant="outline"
-              className="min-h-11 flex-1 rounded-full sm:flex-none"
+              className="min-h-11 flex-1 rounded-full max-sm:min-h-9 max-sm:gap-1.5 max-sm:px-3 max-sm:text-xs max-sm:[&_svg]:size-3.5 sm:flex-none"
               onClick={() => setNewMessageOpen(true)}
             >
               <UserPlus aria-hidden="true" />

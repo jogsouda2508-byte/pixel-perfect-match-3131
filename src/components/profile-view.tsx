@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { CirclePhotoViewer } from "@/components/circle-photo-viewer";
 import { useQuery } from "@tanstack/react-query";
 import {
   Building2,
@@ -15,9 +16,7 @@ import {
   SquareUser,
   UserPlus,
   Video,
-  X,
 } from "lucide-react";
-import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { toast } from "sonner";
 import { BottomNav, SideNav, UserRow } from "@/components/ediraa";
 import { ComposerLauncher } from "@/components/composer";
@@ -159,7 +158,7 @@ export function ProfileView({
   // The Share profile buttons open the QR code screen (it has its own Share / Copy / Download).
   const [qrOpen, setQrOpen] = useState(false);
   const reelsContent = (
-    <section aria-label="Videos" className="mt-3">
+    <section aria-label="Videos" className="mt-1">
       {videos.isLoading && (
         <div className="grid grid-cols-3 gap-1.5" aria-label="Loading videos">
           {[0, 1, 2, 3, 4, 5].map((item) => (
@@ -508,7 +507,7 @@ export function ProfileView({
                 )}
               </section>
             )}
-            <div className="mt-3 grid grid-cols-3 gap-1.5">
+            <div className="mt-1 grid grid-cols-3 gap-1.5">
               {grid.data?.map((p) =>
                 p.media_type === "video" && p.video_url ? (
                   <button
@@ -578,39 +577,12 @@ export function ProfileView({
         />
       )}
       {profile.avatar_url && (
-        <DialogPrimitive.Root open={photoOpen} onOpenChange={setPhotoOpen}>
-          <DialogPrimitive.Portal>
-            <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/95" />
-            <DialogPrimitive.Content
-              onClick={() => setPhotoOpen(false)}
-              className="fixed inset-0 z-50 flex flex-col text-white outline-none"
-            >
-              <DialogPrimitive.Title className="sr-only">
-                {name}'s profile photo
-              </DialogPrimitive.Title>
-              <DialogPrimitive.Description className="sr-only">
-                Full profile photo. Press close or tap outside the photo to return.
-              </DialogPrimitive.Description>
-              <div className="flex justify-end px-3 py-2 pt-[max(env(safe-area-inset-top),0.5rem)]">
-                <DialogPrimitive.Close
-                  aria-label="Close"
-                  className="grid h-11 w-11 place-items-center rounded-full hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                >
-                  <X className="h-6 w-6" />
-                </DialogPrimitive.Close>
-              </div>
-              <div className="flex min-h-0 flex-1 items-center justify-center p-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
-                {/* The entire photo, uncropped and not circular: object-contain inside the screen. */}
-                <img
-                  src={profile.avatar_url}
-                  alt={name}
-                  onClick={(event) => event.stopPropagation()}
-                  className="max-h-full max-w-full rounded-lg object-contain"
-                />
-              </div>
-            </DialogPrimitive.Content>
-          </DialogPrimitive.Portal>
-        </DialogPrimitive.Root>
+        <CirclePhotoViewer
+          open={photoOpen}
+          onOpenChange={setPhotoOpen}
+          src={profile.avatar_url}
+          name={name}
+        />
       )}
       <Gallery
         items={galleryItems}

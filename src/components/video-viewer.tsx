@@ -60,6 +60,7 @@ import { useShareCount } from "@/lib/post-shares";
 import { addComment, fetchComments, type CommentView } from "@/lib/social";
 import { timeAgo } from "@/lib/time";
 import { useFollow } from "@/lib/use-follow";
+import { ReelFollowedBy } from "@/components/reel-followed-by";
 import { useSaved } from "@/lib/use-saved";
 import { downloadVideo } from "@/lib/video-download";
 import {
@@ -575,7 +576,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                   </div>
                 </div>
               )}
-              <header className="absolute inset-x-0 top-0 z-10 flex items-center justify-end bg-gradient-to-b from-black/65 to-transparent p-3 pt-[max(env(safe-area-inset-top),0.75rem)]">
+              <header className="absolute inset-x-0 top-0 z-10 flex items-center justify-end p-3 pt-[max(env(safe-area-inset-top),0.75rem)]">
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -593,7 +594,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                 </div>
               </header>
 
-              <div className="absolute bottom-24 left-3 right-20 z-10 space-y-2 bg-gradient-to-t from-black/85 via-black/45 to-transparent pb-2 pt-8 sm:left-5">
+              <div className="absolute bottom-24 left-3 right-20 z-10 space-y-2 pb-2 [text-shadow:0_1px_3px_rgba(0,0,0,0.75)] sm:left-5">
                 <div className="flex items-center gap-2.5">
                   <Link
                     to="/u/$username"
@@ -649,6 +650,13 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                 >
                   {timeAgo(post.created_at)}
                 </time>
+                {user?.id && (
+                  <ReelFollowedBy
+                    meId={user.id}
+                    ownerId={post.author_id}
+                    ownerName={post.author_name || `@${post.author_username}`}
+                  />
+                )}
               </div>
 
               <div className="absolute bottom-28 right-2 z-10 flex flex-col items-center gap-2 sm:right-4">

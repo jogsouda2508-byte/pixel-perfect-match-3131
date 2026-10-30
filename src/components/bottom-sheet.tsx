@@ -16,6 +16,7 @@ export function BottomSheet({
   footer,
   z = 60,
   compact = false,
+  focusOnOpen = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -26,6 +27,8 @@ export function BottomSheet({
   z?: number;
   /** Smaller sheet and text on phones (desktop looks the same). */
   compact?: boolean;
+  /** Set false so opening the sheet does not focus the first field (and pop up the keyboard). */
+  focusOnOpen?: boolean;
 }) {
   return (
     <DrawerPrimitive.Root open={open} onOpenChange={onOpenChange} shouldScaleBackground={false}>
@@ -37,6 +40,7 @@ export function BottomSheet({
         <DrawerPrimitive.Content
           className={`fixed inset-x-0 bottom-0 mx-auto flex max-h-[92dvh] w-full max-w-lg flex-col rounded-t-[28px] ${compact ? "max-md:rounded-t-[20px]" : ""} border border-b-0 border-border bg-background text-foreground shadow-2xl outline-none`}
           style={{ zIndex: z + 1 }}
+          {...(focusOnOpen ? {} : { onOpenAutoFocus: (e: Event) => e.preventDefault() })}
         >
           <div className={`mx-auto mt-3 h-1.5 w-11 shrink-0 rounded-full bg-muted-foreground/30 ${compact ? "max-md:mt-2 max-md:h-1 max-md:w-9" : ""}`} />
           <div className={`shrink-0 px-5 pb-2 pt-4 ${compact ? "max-md:px-4 max-md:pb-1 max-md:pt-2.5" : ""}`}>

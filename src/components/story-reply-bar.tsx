@@ -75,8 +75,8 @@ export function StoryReplyBar({
         <span
           key={f.id}
           aria-hidden="true"
-          className="story-react-float pointer-events-none fixed bottom-28 z-[110] select-none text-5xl leading-none"
-          style={{ left: f.x - 24 }}
+          className="story-react-float pointer-events-none fixed bottom-28 z-[110] select-none text-4xl leading-none"
+          style={{ left: f.x - 18 }}
         >
           {f.emoji}
         </span>
@@ -93,7 +93,7 @@ export function StoryReplyBar({
             type="button"
             onClick={(e) => react(emoji, e)}
             aria-label={`React ${emoji}`}
-            className="story-react-btn grid h-11 w-11 place-items-center rounded-full text-[26px] leading-none transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white active:scale-90"
+            className="story-react-btn grid h-11 w-11 place-items-center rounded-full text-[20px] leading-none transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white active:scale-90"
           >
             {emoji}
           </button>

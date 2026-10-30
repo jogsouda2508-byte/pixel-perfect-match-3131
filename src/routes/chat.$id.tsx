@@ -857,7 +857,7 @@ function ConversationDetail({ id }: { id: string }) {
                           {firstOfRun && (
                             <span
                               aria-hidden="true"
-                              className={`absolute top-0 h-3 w-2 ${
+                              className={`absolute top-0 h-3 w-[10px] ${
                                 own ? "wa-tail-out -right-2" : "wa-tail -left-2"
                               } ${bg}`}
                             />
@@ -907,7 +907,7 @@ function ConversationDetail({ id }: { id: string }) {
                             color={
                               quoted
                                 ? quoted.sender_id === user?.id
-                                  ? "#00a884"
+                                  ? "#7c5ce6"
                                   : senderColor(quoted.sender_id)
                                 : "#8696a0"
                             }
@@ -1074,7 +1074,7 @@ function ConversationDetail({ id }: { id: string }) {
                   <ReplyBar
                     name={nameOf(replyTo.sender_id)}
                     color={
-                      replyTo.sender_id === user?.id ? "#00a884" : senderColor(replyTo.sender_id)
+                      replyTo.sender_id === user?.id ? "#7c5ce6" : senderColor(replyTo.sender_id)
                     }
                     quoted={replyTo}
                     onClose={() => setReplyTo(null)}
@@ -1306,7 +1306,7 @@ function StoryMessageBody({
         <span className="text-xs font-medium text-[var(--wa-meta)]">{label}</span>
       </div>
       {reaction ? (
-        <p className="py-0.5 text-4xl leading-none">{message.body}</p>
+        <p className="py-0.5 text-2xl leading-none">{message.body}</p>
       ) : (
         <p className="whitespace-pre-wrap text-sm">{message.body}</p>
       )}

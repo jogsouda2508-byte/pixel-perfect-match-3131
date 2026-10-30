@@ -591,19 +591,17 @@ html {
   background-position: 0 0;
   background-repeat: repeat;
 }
-/* Chat header: light purple -> pink gradient with soft wave lines. */
+/* Chat header: very light grey with soft wave lines. */
 .wa-header {
-  --wa-meta: rgba(255, 255, 255, 0.82);
-  color: #fff;
+  --wa-meta: rgba(60, 60, 67, 0.7);
+  color: #1f2024;
   background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 80' preserveAspectRatio='none'%3E%3Cpath d='M0 52 C60 20 110 76 180 46 S300 14 400 44' fill='none' stroke='white' stroke-opacity='.35' stroke-width='1.5'/%3E%3Cpath d='M0 66 C70 40 130 82 210 58 S330 30 400 60' fill='none' stroke='white' stroke-opacity='.22' stroke-width='1.5'/%3E%3C/svg%3E"),
-    radial-gradient(circle at 92% 0%, rgba(255, 255, 255, 0.38), transparent 42%),
-    radial-gradient(circle at 8% 120%, rgba(255, 143, 208, 0.45), transparent 45%),
-    linear-gradient(115deg, #8f7bf8 0%, #a68cf8 45%, #c39af3 75%, #f2aada 100%);
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 80' preserveAspectRatio='none'%3E%3Cpath d='M0 52 C60 20 110 76 180 46 S300 14 400 44' fill='none' stroke='%23b4b4bc' stroke-opacity='.45' stroke-width='1.5'/%3E%3Cpath d='M0 66 C70 40 130 82 210 58 S330 30 400 60' fill='none' stroke='%23b4b4bc' stroke-opacity='.3' stroke-width='1.5'/%3E%3C/svg%3E"),
+    linear-gradient(115deg, #f7f7f9 0%, #f3f3f6 100%);
   background-size: 100% 100%;
   background-repeat: no-repeat;
-  text-shadow: 0 1px 2px rgba(60, 30, 120, 0.35);
-  box-shadow: 0 2px 10px rgba(130, 100, 220, 0.25);
+  text-shadow: none;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
 }
 .dark .wa-header {
   background-image:
@@ -612,16 +610,25 @@ html {
     linear-gradient(115deg, #2b2650 0%, #3d2f7a 55%, #5b3a8f 100%);
 }
 .wa-header > a:first-child:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.06);
 }
 .wa-header a img {
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95), 0 0 0 3px rgba(0, 0, 0, 0.06);
 }
+.dark .wa-header {
+  --wa-meta: rgba(255, 255, 255, 0.82);
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(60, 30, 120, 0.35);
+}
+.dark .wa-header > a:first-child:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+/* Message tails: small curved tail (10x12px, overlaps the bubble by 2px so there is no gap) like WhatsApp, instead of a hard triangle. */
 .wa-tail {
-  clip-path: polygon(0 0, 100% 0, 0 100%);
+  clip-path: path("M0 0 H10 V12 Q9 4 0 0 Z");
 }
 .wa-tail-out {
-  clip-path: polygon(0 0, 100% 0, 100% 100%);
+  clip-path: path("M10 0 H0 V12 Q1 4 10 0 Z");
 }
 @keyframes wa-flash {
   0%,

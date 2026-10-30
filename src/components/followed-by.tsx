@@ -31,9 +31,9 @@ export function FollowedBy({ meId, profileId }: { meId: string; profileId: strin
   const others = data.total - 2;
   return (
     <div className="mt-3 flex items-center gap-3" aria-label="Followed by people you follow">
-      <div className="flex shrink-0 -space-x-3">
+      <div className="flex shrink-0 -space-x-1.5">
         {data.people.map((p) => (
-          <span key={p.id} className="rounded-full">
+          <span key={p.id} className="rounded-full ring-2 ring-background">
             <Avatar src={p.avatar_url} name={p.full_name || p.username} size={28} />
           </span>
         ))}
