@@ -1,6 +1,7 @@
 import { randomId } from "@/lib/uuid";
 import { supabase } from "@/integrations/supabase/client";
 import { removeStoryVideoFile } from "@/lib/story-video";
+import { embedMusic, readEmbeddedMusic } from "@/lib/story-music";
 import { videoUsedByHighlight } from "@/lib/highlights";
 import type {
   Audience,
@@ -401,6 +402,9 @@ export type StoryItem = {
   segment_start: number;
   segment_end: number | null;
   created_at: string;
+  /** song attached to a photo story: "Song - Artist" and a short preview clip that plays with it */
+  music_title?: string | null;
+  music_url?: string | null;
   /** optional local flag used by withStoryLiked(); the app reads likes from StoryEngagement */
   liked_by_me?: boolean;
 };
@@ -447,6 +451,38 @@ type StoryAuthor = {
   avatar_url: string | null;
 };
 
+// The song on a photo story lives in two optional columns (20261101000000_story_music.sql). It is
+// read in a separate small query so a database without those columns never affects loading the
+// stories themselves: any problem here just means "no song".
+let musicColumnsMissing = false;
+async function loadStoryMusic(
+  rows: { id: string; video_url: string | null }[],
+): Promise<Map<string, { music_title: string | null; music_url: string | null }>> {
+  const out = new Map<string, { music_title: string | null; music_url: string | null }>();
+  const ids = rows.filter((r) => !r.video_url).map((r) => r.id);
+  if (musicColumnsMissing || ids.length === 0) return out;
+  try {
+    const { data, error } = await supabase
+      .from("stories")
+      .select("id, music_title, music_url")
+      .in("id", ids)
+      .not("music_url", "is", null);
+    if (error) {
+      if (isMissingColumnError(error)) musicColumnsMissing = true;
+      return out;
+    }
+    for (const r of (data ?? []) as unknown as {
+      id: string;
+      music_title: string | null;
+      music_url: string | null;
+    }[])
+      out.set(r.id, { music_title: r.music_title, music_url: r.music_url });
+  } catch {
+    // a song is an extra: never block the stories because of it
+  }
+  return out;
+}
+
 export async function fetchStories(meId: string): Promise<StoryGroup[]> {
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const full = await supabase
@@ -475,6 +511,7 @@ export async function fetchStories(meId: string): Promise<StoryGroup[]> {
   }
 
   const storyRows = (rows ?? []) as Omit<StoryWithAuthor, "author">[];
+  const songs = await loadStoryMusic(storyRows);
   const authors = new Map<string, StoryAuthor>();
   const authorIds = [...new Set(storyRows.map((r) => r.author_id))];
   if (authorIds.length > 0) {
@@ -501,10 +538,12 @@ export async function fetchStories(meId: string): Promise<StoryGroup[]> {
       items: [],
       latest: s.created_at,
     };
+    // a song saved inside the picture address (when the music columns are missing)
+    const embedded = readEmbeddedMusic(s.image_url);
     g.items.push({
       id: s.id,
       media_type: s.media_type ?? "image",
-      image_url: s.image_url,
+      image_url: embedded.image_url,
       video_url: s.video_url,
       upload_id: s.upload_id,
       segment_index: s.segment_index ?? 0,
@@ -512,6 +551,8 @@ export async function fetchStories(meId: string): Promise<StoryGroup[]> {
       segment_start: s.segment_start ?? 0,
       segment_end: s.segment_end,
       created_at: s.created_at,
+      music_title: songs.get(s.id)?.music_title ?? embedded.music_title,
+      music_url: songs.get(s.id)?.music_url ?? embedded.music_url,
     });
     g.latest = s.created_at;
     groups.set(s.author_id, g);
@@ -526,11 +567,30 @@ export async function fetchStories(meId: string): Promise<StoryGroup[]> {
   );
 }
 
-export async function createStory(authorId: string, file: File): Promise<void> {
+export async function createStory(
+  authorId: string,
+  file: File,
+  /** optional song: saved with the story and played while it is watched */
+  music?: { title: string; url: string } | null,
+): Promise<void> {
   const image_url = await uploadImage(authorId, "stories", file);
-  const { error } = await supabase
-    .from("stories")
-    .insert({ author_id: authorId, image_url });
+  const row = { author_id: authorId, image_url };
+  if (music) {
+    const withMusic = await supabase
+      .from("stories")
+      .insert({ ...row, music_title: music.title, music_url: music.url });
+    if (!withMusic.error) return;
+    // The music columns don't exist yet (SQL not run, or the API hasn't picked them up): keep the
+    // song with the picture instead, so it still plays.
+    if (!isMissingColumnError(withMusic.error)) fail("Creating the story", withMusic.error);
+    console.warn("Story music columns are missing; run 20261101000000_story_music.sql in Supabase.");
+    const { error } = await supabase
+      .from("stories")
+      .insert({ ...row, image_url: embedMusic(image_url, music) });
+    if (error) fail("Creating the story", error);
+    return;
+  }
+  const { error } = await supabase.from("stories").insert(row);
   if (error) fail("Creating the story", error);
 }
 

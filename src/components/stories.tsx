@@ -12,10 +12,14 @@ import {
   MapPin,
   Plus,
   Trash2,
+  Volume2,
+  VolumeX,
   X,
 } from "lucide-react";
 import { Avatar } from "@/components/ediraa";
 import { PollCard, PollSheet } from "@/components/poll-card";
+import { StoryEditor } from "@/components/story-editor";
+import { StoryMusicPlayer } from "@/components/story-music-player";
 import { StoryReplyBar } from "@/components/story-reply-bar";
 import { StoryVideoDialog } from "@/components/story-video-dialog";
 import { useAuth } from "@/lib/auth";
@@ -65,6 +69,8 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
     durationSeconds: number;
   } | null>(null);
   const [checking, setChecking] = useState(false);
+  // A single photo opens the story editor (text, stickers, music, drawing, caption) first.
+  const [editing, setEditing] = useState<File | null>(null);
 
   const meId = user?.id ?? "";
   // Stories I already watched (their ring part turns grey) and who is loading right now.
@@ -127,11 +133,18 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
 
   const upload = useMutation({
     // One story per photo, uploaded in the order picked. If one fails, the ones before it stay.
-    mutationFn: async (files: File[]) => {
+    mutationFn: async ({
+      files,
+      music,
+    }: {
+      files: File[];
+      music?: { title: string; url: string } | null;
+    }) => {
       let done = 0;
       try {
         for (const file of files) {
-          await createStory(meId, file);
+          if (music) await createStory(meId, file, music);
+          else await createStory(meId, file);
           done += 1;
         }
       } catch (e) {
@@ -190,7 +203,13 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
         return;
       }
     }
-    upload.mutate(picked);
+    // One still photo: edit it first. An animated GIF skips the editor (it would become a still
+    // picture), and several photos at once are added straight away as before.
+    if (picked.length === 1 && first && first.type !== "image/gif") {
+      setEditing(first);
+      return;
+    }
+    upload.mutate({ files: picked });
   };
 
   const busy = upload.isPending || checking;
@@ -320,6 +339,17 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
         )}
       </div>
 
+      {editing && (
+        <StoryEditor
+          file={editing}
+          onClose={() => setEditing(null)}
+          onShare={(edited, music) => {
+            setEditing(null);
+            upload.mutate({ files: [edited], music });
+          }}
+        />
+      )}
+
       {video && (
         <StoryVideoDialog
           file={video.file}
@@ -405,6 +435,11 @@ function StoryViewer({
   const sheetOpenRef = useRef(false);
   sheetOpenRef.current = pollSheetOpen;
   const paused = viewersOpen || held || replying || pollSheetOpen;
+  // The song of a photo story: the speaker button in the header mutes it for this viewing.
+  const [musicMuted, setMusicMuted] = useState(false);
+  // The browser may refuse to start sound on its own: then the speaker button starts it.
+  const [musicBlocked, setMusicBlocked] = useState(false);
+  const [musicRetry, setMusicRetry] = useState(0);
   // When the current press started, so a long press is never counted as a tap (double-tap like).
   const pressStartRef = useRef<number | null>(null);
   // Where the current press began, to tell a sideways swipe from a tap or a hold.
@@ -699,6 +734,27 @@ function StoryViewer({
             </div>
           </>
         )}
+        {item.music_url && itemIsPhoto && (
+          <button
+            type="button"
+            onClick={() => {
+              if (musicBlocked) {
+                setMusicMuted(false);
+                setMusicRetry((n) => n + 1);
+              } else setMusicMuted((m) => !m);
+            }}
+            aria-label={
+              musicBlocked ? "Play the song" : musicMuted ? "Turn the song on" : "Mute the song"
+            }
+            className={`rounded-full p-2 hover:bg-white/10 ${musicBlocked ? "animate-pulse bg-white/20" : ""}`}
+          >
+            {musicMuted || musicBlocked ? (
+              <VolumeX className="h-5 w-5" />
+            ) : (
+              <Volume2 className="h-5 w-5" />
+            )}
+          </button>
+        )}
         {isMine && (
           <button
             onClick={onAdd}
@@ -776,6 +832,16 @@ function StoryViewer({
             alt=""
             draggable={false}
             className="max-h-full max-w-full object-contain"
+          />
+        )}
+        {item.music_url && itemIsPhoto && (
+          <StoryMusicPlayer
+            key={item.id}
+            url={item.music_url}
+            paused={paused}
+            muted={musicMuted}
+            retry={musicRetry}
+            onBlocked={setMusicBlocked}
           />
         )}
         {i > 0 && (

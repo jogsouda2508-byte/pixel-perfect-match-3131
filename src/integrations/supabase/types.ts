@@ -71,6 +71,9 @@ export type StoryRow = {
   segment_start: number;
   segment_end: number | null;
   duration_seconds: number | null;
+  /** optional song on a photo story (needs 20261101000000_story_music.sql) */
+  music_title?: string | null;
+  music_url?: string | null;
 };
 
 /** One row of `story_views`: someone who viewed a story, and whether they liked it */
@@ -453,6 +456,8 @@ export type Database = {
           segment_start?: number;
           segment_end?: number | null;
           duration_seconds?: number | null;
+          music_title?: string | null;
+          music_url?: string | null;
         };
         Update: { image_url?: string | null };
         Relationships: [

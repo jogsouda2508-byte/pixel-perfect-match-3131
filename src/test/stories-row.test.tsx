@@ -223,6 +223,8 @@ describe("tapping my own Create Story bubble", () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
     const photo = new File([new Uint8Array(10)], "pic.jpg", { type: "image/jpeg" });
     fireEvent.change(input, { target: { files: [photo] } });
+    // a single photo now opens the story editor first; Share publishes it
+    fireEvent.click(await screen.findByRole("button", { name: "Share story" }));
 
     // the moment the upload finishes my story must already be in the list
     const mine = await screen.findByRole("button", { name: "View your story" });
@@ -270,6 +272,7 @@ describe("adding several stories", () => {
   it("still says 'Story added' for a single photo", async () => {
     h.createStory.mockResolvedValue(undefined);
     await pick(photo("a.jpg"));
+    fireEvent.click(await screen.findByRole("button", { name: "Share story" }));
     await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("Story added"));
   });
 
