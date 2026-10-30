@@ -251,7 +251,7 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
       <div
         role="list"
         aria-label="Stories"
-        className="-mx-4 flex snap-x gap-3 overflow-x-auto scroll-px-4 px-4 pb-1 [scrollbar-width:none] md:mx-0 md:px-0 [&::-webkit-scrollbar]:hidden"
+        className="-mx-4 flex snap-x gap-0 overflow-x-auto scroll-px-4 sm:gap-3 px-4 pb-1 [scrollbar-width:none] md:mx-0 md:px-0 [&::-webkit-scrollbar]:hidden"
       >
         <input
           ref={fileRef}
