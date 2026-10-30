@@ -143,7 +143,10 @@ describe("text font styles", () => {
 describe("photo view", () => {
   it("keeps the zoomed photo covering the picture", async () => {
     const { clampView } = await import("@/lib/story-render");
-    expect(clampView({ zoom: 0.5, x: 3, y: 3 })).toEqual({ zoom: 1, x: 0, y: 0 });
+    expect(clampView({ zoom: 1, x: 3, y: 3 })).toEqual({ zoom: 1, x: 0, y: 0 });
+    // shrinking is allowed (down to a limit), and the photo stays on the canvas
+    expect(clampView({ zoom: 0.5, x: 3, y: -3 })).toEqual({ zoom: 0.5, x: 0.25, y: -0.25 });
+    expect(clampView({ zoom: 0.01, x: 0, y: 0 }).zoom).toBe(0.3);
     expect(clampView({ zoom: 2, x: 5, y: -5 })).toEqual({ zoom: 2, x: 0.5, y: -0.5 });
     expect(clampView({ zoom: 99, x: 0, y: 0 }).zoom).toBe(4);
   });

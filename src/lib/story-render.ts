@@ -421,11 +421,14 @@ function drawTextBlock(ctx: CanvasRenderingContext2D, layout: TextLayout, color:
 /** How the photo is zoomed inside the picture: 1 = whole photo; x / y = shift as a fraction of the picture. */
 export type PhotoView = { zoom: number; x: number; y: number };
 export const MAX_PHOTO_ZOOM = 4;
+/** the photo can also be shrunk (zoomed out) down to this size; the canvas around it stays black */
+export const MIN_PHOTO_ZOOM = 0.3;
 
-/** Keeps the zoomed photo covering the whole picture (no empty edges). */
+/** Keeps the photo within sensible limits: zoomed in it covers the canvas, shrunk it stays on it. */
 export function clampView(v: PhotoView): PhotoView {
-  const zoom = Math.min(MAX_PHOTO_ZOOM, Math.max(1, v.zoom));
-  const lim = (zoom - 1) / 2;
+  const zoom = Math.min(MAX_PHOTO_ZOOM, Math.max(MIN_PHOTO_ZOOM, v.zoom));
+  // zoomed in: the photo keeps covering the canvas; shrunk: it stays inside the canvas
+  const lim = Math.abs(zoom - 1) / 2;
   return { zoom, x: Math.min(lim, Math.max(-lim, v.x)), y: Math.min(lim, Math.max(-lim, v.y)) };
 }
 

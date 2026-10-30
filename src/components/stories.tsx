@@ -289,12 +289,15 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
               onClick={onOwnBubble}
               disabled={busy || syncing}
               aria-label="Add to your story"
-              className="absolute right-0 top-[44px] grid h-7 w-7 place-items-center rounded-full border-2 border-background bg-primary text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-80"
+              // badge's bottom-right corner = avatar's bottom-right corner (row is 72px wide, avatar centred,
+              // 4px button padding on top); follows AVATAR if it is resized
+              style={{ right: (72 - AVATAR) / 2, top: 4 + AVATAR - 24 }}
+              className="absolute grid h-6 w-6 place-items-center rounded-full border-2 border-background bg-primary text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-80"
             >
               {busy || syncing ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader2 className="h-3 w-3 animate-spin" />
               ) : (
-                <Plus className="h-4 w-4" strokeWidth={3} />
+                <Plus className="h-3.5 w-3.5" strokeWidth={3} />
               )}
             </button>
           )}

@@ -172,7 +172,7 @@ export function StoryEditor({
   const f = (stage.w || DESIGN_W) / W;
 
   const [view, setView] = useState<PhotoView>({ zoom: 1, x: 0, y: 0 });
-  const viewChanged = view.zoom > 1.001;
+  const viewChanged = Math.abs(view.zoom - 1) > 0.001;
   const hasEdits = items.length > 0 || strokes.length > 0 || caption.trim().length > 0 || viewChanged;
   const music: StoryMusic | null = useMemo(
     () => items.find((i) => i.kind === "music")?.music ?? null,
@@ -274,7 +274,7 @@ export function StoryEditor({
   }, [confirmDiscard, textDraft, sheet, tool, requestClose, commitText]);
 
   // ------------------------------------------------------- photo zoom + move
-  const zoomed = view.zoom > 1.001 || Math.abs(view.x) > 0.001 || Math.abs(view.y) > 0.001;
+  const zoomed = Math.abs(view.zoom - 1) > 0.001 || Math.abs(view.x) > 0.001 || Math.abs(view.y) > 0.001;
   const viewGest = useRef<{
     pts: Map<number, { x: number; y: number }>;
     base: PhotoView;
@@ -358,7 +358,7 @@ export function StoryEditor({
     const pinching = g.pts.size >= 2;
     const zoom = pinching ? g.base.zoom * (spanOf(g.pts).dist / g.startDist) : g.base.zoom;
     // one finger moves a zoomed photo; two fingers zoom it (and move it with the middle point)
-    if (!pinching && g.base.zoom <= 1.001) return;
+    if (!pinching && Math.abs(g.base.zoom - 1) <= 0.001) return;
     setView(
       clampView({
         zoom,
@@ -392,7 +392,7 @@ export function StoryEditor({
     setView((v) => clampView({ ...v, zoom: v.zoom * Math.exp(-e.deltaY * 0.0025) }));
   };
   const onBgDoubleClick = () =>
-    setView((v) => (v.zoom > 1.001 ? { zoom: 1, x: 0, y: 0 } : clampView({ zoom: 2, x: 0, y: 0 })));
+    setView((v) => (Math.abs(v.zoom - 1) > 0.001 ? { zoom: 1, x: 0, y: 0 } : clampView({ zoom: 2, x: 0, y: 0 })));
 
   // ---------------------------------------------------------- items + gestures
   const gestRef = useRef<Gesture | null>(null);
@@ -457,9 +457,14 @@ export function StoryEditor({
       setDragging(true);
     }
     if (!g.moved && g.pts.size < 2) return;
+    // keep the WHOLE item on the canvas (its edge stops at the canvas edge), so nothing is ever cut off
+    const node = stageRef.current?.querySelector<HTMLElement>(`[data-item-id="${g.id}"]`);
+    const nr = node?.getBoundingClientRect();
+    const hw = nr ? Math.min(0.5, nr.width / 2 / r.width) : 0;
+    const hh = nr ? Math.min(0.5, nr.height / 2 / r.height) : 0;
     const patch: Partial<StoryOverlay> = {
-      x: clamp(g.base.x + dx / r.width, 0, 1),
-      y: clamp(g.base.y + dy / r.height, 0, 1),
+      x: clamp(g.base.x + dx / r.width, hw, 1 - hw),
+      y: clamp(g.base.y + dy / r.height, hh, 1 - hh),
     };
     if (g.pts.size >= 2) {
       g.moved = true;
@@ -592,7 +597,16 @@ export function StoryEditor({
     }
     setItems((list) => [
       ...list,
-      { id: newId(), kind: "gif", x: 0.5, y: 0.5, scale: 1, rot: 0, gif: { id: g.id, ratio: g.ratio } },
+      {
+        id: newId(),
+        kind: "gif",
+        x: 0.5,
+        y: 0.5,
+        // smaller to start with on phones (it can still be pinched bigger or smaller)
+        scale: typeof window !== "undefined" && window.innerWidth < 640 ? 0.6 : 1,
+        rot: 0,
+        gif: { id: g.id, ratio: g.ratio },
+      },
     ]);
     setSheet("none");
   };
@@ -701,11 +715,11 @@ export function StoryEditor({
   };
 
   const rail: { key: string; label: string; icon: ReactNode; onClick: () => void; active?: boolean }[] = [
-    { key: "text", label: "Add text", icon: <Type className="h-4 w-4 sm:h-5 sm:w-5" />, onClick: () => setTextDraft({ id: null, text: "", color: "#ffffff", box: false, font: DEFAULT_TEXT_FONT }) },
-    { key: "emoji", label: "Add sticker", icon: <Smile className="h-4 w-4 sm:h-5 sm:w-5" />, onClick: () => setSheet("emoji") },
-    { key: "gif", label: "Add GIF", icon: <ImagePlay className="h-4 w-4 sm:h-5 sm:w-5" />, onClick: () => setSheet("gif") },
-    { key: "music", label: "Add music", icon: <Music2 className="h-4 w-4 sm:h-5 sm:w-5" />, onClick: () => setSheet("music"), active: !!music },
-    { key: "draw", label: "Draw", icon: <Pencil className="h-4 w-4 sm:h-5 sm:w-5" />, onClick: () => setTool("draw") },
+    { key: "text", label: "Add text", icon: <Type className="h-[18px] w-[18px] sm:h-5 sm:w-5" />, onClick: () => setTextDraft({ id: null, text: "", color: "#ffffff", box: false, font: DEFAULT_TEXT_FONT }) },
+    { key: "emoji", label: "Add sticker", icon: <Smile className="h-[18px] w-[18px] sm:h-5 sm:w-5" />, onClick: () => setSheet("emoji") },
+    { key: "gif", label: "Add GIF", icon: <ImagePlay className="h-[18px] w-[18px] sm:h-5 sm:w-5" />, onClick: () => setSheet("gif") },
+    { key: "music", label: "Add music", icon: <Music2 className="h-[18px] w-[18px] sm:h-5 sm:w-5" />, onClick: () => setSheet("music"), active: !!music },
+    { key: "draw", label: "Draw", icon: <Pencil className="h-[18px] w-[18px] sm:h-5 sm:w-5" />, onClick: () => setTool("draw") },
   ];
 
   const root = (
@@ -783,10 +797,10 @@ export function StoryEditor({
               </div>
             )}
 
-            {/* pinch to zoom the photo, drag to move it, double-tap to zoom in / back */}
+            {/* pinch to zoom the photo in or out, drag to move it, double-tap to zoom in / back */}
             <div
               data-testid="photo-zoom-layer"
-              aria-label="Photo: pinch to zoom, drag to move"
+              aria-label="Photo: pinch to zoom in or out, drag to move"
               className={cn("absolute inset-0", tool === "draw" || textDraft ? "pointer-events-none" : "")}
               style={{ touchAction: "none" }}
               onPointerDown={onBgDown}
@@ -895,7 +909,7 @@ export function StoryEditor({
               aria-label="Undo last stroke"
               className="grid h-9 w-9 place-items-center rounded-full bg-black/40 ring-1 ring-white/15 backdrop-blur-md transition active:scale-90 disabled:opacity-40 sm:h-11 sm:w-11"
             >
-              <Undo2 className="h-4 w-4 sm:h-5 sm:w-5" />
+              <Undo2 className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
             </button>
           ) : (
             <button
@@ -904,7 +918,7 @@ export function StoryEditor({
               aria-label="Close editor"
               className="grid h-9 w-9 place-items-center rounded-full bg-black/40 ring-1 ring-white/15 backdrop-blur-md transition active:scale-90 hover:bg-black/55 sm:h-11 sm:w-11"
             >
-              <X className="h-4 w-4 sm:h-5 sm:w-5" />
+              <X className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
             </button>
           )}
         </div>
@@ -1014,7 +1028,7 @@ export function StoryEditor({
             className="flex h-10 shrink-0 items-center gap-1.5 rounded-full px-4 text-[13px] font-bold text-white shadow-lg sm:h-12 sm:gap-2 sm:px-5 sm:text-[15px] shadow-primary/30 transition active:scale-95 disabled:opacity-60"
             style={{ background: "var(--gradient-primary)" }}
           >
-            {sharing ? <Loader2 className="h-4 w-4 animate-spin sm:h-5 sm:w-5" /> : <Send className="h-4 w-4 sm:h-5 sm:w-5" />}
+            {sharing ? <Loader2 className="h-4 w-4 animate-spin sm:h-5 sm:w-5" /> : <Send className="h-[18px] w-[18px] sm:h-5 sm:w-5" />}
             {sharing ? "Preparing…" : "Share"}
           </button>
         </div>
@@ -1184,7 +1198,7 @@ export function StoryEditor({
 
       {/* discard confirmation */}
       {confirmDiscard && (
-        <div className="absolute inset-0 z-[80] grid place-items-center px-8">
+        <div className="absolute inset-0 z-[80] grid place-items-center px-10 sm:px-8">
           <button
             type="button"
             aria-label="Close discard question"
@@ -1194,22 +1208,22 @@ export function StoryEditor({
           <div
             role="alertdialog"
             aria-label="Discard story"
-            className="relative w-full max-w-xs animate-in rounded-3xl bg-zinc-900 p-5 text-center shadow-2xl ring-1 ring-white/10 duration-200 zoom-in-95 fade-in"
+            className="relative w-full max-w-[15rem] animate-in rounded-2xl bg-zinc-900 p-4 text-center sm:max-w-xs sm:rounded-3xl sm:p-5 shadow-2xl ring-1 ring-white/10 duration-200 zoom-in-95 fade-in"
           >
-            <h2 className="text-lg font-bold">Do you want to discard this story?</h2>
-            <p className="mt-1 text-sm text-white/60">If you go back now, your edits will be lost.</p>
-            <div className="mt-5 grid gap-2">
+            <h2 className="text-[15px] font-bold leading-snug sm:text-lg">Do you want to discard this story?</h2>
+            <p className="mt-1 text-xs text-white/60 sm:text-sm">If you go back now, your edits will be lost.</p>
+            <div className="mt-4 grid gap-1.5 sm:mt-5 sm:gap-2">
               <button
                 type="button"
                 onClick={onClose}
-                className="h-11 rounded-full bg-red-500 text-[15px] font-bold transition active:scale-95"
+                className="h-9 rounded-full bg-red-500 text-[13px] font-bold sm:h-11 sm:text-[15px] transition active:scale-95"
               >
                 Discard
               </button>
               <button
                 type="button"
                 onClick={() => setConfirmDiscard(false)}
-                className="h-11 rounded-full bg-white/10 text-[15px] font-semibold transition active:scale-95"
+                className="h-9 rounded-full bg-white/10 text-[13px] font-semibold sm:h-11 sm:text-[15px] transition active:scale-95"
               >
                 Keep editing
               </button>
