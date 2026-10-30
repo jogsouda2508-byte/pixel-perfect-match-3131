@@ -1,3 +1,4 @@
+import { TEXT_FONTS_CSS_URL } from "@/lib/story-render";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -105,6 +106,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "manifest", href: "/manifest.webmanifest" },
       { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" },
+      // font styles for story text (Modern, Classic, Signature, Editor, ...)
+      { rel: "stylesheet", href: TEXT_FONTS_CSS_URL },
     ],
   }),
   shellComponent: RootShell,

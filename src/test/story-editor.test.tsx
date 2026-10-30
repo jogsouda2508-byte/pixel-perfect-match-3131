@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   render: vi.fn(),
@@ -94,6 +94,9 @@ describe("story editor", () => {
     const { onShare } = setup();
     fireEvent.click(screen.getByRole("button", { name: "Add music" }));
     fireEvent.click(await screen.findByRole("button", { name: "Use Kesariya - Arijit Singh" }));
+    // step 2: choose how many seconds, then confirm
+    fireEvent.click(await screen.findByRole("radio", { name: "10s" }));
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(screen.getAllByTestId("overlay-music")).toHaveLength(1);
 
     // jsdom never loads images by itself, so tell the editor the photo is ready
@@ -101,7 +104,7 @@ describe("story editor", () => {
     fireEvent.load(img);
     fireEvent.click(screen.getByRole("button", { name: "Share story" }));
     await waitFor(() =>
-      expect(onShare).toHaveBeenCalledWith(flattened, { title: "Kesariya - Arijit Singh", url: "https://p/1.m4a" }),
+      expect(onShare).toHaveBeenCalledWith(flattened, { title: "Kesariya - Arijit Singh", url: "https://p/1.m4a#len=10" }),
     );
   });
 
@@ -110,6 +113,7 @@ describe("story editor", () => {
     for (let i = 0; i < 2; i += 1) {
       fireEvent.click(screen.getByRole("button", { name: "Add music" }));
       fireEvent.click(await screen.findByRole("button", { name: "Use Kesariya - Arijit Singh" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Done" }));
     }
     expect(screen.getAllByTestId("overlay-music")).toHaveLength(1);
   });
@@ -119,5 +123,88 @@ describe("story editor", () => {
     fireEvent.error(screen.getByAltText("Your photo"));
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Share story" })).toBeDisabled();
+  });
+});
+
+describe("story editor text fonts", () => {
+  it("shows the font styles when adding text and lets you pick one", () => {
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: "Add text" }));
+    const row = screen.getByTestId("text-font-row");
+    expect(row).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Modern font" })).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(screen.getByRole("radio", { name: "Signature font" }));
+    expect(screen.getByRole("radio", { name: "Signature font" })).toHaveAttribute("aria-checked", "true");
+    fireEvent.change(screen.getByLabelText("Story text"), { target: { value: "Hello" } });
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.getByText("Hello")).toBeInTheDocument();
+  });
+});
+
+describe("story editor photo zoom", () => {
+  it("zooms the photo with a double click and resets it", () => {
+    setup();
+    const layer = screen.getByTestId("photo-zoom-layer");
+    expect(screen.queryByRole("button", { name: "Reset photo zoom" })).toBeNull();
+    fireEvent.doubleClick(layer);
+    expect(screen.getByRole("button", { name: "Reset photo zoom" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reset photo zoom" }));
+    expect(screen.queryByRole("button", { name: "Reset photo zoom" })).toBeNull();
+  });
+  it("zooms with the mouse wheel", () => {
+    setup();
+    fireEvent.wheel(screen.getByTestId("photo-zoom-layer"), { deltaY: -200 });
+    expect(screen.getByRole("button", { name: "Reset photo zoom" })).toBeInTheDocument();
+  });
+});
+
+describe("story editor text box focus", () => {
+  it("puts the cursor back in the text box after picking a font or colour", async () => {
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: "Add text" }));
+    const box = screen.getByLabelText("Story text");
+    (box as HTMLTextAreaElement).blur();
+    fireEvent.click(screen.getByRole("radio", { name: "Classic font" }));
+    await waitFor(() => expect(document.activeElement).toBe(box));
+    (box as HTMLTextAreaElement).blur();
+    fireEvent.click(screen.getByRole("button", { name: /Text colour #ff4d6d/ }));
+    await waitFor(() => expect(document.activeElement).toBe(box));
+  });
+});
+
+describe("story editor pinch to resize", () => {
+  // jsdom has no PointerEvent: a MouseEvent carries the finger positions the gestures need
+  beforeAll(() => {
+    class TestPointerEvent extends MouseEvent {
+      pointerId: number;
+      constructor(type: string, init: PointerEventInit = {}) {
+        super(type, init);
+        this.pointerId = init.pointerId ?? 1;
+      }
+    }
+    Object.defineProperty(window, "PointerEvent", { value: TestPointerEvent, configurable: true });
+    Object.defineProperty(HTMLElement.prototype, "setPointerCapture", { value: () => {}, configurable: true });
+  });
+  it("two fingers near a sticker make it bigger (and the photo stays unzoomed)", () => {
+    // the test browser has no layout, so give every box a size
+    const rect = vi
+      .spyOn(Element.prototype, "getBoundingClientRect")
+      .mockReturnValue({ x: 0, y: 0, left: 0, top: 0, right: 360, bottom: 640, width: 360, height: 640, toJSON: () => ({}) });
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: "Add sticker" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add 🔥" }));
+    const sticker = screen.getByTestId("overlay-emoji");
+    expect(sticker.style.transform).toContain("scale(1)");
+    const layer = screen.getByTestId("photo-zoom-layer");
+    const ev = (type: "pointerDown" | "pointerMove" | "pointerUp", id: number, x: number) =>
+      fireEvent[type](layer, { pointerId: id, clientX: x, clientY: 0 });
+    ev("pointerDown", 1, 0);
+    ev("pointerDown", 2, 20);
+    ev("pointerMove", 2, 80); // fingers move apart
+    expect(sticker.style.transform).not.toContain("scale(1)");
+    ev("pointerUp", 2, 80);
+    ev("pointerUp", 1, 0);
+    expect(screen.queryByRole("button", { name: "Reset photo zoom" })).toBeNull();
+    rect.mockRestore();
   });
 });

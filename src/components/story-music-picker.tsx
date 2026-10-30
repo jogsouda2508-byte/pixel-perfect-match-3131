@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { Music2, Pause, Play, Search, X } from "lucide-react";
-import { MUSIC_SUGGESTIONS, searchMusic, type MusicResult, type StoryMusic } from "@/lib/story-music";
+import { ArrowLeft, Music2, Pause, Play, Search, X } from "lucide-react";
+import {
+  DEFAULT_MUSIC_SECONDS,
+  MUSIC_SECONDS,
+  MUSIC_SUGGESTIONS,
+  searchMusic,
+  type MusicResult,
+  type StoryMusic,
+} from "@/lib/story-music";
 import { cn } from "@/lib/utils";
 
 const chipTerm = (chip: string) => (chip === "Trending" ? "top hits" : chip);
@@ -24,6 +31,11 @@ export function StoryMusicPicker({
   const [retry, setRetry] = useState(0);
   const [playing, setPlaying] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // step 2: after a song is tapped, the person picks how many seconds it should last
+  const [selected, setSelected] = useState<MusicResult | null>(null);
+  const [seconds, setSeconds] = useState<number>(DEFAULT_MUSIC_SECONDS);
+  const [previewing, setPreviewing] = useState(false);
+  const previewTimer = useRef<number | null>(null);
 
   const term = query.trim() || chipTerm(chip);
 
@@ -55,9 +67,12 @@ export function StoryMusicPicker({
   }, [term, query, retry]);
 
   const stop = () => {
+    if (previewTimer.current) window.clearTimeout(previewTimer.current);
+    previewTimer.current = null;
     audioRef.current?.pause();
     audioRef.current = null;
     setPlaying(null);
+    setPreviewing(false);
   };
   useEffect(() => stop, []);
 
@@ -75,9 +90,33 @@ export function StoryMusicPicker({
     void audio.play().catch(() => setPlaying(null));
   };
 
+  // Tapping a song opens the "how many seconds?" step instead of using it right away.
   const choose = (r: MusicResult) => {
     stop();
-    onPick({ title: r.title, url: r.url, cover: r.cover });
+    setSelected(r);
+  };
+
+  // Plays the song for just the chosen number of seconds, so they can hear how it will feel.
+  const previewLength = () => {
+    if (!selected) return;
+    if (previewing) {
+      stop();
+      return;
+    }
+    stop();
+    const audio = new Audio(selected.url);
+    audio.volume = 0.8;
+    audio.onended = () => stop();
+    audioRef.current = audio;
+    setPreviewing(true);
+    void audio.play().catch(() => setPreviewing(false));
+    previewTimer.current = window.setTimeout(stop, seconds * 1000);
+  };
+
+  const confirmSeconds = () => {
+    if (!selected) return;
+    stop();
+    onPick({ title: selected.title, url: selected.url, cover: selected.cover ?? null, seconds });
   };
 
   return (
@@ -222,6 +261,86 @@ export function StoryMusicPicker({
               </div>
             ))}
         </div>
+        {selected && (
+          <div
+            className="absolute inset-0 z-10 flex animate-in flex-col rounded-t-[28px] bg-zinc-900 duration-200 fade-in"
+            data-testid="story-music-length"
+          >
+            <div className="mx-auto mt-2.5 h-1 w-10 rounded-full bg-white/25" />
+            <div className="flex items-center gap-2 px-4 pb-2 pt-3">
+              <button
+                type="button"
+                onClick={() => {
+                  stop();
+                  setSelected(null);
+                }}
+                aria-label="Back to songs"
+                className="grid h-9 w-9 place-items-center rounded-full bg-white/10 transition active:scale-90 hover:bg-white/15"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+              <h2 className="text-lg font-bold tracking-tight">How many seconds?</h2>
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col items-center gap-3 overflow-y-auto overscroll-contain px-6 pt-2 sm:gap-6 sm:pt-6">
+              {selected.cover ? (
+                <img
+                  src={selected.cover}
+                  alt=""
+                  className="h-20 w-20 shrink-0 rounded-2xl bg-white/10 object-cover shadow-lg sm:h-28 sm:w-28"
+                />
+              ) : (
+                <div className="grid h-20 w-20 shrink-0 place-items-center rounded-2xl bg-white/10 sm:h-28 sm:w-28">
+                  <Music2 className="h-9 w-9" />
+                </div>
+              )}
+              <div className="min-w-0 max-w-full text-center">
+                <p className="truncate text-base font-semibold">{selected.name}</p>
+                <p className="truncate text-sm text-white/55">{selected.artist}</p>
+              </div>
+              <div className="shrink-0 text-center">
+                <p className="text-4xl font-bold tabular-nums sm:text-5xl">{seconds}s</p>
+                <p className="mt-1 text-sm text-white/55">The song and your story will last this long</p>
+              </div>
+              <div className="flex shrink-0 flex-wrap justify-center gap-2" role="radiogroup" aria-label="Song length in seconds">
+                {MUSIC_SECONDS.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    role="radio"
+                    aria-checked={seconds === n}
+                    onClick={() => {
+                      stop();
+                      setSeconds(n);
+                    }}
+                    className={cn(
+                      "min-w-[56px] rounded-full px-4 py-2 text-sm font-semibold transition active:scale-95",
+                      seconds === n ? "bg-white text-black" : "bg-white/10 text-white/85 hover:bg-white/15",
+                    )}
+                  >
+                    {n}s
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={previewLength}
+                className="flex shrink-0 items-center gap-2 rounded-full bg-white/10 px-5 py-2 text-sm font-semibold transition active:scale-95 hover:bg-white/15"
+              >
+                {previewing ? <Pause className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 fill-current" />}
+                {previewing ? "Stop" : `Preview ${seconds}s`}
+              </button>
+            </div>
+            <div className="shrink-0 border-t border-white/5 bg-zinc-900 px-5 pb-[max(env(safe-area-inset-bottom),1rem)] pt-3">
+              <button
+                type="button"
+                onClick={confirmSeconds}
+                className="h-12 w-full rounded-full bg-white text-[15px] font-bold text-black transition active:scale-[0.98]"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

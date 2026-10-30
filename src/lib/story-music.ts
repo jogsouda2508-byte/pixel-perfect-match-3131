@@ -13,6 +13,8 @@ export type StoryMusic = {
   url: string;
   /** square cover art, shown on the sticker (optional) */
   cover?: string | null;
+  /** how many seconds the person wants the song (and the story) to last */
+  seconds?: number;
 };
 
 export type MusicResult = StoryMusic & {
@@ -31,6 +33,30 @@ type ItunesTrack = {
 
 /** Search chips shown above the results. The first one is loaded when the sheet opens. */
 export const MUSIC_SUGGESTIONS = ["Trending", "Bollywood", "Hip hop", "Chill", "Party", "Romantic"];
+
+/** Lengths the person can pick. iTunes previews are 30 seconds long, so 30 is the most. */
+export const MUSIC_SECONDS = [5, 10, 15, 20, 30] as const;
+export const DEFAULT_MUSIC_SECONDS = 15;
+const MAX_MUSIC_SECONDS = 30;
+
+const clampSeconds = (n: number) =>
+  Math.min(MAX_MUSIC_SECONDS, Math.max(1, Math.round(Number.isFinite(n) ? n : DEFAULT_MUSIC_SECONDS)));
+
+/**
+ * The chosen length travels inside the song address after a "#" (browsers ignore that part when
+ * loading audio), so no new database column is needed and old stories keep working.
+ */
+export function withMusicSeconds(url: string, seconds: number): string {
+  return `${url.split("#")[0]}#len=${clampSeconds(seconds)}`;
+}
+
+/** Splits a saved song address into the real audio address and the chosen length (if any). */
+export function readMusicSeconds(url: string): { url: string; seconds: number | null } {
+  const i = url.indexOf("#len=");
+  if (i < 0) return { url, seconds: null };
+  const n = Number(url.slice(i + 5));
+  return { url: url.slice(0, i), seconds: Number.isFinite(n) && n > 0 ? clampSeconds(n) : null };
+}
 
 export function musicTitle(name: string, artist: string): string {
   return artist ? `${name} - ${artist}` : name;

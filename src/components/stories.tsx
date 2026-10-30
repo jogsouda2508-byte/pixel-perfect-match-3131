@@ -20,6 +20,7 @@ import { Avatar } from "@/components/ediraa";
 import { PollCard, PollSheet } from "@/components/poll-card";
 import { StoryEditor } from "@/components/story-editor";
 import { StoryMusicPlayer } from "@/components/story-music-player";
+import { readMusicSeconds } from "@/lib/story-music";
 import { StoryReplyBar } from "@/components/story-reply-bar";
 import { StoryVideoDialog } from "@/components/story-video-dialog";
 import { useAuth } from "@/lib/auth";
@@ -483,13 +484,16 @@ function StoryViewer({
   const itemIsPhoto =
     !!item && !(item.media_type === "video" && !!item.video_url);
   const itemId = item?.id;
+  // a song picked with a length ("15s") also sets how long the photo stays on screen
+  const song = item?.music_url ? readMusicSeconds(item.music_url) : null;
+  const songSeconds = song?.seconds ?? null;
   const elapsedRef = useRef(0);
   useEffect(() => {
     elapsedRef.current = 0;
   }, [itemId]);
   useEffect(() => {
     if (!itemIsPhoto || paused) return;
-    const DURATION_MS = 5000;
+    const DURATION_MS = songSeconds ? songSeconds * 1000 : 5000;
     const startedAt = performance.now() - elapsedRef.current;
     let raf = 0;
     const tick = (now: number) => {
@@ -505,7 +509,7 @@ function StoryViewer({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [itemId, itemIsPhoto, paused]);
+  }, [itemId, itemIsPhoto, paused, songSeconds]);
 
   // Releasing anywhere (even outside the story, or if the browser cancels the touch) resumes it.
   useEffect(() => {
@@ -837,7 +841,8 @@ function StoryViewer({
         {item.music_url && itemIsPhoto && (
           <StoryMusicPlayer
             key={item.id}
-            url={item.music_url}
+            url={song?.url ?? item.music_url}
+            seconds={songSeconds}
             paused={paused}
             muted={musicMuted}
             retry={musicRetry}

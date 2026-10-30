@@ -3,14 +3,20 @@ import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { Check, Loader2, Music2, Pencil, Send, Smile, Trash2, Type, Undo2, X } from "lucide-react";
 import { StoryMusicPicker } from "@/components/story-music-picker";
-import type { StoryMusic } from "@/lib/story-music";
+import { withMusicSeconds, type StoryMusic } from "@/lib/story-music";
 import {
   BRUSH_COLORS,
   BRUSH_SIZES,
   CAPTION_MAX_CHARS,
   CAPTION_Y,
   DESIGN_W,
+  DEFAULT_TEXT_FONT,
+  clampView,
+  type PhotoView,
   FONT_STACK,
+  TEXT_FONTS,
+  loadTextFonts,
+  textFont,
   K,
   MUSIC_ARTIST_FONT,
   MUSIC_H,
@@ -41,7 +47,7 @@ const EMOJI_GROUPS: { label: string; items: string[] }[] = [
 
 type Tool = "none" | "draw";
 type Sheet = "none" | "emoji" | "music";
-type TextDraft = { id: string | null; text: string; color: string; box: boolean };
+type TextDraft = { id: string | null; text: string; color: string; box: boolean; font: string };
 
 type Gesture = {
   id: string;
@@ -93,6 +99,9 @@ export function StoryEditor({
   const [tool, setTool] = useState<Tool>("none");
   const [sheet, setSheet] = useState<Sheet>("none");
   const [textDraft, setTextDraft] = useState<TextDraft | null>(null);
+  const textBoxRef = useRef<HTMLTextAreaElement>(null);
+  // Put the cursor back in the text box (after picking a font or colour) so no extra tap is needed.
+  const focusTextBox = () => window.requestAnimationFrame(() => textBoxRef.current?.focus());
   const [brushColor, setBrushColor] = useState(BRUSH_COLORS[2] ?? "#ff4d6d");
   const [brushSize, setBrushSize] = useState(BRUSH_SIZES[1] ?? 8);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
@@ -128,29 +137,83 @@ export function StoryEditor({
   const areaRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const [stage, setStage] = useState({ w: 0, h: 0 });
+  // the photo's own shape (width / height); the stage takes exactly this shape
+  const [ratio, setRatio] = useState(9 / 16);
   useEffect(() => {
     const el = areaRef.current;
     if (!el) return;
     const measure = () => {
       const cw = el.clientWidth;
       const ch = el.clientHeight;
-      const w = Math.max(0, Math.min(cw, (ch * 9) / 16));
-      setStage({ w, h: (w * 16) / 9 });
+      const w = Math.max(0, Math.min(cw, ch * ratio));
+      setStage({ w, h: w / ratio });
     };
     measure();
     if (typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [ratio]);
   // screen pixels per export pixel
   const f = (stage.w || DESIGN_W) / W;
 
-  const hasEdits = items.length > 0 || strokes.length > 0 || caption.trim().length > 0;
+  const [view, setView] = useState<PhotoView>({ zoom: 1, x: 0, y: 0 });
+  const viewChanged = view.zoom > 1.001;
+  const hasEdits = items.length > 0 || strokes.length > 0 || caption.trim().length > 0 || viewChanged;
   const music: StoryMusic | null = useMemo(
     () => items.find((i) => i.kind === "music")?.music ?? null,
     [items],
   );
+
+  // Download the text font styles once, then redraw so text appears in the right font.
+  const [, setFontsTick] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    void loadTextFonts().then(() => {
+      if (alive) setFontsTick((n) => n + 1);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // The editor keeps the screen height it had when it opened, so the picture never squeezes when
+  // the keyboard comes up. The keyboard just covers the bottom, and the caption bar rides above it.
+  const baseWidth = useRef(typeof window === "undefined" ? 0 : window.innerWidth);
+  const [baseH, setBaseH] = useState(typeof window === "undefined" ? 0 : window.innerHeight);
+  const [keyboard, setKeyboard] = useState(0);
+  useEffect(() => {
+    const onResize = () => {
+      if (window.innerWidth !== baseWidth.current) {
+        // turned the phone sideways (or back): measure again
+        baseWidth.current = window.innerWidth;
+        setBaseH(window.innerHeight);
+      } else {
+        setBaseH((h) => Math.max(h, window.innerHeight));
+      }
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => {
+      // some phones slide the page up when a field is focused: put it back
+      if (vv.offsetTop > 0) window.scrollTo(0, 0);
+      const pinched = Math.abs(vv.scale - 1) > 0.01;
+      const covered = Math.round(baseH - vv.height - vv.offsetTop);
+      // small differences are just the browser's address bar, not a keyboard
+      setKeyboard(!pinched && covered > 120 ? covered : 0);
+    };
+    update();
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+    };
+  }, [baseH]);
 
   // -------------------------------------------------------------- closing
   const requestClose = useCallback(() => {
@@ -170,12 +233,12 @@ export function StoryEditor({
       }
       if (draft.id) {
         setItems((list) =>
-          list.map((i) => (i.id === draft.id ? { ...i, text, color: draft.color, box: draft.box } : i)),
+          list.map((i) => (i.id === draft.id ? { ...i, text, color: draft.color, box: draft.box, font: draft.font } : i)),
         );
       } else {
         setItems((list) => [
           ...list,
-          { id: newId(), kind: "text", x: 0.5, y: 0.46, scale: 1, rot: 0, text, color: draft.color, box: draft.box },
+          { id: newId(), kind: "text", x: 0.5, y: 0.46, scale: 1, rot: 0, text, color: draft.color, box: draft.box, font: draft.font },
         ]);
       }
     },
@@ -195,6 +258,127 @@ export function StoryEditor({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [confirmDiscard, textDraft, sheet, tool, requestClose, commitText]);
+
+  // ------------------------------------------------------- photo zoom + move
+  const zoomed = view.zoom > 1.001 || Math.abs(view.x) > 0.001 || Math.abs(view.y) > 0.001;
+  const viewGest = useRef<{
+    pts: Map<number, { x: number; y: number }>;
+    base: PhotoView;
+    startMid: { x: number; y: number };
+    startDist: number;
+  } | null>(null);
+
+  const startViewGesture = () => {
+    const g = viewGest.current;
+    if (!g) return;
+    g.base = view;
+    g.startMid = midOf(g.pts);
+    g.startDist = spanOf(g.pts).dist || 1;
+  };
+  // The item (text, sticker, song) closest to a point on the screen, within `pad` pixels.
+  const itemNear = (pt: { x: number; y: number }, pad = 56): string | null => {
+    const nodes = stageRef.current?.querySelectorAll<HTMLElement>("[data-item-id]");
+    if (!nodes) return null;
+    for (let i = nodes.length - 1; i >= 0; i -= 1) {
+      const n = nodes[i];
+      if (!n) continue;
+      const r = n.getBoundingClientRect();
+      if (pt.x >= r.left - pad && pt.x <= r.right + pad && pt.y >= r.top - pad && pt.y <= r.bottom + pad) {
+        return n.getAttribute("data-item-id");
+      }
+    }
+    return null;
+  };
+
+  const onBgDown = (e: React.PointerEvent) => {
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+    const pt = { x: e.clientX, y: e.clientY };
+    // an item is already being held: a second finger anywhere joins it, so two fingers resize it
+    const held = gestRef.current;
+    if (held) {
+      held.pts.set(e.pointerId, pt);
+      rebase(held);
+      return;
+    }
+    if (!viewGest.current) {
+      viewGest.current = { pts: new Map(), base: view, startMid: pt, startDist: 1 };
+    }
+    viewGest.current.pts.set(e.pointerId, pt);
+    startViewGesture();
+
+    // two fingers close to an item: they resize / turn that item instead of zooming the photo
+    const vg = viewGest.current;
+    if (vg.pts.size === 2) {
+      const id = itemNear(midOf(vg.pts));
+      const it = id ? itemsRef.current.find((i) => i.id === id) : undefined;
+      if (it) {
+        const pts = new Map(vg.pts);
+        viewGest.current = null;
+        setView(viewRef.current);
+        setItems((list) => [...list.filter((i) => i.id !== it.id), ...list.filter((i) => i.id === it.id)]);
+        const sp = spanOf(pts);
+        gestRef.current = {
+          id: it.id,
+          pts,
+          base: { x: it.x, y: it.y, scale: it.scale, rot: it.rot },
+          startMid: midOf(pts),
+          startDist: sp.dist || 1,
+          startAngle: sp.angle,
+          moved: true,
+          downAt: performance.now(),
+        };
+        setDragging(true);
+      }
+    }
+  };
+  const onBgMove = (e: React.PointerEvent) => {
+    if (gestRef.current?.pts.has(e.pointerId)) {
+      onItemMove(e);
+      return;
+    }
+    const g = viewGest.current;
+    const r = stageRef.current?.getBoundingClientRect();
+    if (!g || !r || r.width === 0 || !g.pts.has(e.pointerId)) return;
+    g.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const mid = midOf(g.pts);
+    const pinching = g.pts.size >= 2;
+    const zoom = pinching ? g.base.zoom * (spanOf(g.pts).dist / g.startDist) : g.base.zoom;
+    // one finger moves a zoomed photo; two fingers zoom it (and move it with the middle point)
+    if (!pinching && g.base.zoom <= 1.001) return;
+    setView(
+      clampView({
+        zoom,
+        x: g.base.x + (mid.x - g.startMid.x) / r.width,
+        y: g.base.y + (mid.y - g.startMid.y) / r.height,
+      }),
+    );
+  };
+  const onBgUp = (e: React.PointerEvent) => {
+    const held = gestRef.current;
+    if (held?.pts.has(e.pointerId)) {
+      const it = itemsRef.current.find((i) => i.id === held.id);
+      if (it) onItemUp(e, it);
+      return;
+    }
+    const g = viewGest.current;
+    if (!g) return;
+    g.pts.delete(e.pointerId);
+    if (g.pts.size === 0) viewGest.current = null;
+    else {
+      // keep what the photo shows now as the new start point for the finger that is left
+      g.base = viewRef.current;
+      g.startMid = midOf(g.pts);
+      g.startDist = spanOf(g.pts).dist || 1;
+    }
+  };
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  // mouse wheel / trackpad pinch on a computer
+  const onBgWheel = (e: React.WheelEvent) => {
+    setView((v) => clampView({ ...v, zoom: v.zoom * Math.exp(-e.deltaY * 0.0025) }));
+  };
+  const onBgDoubleClick = () =>
+    setView((v) => (v.zoom > 1.001 ? { zoom: 1, x: 0, y: 0 } : clampView({ zoom: 2, x: 0, y: 0 })));
 
   // ---------------------------------------------------------- items + gestures
   const gestRef = useRef<Gesture | null>(null);
@@ -293,7 +477,7 @@ export function StoryEditor({
     }
     // a quick tap on text opens it for editing
     if (!g.moved && performance.now() - g.downAt < 350 && it.kind === "text") {
-      setTextDraft({ id: it.id, text: it.text ?? "", color: it.color ?? "#ffffff", box: !!it.box });
+      setTextDraft({ id: it.id, text: it.text ?? "", color: it.color ?? "#ffffff", box: !!it.box, font: it.font ?? DEFAULT_TEXT_FONT });
     }
   };
 
@@ -353,7 +537,12 @@ export function StoryEditor({
   // -------------------------------------------------------------------- share
   const share = async () => {
     if (sharing || load === "error") return;
-    const chosen = music ? { title: music.title, url: music.url } : null;
+    const chosen = music
+      ? {
+          title: music.title,
+          url: music.seconds ? withMusicSeconds(music.url, music.seconds) : music.url,
+        }
+      : null;
     if (!hasEdits) {
       onShare(file, null);
       return;
@@ -365,7 +554,7 @@ export function StoryEditor({
     }
     setSharing(true);
     try {
-      const out = await renderStoryFile({ photo, strokes, items, caption });
+      const out = await renderStoryFile({ photo, strokes, items, caption, view });
       onShare(out, chosen);
     } catch (err) {
       setSharing(false);
@@ -391,10 +580,10 @@ export function StoryEditor({
 
   const renderOverlay = (it: StoryOverlay): ReactNode => {
     if (it.kind === "text" && it.text) {
-      const l = layoutText(it.text);
+      const l = layoutText(it.text, it.font);
       const color = it.color ?? "#ffffff";
       const style: CSSProperties = {
-        font: `800 ${l.fontPx * f}px/${l.lineH * f}px ${FONT_STACK}`,
+        font: `${l.fontStyle} ${l.weight} ${l.fontPx * f}px/${l.lineH * f}px ${l.family}`,
         color: it.box ? contrastColor(color) : color,
         textAlign: "center",
         whiteSpace: "pre",
@@ -470,7 +659,7 @@ export function StoryEditor({
   };
 
   const rail: { key: string; label: string; icon: ReactNode; onClick: () => void; active?: boolean }[] = [
-    { key: "text", label: "Add text", icon: <Type className="h-5 w-5" />, onClick: () => setTextDraft({ id: null, text: "", color: "#ffffff", box: false }) },
+    { key: "text", label: "Add text", icon: <Type className="h-5 w-5" />, onClick: () => setTextDraft({ id: null, text: "", color: "#ffffff", box: false, font: DEFAULT_TEXT_FONT }) },
     { key: "emoji", label: "Add sticker", icon: <Smile className="h-5 w-5" />, onClick: () => setSheet("emoji") },
     { key: "music", label: "Add music", icon: <Music2 className="h-5 w-5" />, onClick: () => setSheet("music"), active: !!music },
     { key: "draw", label: "Draw", icon: <Pencil className="h-5 w-5" />, onClick: () => setTool("draw") },
@@ -482,7 +671,8 @@ export function StoryEditor({
       aria-modal="true"
       aria-label="Story editor"
       data-state="open"
-      className="fixed inset-0 z-[70] flex h-[100dvh] animate-in flex-col bg-black text-white duration-200 fade-in"
+      className="fixed inset-x-0 top-0 z-[70] flex animate-in flex-col overflow-hidden bg-black text-white duration-200 fade-in"
+      style={{ height: baseH > 0 ? baseH : "100dvh" }}
     >
       {/* stage */}
       <div ref={areaRef} className="relative min-h-0 flex-1 pt-[max(env(safe-area-inset-top),0.5rem)]">
@@ -495,24 +685,29 @@ export function StoryEditor({
             {photoUrl && load !== "error" && (
               <>
                 <img
-                  src={photoUrl}
-                  alt=""
-                  aria-hidden="true"
-                  draggable={false}
-                  className="absolute inset-0 h-full w-full scale-125 object-cover opacity-70 blur-2xl"
-                />
-                <img
                   ref={imgRef}
                   key={attempt}
                   src={photoUrl}
                   alt="Your photo"
                   draggable={false}
-                  onLoad={() => setLoad("ready")}
+                  onLoad={(e) => {
+                    const im = e.currentTarget;
+                    if (im.naturalWidth > 0 && im.naturalHeight > 0) {
+                      setRatio(
+                        Math.min(3, Math.max(1 / 3, im.naturalWidth / im.naturalHeight)),
+                      );
+                    }
+                    setLoad("ready");
+                  }}
                   onError={() => setLoad("error")}
                   className={cn(
-                    "absolute inset-0 h-full w-full object-contain transition-opacity duration-500",
+                    "pointer-events-none absolute inset-0 h-full w-full select-none object-fill transition-opacity duration-500",
                     load === "ready" ? "opacity-100" : "opacity-0",
                   )}
+                  style={{
+                    transform: `translate(${view.x * stage.w}px, ${view.y * stage.h}px) scale(${view.zoom})`,
+                    transformOrigin: "center",
+                  }}
                 />
               </>
             )}
@@ -543,6 +738,20 @@ export function StoryEditor({
               </div>
             )}
 
+            {/* pinch to zoom the photo, drag to move it, double-tap to zoom in / back */}
+            <div
+              data-testid="photo-zoom-layer"
+              aria-label="Photo: pinch to zoom, drag to move"
+              className={cn("absolute inset-0", tool === "draw" || textDraft ? "pointer-events-none" : "")}
+              style={{ touchAction: "none" }}
+              onPointerDown={onBgDown}
+              onPointerMove={onBgMove}
+              onPointerUp={onBgUp}
+              onPointerCancel={onBgUp}
+              onWheel={onBgWheel}
+              onDoubleClick={onBgDoubleClick}
+            />
+
             {/* drawing layer */}
             <canvas
               ref={drawRef}
@@ -555,11 +764,23 @@ export function StoryEditor({
               onPointerCancel={onDrawEnd}
             />
 
+            {zoomed && !dragging && tool !== "draw" && (
+              <button
+                type="button"
+                onClick={() => setView({ zoom: 1, x: 0, y: 0 })}
+                aria-label="Reset photo zoom"
+                className="absolute left-3 top-3 z-10 rounded-full bg-black/55 px-3 py-1.5 text-xs font-semibold text-white ring-1 ring-white/20 backdrop-blur-md transition active:scale-95"
+              >
+                {view.zoom.toFixed(1)}× · Reset
+              </button>
+            )}
+
             {/* text, stickers and song */}
             {items.map((it) => (
               <div
                 key={it.id}
                 data-testid={`overlay-${it.kind}`}
+                data-item-id={it.id}
                 onPointerDown={(e) => onItemDown(e, it)}
                 onPointerMove={onItemMove}
                 onPointerUp={(e) => onItemUp(e, it)}
@@ -707,7 +928,7 @@ export function StoryEditor({
                     aria-label={`Brush colour ${c}`}
                     aria-pressed={brushColor === c}
                     className={cn(
-                      "h-8 w-8 shrink-0 rounded-full ring-2 transition active:scale-90",
+                      "h-6 w-6 shrink-0 rounded-full ring-2 transition active:scale-90 sm:h-8 sm:w-8",
                       brushColor === c ? "scale-110 ring-white" : "ring-white/30",
                     )}
                     style={{ background: c }}
@@ -723,9 +944,11 @@ export function StoryEditor({
       {tool === "none" && (
         <div
           className={cn(
-            "flex animate-in items-center gap-2.5 px-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 transition-opacity duration-200 fade-in slide-in-from-bottom-4",
+            "relative z-20 flex animate-in items-center gap-2 bg-gradient-to-t from-black/70 to-transparent px-3 pt-2 transition-opacity duration-200 fade-in slide-in-from-bottom-4 sm:gap-2.5 sm:pt-3",
+            keyboard > 0 ? "pb-2" : "pb-[max(env(safe-area-inset-bottom),0.5rem)] sm:pb-[max(env(safe-area-inset-bottom),0.75rem)]",
             dragging && "opacity-0",
           )}
+          style={keyboard > 0 ? { transform: `translateY(-${keyboard}px)` } : undefined}
         >
           <input
             value={caption}
@@ -736,17 +959,17 @@ export function StoryEditor({
             placeholder="Add a caption…"
             aria-label="Add a caption"
             enterKeyHint="done"
-            className="h-12 min-w-0 flex-1 rounded-full bg-white/10 px-5 text-[15px] text-white outline-none ring-1 ring-white/10 transition placeholder:text-white/50 focus:bg-white/15 focus:ring-white/30"
+            className="h-10 min-w-0 flex-1 rounded-full bg-white/10 px-4 text-[14px] text-white outline-none sm:h-12 sm:px-5 sm:text-[15px] ring-1 ring-white/10 transition placeholder:text-white/50 focus:bg-white/15 focus:ring-white/30"
           />
           <button
             type="button"
             onClick={() => void share()}
             disabled={sharing || load === "error"}
             aria-label="Share story"
-            className="flex h-12 shrink-0 items-center gap-2 rounded-full px-5 text-[15px] font-bold text-white shadow-lg shadow-primary/30 transition active:scale-95 disabled:opacity-60"
+            className="flex h-10 shrink-0 items-center gap-1.5 rounded-full px-4 text-[13px] font-bold text-white shadow-lg sm:h-12 sm:gap-2 sm:px-5 sm:text-[15px] shadow-primary/30 transition active:scale-95 disabled:opacity-60"
             style={{ background: "var(--gradient-primary)" }}
           >
-            {sharing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+            {sharing ? <Loader2 className="h-4 w-4 animate-spin sm:h-5 sm:w-5" /> : <Send className="h-4 w-4 sm:h-5 sm:w-5" />}
             {sharing ? "Preparing…" : "Share"}
           </button>
         </div>
@@ -754,7 +977,10 @@ export function StoryEditor({
 
       {/* text editing */}
       {textDraft && (
-        <div className="absolute inset-0 z-[65] flex animate-in flex-col bg-black/75 backdrop-blur-md duration-200 fade-in">
+        <div
+          className="absolute inset-0 z-[65] flex animate-in flex-col bg-black/75 backdrop-blur-md duration-200 fade-in"
+          style={{ paddingBottom: keyboard }}
+        >
           <div className="flex items-center justify-between px-3 pt-[max(env(safe-area-inset-top),0.75rem)]">
             <button
               type="button"
@@ -783,12 +1009,17 @@ export function StoryEditor({
               Done
             </button>
           </div>
-          <div className="flex gap-2.5 overflow-x-auto px-4 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex gap-2 overflow-x-auto px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-2.5 sm:py-4">
             {TEXT_COLORS.map((c) => (
               <button
                 key={c}
                 type="button"
-                onClick={() => setTextDraft((d) => (d ? { ...d, color: c } : d))}
+                // keep the keyboard open, then put the cursor back in the text box
+                onPointerDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  setTextDraft((d) => (d ? { ...d, color: c } : d));
+                  focusTextBox();
+                }}
                 aria-label={`Text colour ${c}`}
                 aria-pressed={textDraft.color === c}
                 className={cn(
@@ -801,6 +1032,7 @@ export function StoryEditor({
           </div>
           <div className="grid min-h-0 flex-1 place-items-center px-6">
             <textarea
+              ref={textBoxRef}
               autoFocus
               value={textDraft.text}
               onChange={(e) => setTextDraft((d) => (d ? { ...d, text: e.target.value.slice(0, 120) } : d))}
@@ -813,9 +1045,44 @@ export function StoryEditor({
               style={{
                 color: textDraft.box ? contrastColor(textDraft.color) : textDraft.color,
                 background: textDraft.box ? textDraft.color : "transparent",
-                fontFamily: FONT_STACK,
+                fontFamily: `${textFont(textDraft.font).family}, ${FONT_STACK}`,
+                fontWeight: textFont(textDraft.font).weight,
+                fontStyle: textFont(textDraft.font).style,
               }}
             />
+          </div>
+          {/* font styles: a scrolling row right above the keyboard */}
+          <div
+            className="flex gap-2 overflow-x-auto px-4 pb-3 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            role="radiogroup"
+            aria-label="Text font style"
+            data-testid="text-font-row"
+          >
+            {TEXT_FONTS.map((tf) => {
+              const active = textDraft.font === tf.key;
+              return (
+                <button
+                  key={tf.key}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  aria-label={`${tf.label} font`}
+                  // keep the keyboard open while choosing a font
+                  onPointerDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    setTextDraft((d) => (d ? { ...d, font: tf.key } : d));
+                    focusTextBox();
+                  }}
+                  className={cn(
+                    "shrink-0 rounded-2xl px-5 py-2.5 text-[18px] leading-tight ring-1 transition active:scale-95",
+                    active ? "bg-white text-black ring-white" : "bg-white/10 text-white ring-white/20 hover:bg-white/15",
+                  )}
+                  style={{ fontFamily: `${tf.family}, ${FONT_STACK}`, fontWeight: tf.weight, fontStyle: tf.style }}
+                >
+                  {tf.label}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -873,7 +1140,7 @@ export function StoryEditor({
         <div className="absolute inset-0 z-[80] grid place-items-center px-8">
           <button
             type="button"
-            aria-label="Keep editing"
+            aria-label="Close discard question"
             onClick={() => setConfirmDiscard(false)}
             className="absolute inset-0 animate-in bg-black/60 backdrop-blur-[3px] duration-200 fade-in"
           />
@@ -882,8 +1149,8 @@ export function StoryEditor({
             aria-label="Discard story"
             className="relative w-full max-w-xs animate-in rounded-3xl bg-zinc-900 p-5 text-center shadow-2xl ring-1 ring-white/10 duration-200 zoom-in-95 fade-in"
           >
-            <h2 className="text-lg font-bold">Discard this story?</h2>
-            <p className="mt-1 text-sm text-white/60">Your edits will be lost.</p>
+            <h2 className="text-lg font-bold">Do you want to discard this story?</h2>
+            <p className="mt-1 text-sm text-white/60">If you go back now, your edits will be lost.</p>
             <div className="mt-5 grid gap-2">
               <button
                 type="button"

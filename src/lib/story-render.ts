@@ -18,6 +18,52 @@ export const K = W / DESIGN_W;
 export const FONT_STACK =
   '"Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji"';
 
+/** A font style the person can pick for story text (shown as a chip above the keyboard). */
+export type TextFont = {
+  key: string;
+  label: string;
+  /** CSS family list, with a safe fallback */
+  family: string;
+  weight: number;
+  style: "normal" | "italic";
+  /** some fonts look small or large next to others; this evens them out */
+  size: number;
+};
+
+const SANS_FALLBACK = "ui-sans-serif, system-ui, sans-serif";
+export const TEXT_FONTS: TextFont[] = [
+  { key: "modern", label: "Modern", family: `"Inter", ${SANS_FALLBACK}`, weight: 800, style: "normal", size: 1 },
+  { key: "classic", label: "Classic", family: `"Playfair Display", Georgia, serif`, weight: 800, style: "normal", size: 1 },
+  { key: "signature", label: "Signature", family: `"Dancing Script", "Brush Script MT", cursive`, weight: 700, style: "normal", size: 1.2 },
+  { key: "editor", label: "Editor", family: `"Space Mono", "Courier New", monospace`, weight: 700, style: "normal", size: 0.85 },
+  { key: "poster", label: "Poster", family: `"Anton", Impact, ${SANS_FALLBACK}`, weight: 400, style: "normal", size: 1.1 },
+  { key: "neon", label: "Neon", family: `"Pacifico", "Brush Script MT", cursive`, weight: 400, style: "normal", size: 0.95 },
+  { key: "handwriting", label: "Handwriting", family: `"Caveat", "Comic Sans MS", cursive`, weight: 700, style: "normal", size: 1.25 },
+  { key: "marker", label: "Marker", family: `"Permanent Marker", "Comic Sans MS", cursive`, weight: 400, style: "normal", size: 0.95 },
+  { key: "elegant", label: "Elegant", family: `"Cormorant Garamond", Georgia, serif`, weight: 700, style: "italic", size: 1.25 },
+  { key: "comic", label: "Comic", family: `"Bangers", Impact, ${SANS_FALLBACK}`, weight: 400, style: "normal", size: 1.15 },
+  { key: "round", label: "Round", family: `"Fredoka", ${SANS_FALLBACK}`, weight: 700, style: "normal", size: 1 },
+  { key: "bold-serif", label: "Vintage", family: `"Abril Fatface", Georgia, serif`, weight: 400, style: "normal", size: 1 },
+];
+export const DEFAULT_TEXT_FONT = "modern";
+
+export function textFont(key: string | null | undefined): TextFont {
+  return TEXT_FONTS.find((f) => f.key === key) ?? TEXT_FONTS[0]!;
+}
+
+/** Google Fonts address that loads every style above (used once, in the page head). */
+export const TEXT_FONTS_CSS_URL =
+  "https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Anton&family=Bangers&family=Caveat:wght@700&family=Cormorant+Garamond:ital,wght@1,700&family=Dancing+Script:wght@700&family=Fredoka:wght@700&family=Pacifico&family=Permanent+Marker&family=Playfair+Display:wght@800&family=Space+Mono:wght@700&display=swap";
+
+/** Asks the browser to download the fonts so the canvas and the editor draw them correctly. */
+export async function loadTextFonts(keys?: string[]): Promise<void> {
+  if (typeof document === "undefined" || !document.fonts?.load) return;
+  const list = keys ? keys.map(textFont) : TEXT_FONTS;
+  await Promise.all(
+    list.map((f) => document.fonts.load(`${f.style} ${f.weight} 32px ${f.family}`, "Aa").catch(() => [])),
+  );
+}
+
 export const TEXT_COLORS = [
   "#ffffff",
   "#111111",
@@ -46,6 +92,8 @@ export type StoryOverlay = {
   color?: string;
   /** text on a solid coloured box instead of plain text with a shadow */
   box?: boolean;
+  /** font style key from TEXT_FONTS (missing = Modern) */
+  font?: string;
   emoji?: string;
   music?: StoryMusic;
 };
@@ -144,6 +192,10 @@ const TEXT_PAD_Y = 8 * K;
 export type TextLayout = {
   lines: string[];
   font: string;
+  /** the font parts, for drawing the same text with CSS in the editor */
+  family: string;
+  weight: number;
+  fontStyle: "normal" | "italic";
   fontPx: number;
   lineH: number;
   /** size of the text itself */
@@ -153,17 +205,17 @@ export type TextLayout = {
   padY: number;
 };
 
-export function layoutText(text: string): TextLayout {
+export function layoutText(text: string, fontKey?: string | null): TextLayout {
+  const tf = textFont(fontKey);
+  const fontPx = TEXT_FONT_PX * tf.size;
+  const family = `${tf.family}, ${FONT_STACK}`;
   const ctx = getMeasureCtx();
-  const font = `800 ${TEXT_FONT_PX}px ${FONT_STACK}`;
+  const font = `${tf.style} ${tf.weight} ${fontPx}px ${family}`;
   if (ctx) ctx.font = font;
-  const lines = wrapLines(ctx, text, TEXT_FONT_PX, TEXT_MAX_W);
-  const w = Math.max(
-    TEXT_FONT_PX,
-    ...lines.map((l) => textWidth(ctx, l, TEXT_FONT_PX)),
-  );
-  const lineH = TEXT_FONT_PX * TEXT_LINE;
-  return { lines, font, fontPx: TEXT_FONT_PX, lineH, w, h: lineH * lines.length, padX: TEXT_PAD_X, padY: TEXT_PAD_Y };
+  const lines = wrapLines(ctx, text, fontPx, TEXT_MAX_W);
+  const w = Math.max(fontPx, ...lines.map((l) => textWidth(ctx, l, fontPx)));
+  const lineH = fontPx * TEXT_LINE;
+  return { lines, font, family, weight: tf.weight, fontStyle: tf.style, fontPx, lineH, w, h: lineH * lines.length, padX: TEXT_PAD_X, padY: TEXT_PAD_Y };
 }
 
 /** Black or white, whichever is easier to read on this colour. */
@@ -199,7 +251,7 @@ export function layoutCaption(text: string): TextLayout {
   }
   const w = Math.max(CAPTION_FONT_PX, ...lines.map((l) => textWidth(ctx, l, CAPTION_FONT_PX)));
   const lineH = CAPTION_FONT_PX * CAPTION_LINE;
-  return { lines, font, fontPx: CAPTION_FONT_PX, lineH, w, h: lineH * lines.length, padX: 14 * K, padY: 9 * K };
+  return { lines, font, family: FONT_STACK, weight: 600, fontStyle: "normal", fontPx: CAPTION_FONT_PX, lineH, w, h: lineH * lines.length, padX: 14 * K, padY: 9 * K };
 }
 
 // ----------------------------------------------------------------- music label
@@ -236,25 +288,14 @@ function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: num
   ctx.closePath();
 }
 
-function drawBackdrop(ctx: CanvasRenderingContext2D, img: CanvasImageSource, iw: number, ih: number) {
-  // A tiny copy of the photo, stretched back up, is a soft blur that works in every browser
-  // (ctx.filter is missing on older iPhones).
-  const tiny = document.createElement("canvas");
-  tiny.width = 27;
-  tiny.height = 48;
-  const t = tiny.getContext("2d");
-  if (t) {
-    const s = Math.max(tiny.width / iw, tiny.height / ih);
-    t.drawImage(img, (tiny.width - iw * s) / 2, (tiny.height - ih * s) / 2, iw * s, ih * s);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(tiny, 0, 0, W, H);
-  } else {
-    ctx.fillStyle = "#0b0b12";
-    ctx.fillRect(0, 0, W, H);
-  }
-  ctx.fillStyle = "rgba(0,0,0,0.38)";
-  ctx.fillRect(0, 0, W, H);
+/**
+ * The story picture is exactly as wide and as tall as the photo (same shape), so there are no
+ * bars or blurred borders. Width is fixed at W; the height follows the photo. Only extreme
+ * shapes are limited (very tall or very wide), to keep the file a sensible size.
+ */
+export function storyHeight(iw: number, ih: number): number {
+  if (!iw || !ih) return H;
+  return Math.round(Math.min(W * 3, Math.max(W / 3, (W * ih) / iw)));
 }
 
 export function drawStrokes(ctx: CanvasRenderingContext2D, strokes: Stroke[], w: number, h: number) {
@@ -362,8 +403,21 @@ function drawTextBlock(ctx: CanvasRenderingContext2D, layout: TextLayout, color:
   });
 }
 
+/** How the photo is zoomed inside the picture: 1 = whole photo; x / y = shift as a fraction of the picture. */
+export type PhotoView = { zoom: number; x: number; y: number };
+export const MAX_PHOTO_ZOOM = 4;
+
+/** Keeps the zoomed photo covering the whole picture (no empty edges). */
+export function clampView(v: PhotoView): PhotoView {
+  const zoom = Math.min(MAX_PHOTO_ZOOM, Math.max(1, v.zoom));
+  const lim = (zoom - 1) / 2;
+  return { zoom, x: Math.min(lim, Math.max(-lim, v.x)), y: Math.min(lim, Math.max(-lim, v.y)) };
+}
+
 export type RenderInput = {
   photo: HTMLImageElement;
+  /** zoom and position of the photo (omitted = whole photo) */
+  view?: PhotoView;
   strokes: Stroke[];
   items: StoryOverlay[];
   caption: string;
@@ -375,26 +429,26 @@ export function drawStory(ctx: CanvasRenderingContext2D, input: RenderInput) {
   const { photo, strokes, items, caption, covers } = input;
   const iw = photo.naturalWidth || photo.width;
   const ih = photo.naturalHeight || photo.height;
-  ctx.clearRect(0, 0, W, H);
-  drawBackdrop(ctx, photo, iw, ih);
+  const SH = storyHeight(iw, ih);
+  ctx.clearRect(0, 0, W, SH);
 
-  // the photo itself, whole (never cropped), centred
-  const s = Math.min(W / iw, H / ih);
-  const dw = iw * s;
-  const dh = ih * s;
+  // the photo fills the whole picture: nothing extra around it
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(photo, (W - dw) / 2, (H - dh) / 2, dw, dh);
+  const v = clampView(input.view ?? { zoom: 1, x: 0, y: 0 });
+  const dw = W * v.zoom;
+  const dh = SH * v.zoom;
+  ctx.drawImage(photo, (W - dw) / 2 + v.x * W, (SH - dh) / 2 + v.y * SH, dw, dh);
 
-  drawStrokes(ctx, strokes, W, H);
+  drawStrokes(ctx, strokes, W, SH);
 
   for (const it of items) {
     ctx.save();
-    ctx.translate(it.x * W, it.y * H);
+    ctx.translate(it.x * W, it.y * SH);
     ctx.rotate(it.rot);
     ctx.scale(it.scale, it.scale);
     if (it.kind === "text" && it.text?.trim()) {
-      drawTextBlock(ctx, layoutText(it.text), it.color ?? "#ffffff", !!it.box);
+      drawTextBlock(ctx, layoutText(it.text, it.font), it.color ?? "#ffffff", !!it.box);
     } else if (it.kind === "emoji" && it.emoji) {
       ctx.font = `${64 * K}px ${FONT_STACK}`;
       ctx.textAlign = "center";
@@ -409,7 +463,7 @@ export function drawStory(ctx: CanvasRenderingContext2D, input: RenderInput) {
   if (caption.trim()) {
     const layout = layoutCaption(caption);
     ctx.save();
-    ctx.translate(W / 2, CAPTION_Y * H);
+    ctx.translate(W / 2, CAPTION_Y * SH);
     ctx.font = layout.font;
     roundedRect(
       ctx,
@@ -444,6 +498,8 @@ export function loadImage(src: string, crossOrigin = false): Promise<HTMLImageEl
 
 /** Draws the whole story and returns it as a JPEG file ready to upload. */
 export async function renderStoryFile(input: Omit<RenderInput, "covers">): Promise<File> {
+  // text in a picked font must be downloaded before drawing, or it would come out in a plain font
+  await loadTextFonts(input.items.filter((i) => i.kind === "text").map((i) => i.font ?? DEFAULT_TEXT_FONT));
   const covers = new Map<string, HTMLImageElement | null>();
   await Promise.all(
     input.items
@@ -462,7 +518,10 @@ export async function renderStoryFile(input: Omit<RenderInput, "covers">): Promi
 
   const canvas = document.createElement("canvas");
   canvas.width = W;
-  canvas.height = H;
+  canvas.height = storyHeight(
+    input.photo.naturalWidth || input.photo.width,
+    input.photo.naturalHeight || input.photo.height,
+  );
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Your browser can't edit stories.");
   drawStory(ctx, { ...input, covers });

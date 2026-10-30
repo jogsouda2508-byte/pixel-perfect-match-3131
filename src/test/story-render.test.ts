@@ -117,3 +117,25 @@ describe("song kept with the picture address", () => {
     expect(readEmbeddedMusic(null).image_url).toBeNull();
   });
 });
+
+describe("text font styles", () => {
+  it("lists several styles, starting with Modern", async () => {
+    const { TEXT_FONTS, textFont } = await import("@/lib/story-render");
+    expect(TEXT_FONTS.length).toBeGreaterThanOrEqual(8);
+    expect(TEXT_FONTS.map((f) => f.label)).toEqual(expect.arrayContaining(["Modern", "Classic", "Signature", "Editor"]));
+    expect(textFont("nope").key).toBe("modern");
+  });
+  it("lays text out in the chosen font", () => {
+    expect(layoutText("Hi", "signature").font).toContain("Dancing Script");
+    expect(layoutText("Hi").font).toContain("Inter");
+  });
+});
+
+describe("photo view", () => {
+  it("keeps the zoomed photo covering the picture", async () => {
+    const { clampView } = await import("@/lib/story-render");
+    expect(clampView({ zoom: 0.5, x: 3, y: 3 })).toEqual({ zoom: 1, x: 0, y: 0 });
+    expect(clampView({ zoom: 2, x: 5, y: -5 })).toEqual({ zoom: 2, x: 0.5, y: -0.5 });
+    expect(clampView({ zoom: 99, x: 0, y: 0 }).zoom).toBe(4);
+  });
+});
