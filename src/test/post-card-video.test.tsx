@@ -118,16 +118,20 @@ describe("PostCard action bar", () => {
 });
 
 describe("PostCard video posts", () => {
-  it("shows the poster and opens the continuous-scroll Reels viewer on tap", () => {
+  it("autoplays muted with no play button and opens the Reels viewer on tap", () => {
     const { container } = renderCard(videoPost());
 
-    // No inline single-video player: tapping goes to /videos, where the person can keep scrolling.
-    expect(container.querySelector("video")).toBeNull();
-    expect(container.querySelector("img")).toHaveAttribute(
-      "src",
-      "https://cdn.example/videos/a.jpg",
-    );
-    expect(container.querySelector('a[href="/videos"] img')).not.toBeNull();
+    const video = container.querySelector("video") as HTMLVideoElement;
+    expect(video).not.toBeNull();
+    expect(video).toHaveAttribute("src", "https://cdn.example/videos/a.mp4");
+    expect(video.muted).toBe(true);
+    expect(video).toHaveAttribute("loop");
+    expect(video).not.toHaveAttribute("controls");
+    expect(video).toHaveAttribute("poster", "https://cdn.example/videos/a.jpg");
+    // Tapping the video goes to /videos, where the person can keep scrolling.
+    expect(container.querySelector('a[href="/videos"] video')).not.toBeNull();
+    // The profile name sits on top of the video, inside the same block.
+    expect(container.querySelector("article > div.relative")?.textContent).toContain("Ana Author");
   });
 
   it("uses a star (not a bookmark) to save videos, and shows it filled when saved", () => {

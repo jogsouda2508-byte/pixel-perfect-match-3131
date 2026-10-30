@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import {
   Loader2,
   MoreHorizontal,
-  Play,
   Send,
   Star,
   Trash2,
@@ -213,116 +212,131 @@ export function PostCard({
   const longCaption = captionText.length > CAPTION_PREVIEW_CHARS || captionLines.length > 2;
   const captionPreview = captionLines.slice(0, 2).join("\n").slice(0, CAPTION_PREVIEW_CHARS).trimEnd();
 
-  return (
-    <article className="glass-card p-3">
-      <div className="flex items-center gap-3">
-        <Link
-          to="/u/$username"
-          params={{ username: post.author_username }}
-          className="flex min-w-0 flex-1 items-center gap-3"
+  const optionsMenu = mine && (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label="Post options"
+        className={`pointer-events-auto rounded-full p-1 outline-none ${
+          isVideo ? "text-white hover:bg-white/15" : "text-muted-foreground hover:bg-elevated"
+        }`}
+      >
+        <MoreHorizontal className="h-5 w-5" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem
+          onClick={() => remove.mutate()}
+          className="text-destructive focus:text-destructive"
         >
-          <Avatar src={post.author_avatar} name={name} size={40} />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold">{name}</p>
-            <p className="truncate text-xs text-muted-foreground">
-              @{post.author_username} • {timeAgo(post.created_at)} •{" "}
-              {post.audience}
-            </p>
-          </div>
-        </Link>
-        {mine && (
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              aria-label="Post options"
-              className="rounded-full p-1 text-muted-foreground outline-none hover:bg-elevated"
-            >
-              <MoreHorizontal className="h-5 w-5" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onClick={() => remove.mutate()}
-                className="text-destructive focus:text-destructive"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete post
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </div>
+          <Trash2 className="mr-2 h-4 w-4" />
+          Delete post
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 
-      <PostMeta post={post} />
+  const authorLink = (
+    <Link
+      to="/u/$username"
+      params={{ username: post.author_username }}
+      className={`flex min-w-0 flex-1 items-center gap-3 ${isVideo ? "pointer-events-auto" : ""}`}
+    >
+      <Avatar src={post.author_avatar} name={name} size={40} />
+      <div className="min-w-0 flex-1">
+        <p
+          className={`truncate text-sm font-semibold ${isVideo ? "text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]" : ""}`}
+        >
+          {name}
+        </p>
+        <p
+          className={`truncate text-xs ${isVideo ? "text-white/85 [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]" : "text-muted-foreground"}`}
+        >
+          @{post.author_username} • {timeAgo(post.created_at)} • {post.audience}
+        </p>
+      </div>
+    </Link>
+  );
+
+  return (
+    <article className="glass-card overflow-hidden">
+      {isVideo && post.video_url ? (
+        // Video post: the video runs edge to edge (no side gaps) and the profile photo, name and
+        // location sit on top of it. It autoplays (muted) while on screen; tapping it opens Reels.
+        <div className="relative w-full bg-black">
+          <FeedVideo
+            src={post.video_url}
+            poster={post.thumbnail_url}
+            to={post.id}
+            label={`Watch video by ${name}`}
+          />
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-black/65 via-black/25 to-transparent px-3 pb-8 pt-3">
+            <div className="flex items-center gap-3">
+              {authorLink}
+              {optionsMenu}
+            </div>
+            <PostMeta post={post} tone="overlay" />
+          </div>
+        </div>
+      ) : (
+        <div className="px-3 pt-3">
+          <div className="flex items-center gap-3">
+            {authorLink}
+            {optionsMenu}
+          </div>
+          <PostMeta post={post} />
+        </div>
+      )}
 
       {/* A text-only post keeps its text on top; with a photo or video the caption goes underneath. */}
       {post.content && !hasMedia && (
-        <p className="mt-3 whitespace-pre-line break-words text-sm leading-relaxed">
+        <p className="mt-3 whitespace-pre-line break-words px-3 text-sm leading-relaxed">
           <RichText text={post.content} />
         </p>
       )}
-      <PollCard postId={post.id} />
-      {isVideo && post.video_url ? (
-        // Tapping a video opens the Reels viewer on it, so the person can keep scrolling
-        // down to the next videos instead of being stuck on this one.
-        <Link
-          to="/videos"
-          search={{ video: post.id }}
-          aria-label={`Watch video by ${name}`}
-          className="group relative mt-3 grid max-h-[50dvh] min-h-48 w-full place-items-center overflow-hidden rounded-xl bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:max-h-[70dvh]"
-        >
-          {post.thumbnail_url && (
-            <img
-              src={post.thumbnail_url}
-              alt=""
-              loading="lazy"
-              className="max-h-[50dvh] w-full object-contain sm:max-h-[70dvh]"
-            />
-          )}
-          <span className="pointer-events-none absolute grid h-14 w-14 place-items-center rounded-full bg-black/50 text-white transition group-hover:bg-black/65">
-            <Play className="h-7 w-7 fill-white" aria-hidden="true" />
-          </span>
-        </Link>
-      ) : (
-        post.image_url && (
-          <>
-            <div className="relative mt-3">
-              <button
-                type="button"
-                onClick={onPhotoClick}
-                aria-label="Open photo"
-                className="block w-full touch-manipulation select-none overflow-hidden rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <img
-                  src={post.image_url}
-                  alt=""
-                  loading="lazy"
-                  draggable={false}
-                  className="max-h-[300px] w-full object-cover sm:max-h-[480px]"
-                />
-              </button>
-              <span
-                ref={heartPop}
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-0 grid place-items-center opacity-0"
-              >
-                <HeartIcon className="h-24 w-24 fill-red-500 text-red-500 drop-shadow-[0_4px_14px_rgba(0,0,0,0.35)]" />
-              </span>
-            </div>
-            <Gallery
-              items={[
-                {
-                  id: post.id,
-                  type: "image",
-                  src: post.image_url,
-                  caption: post.content,
-                },
-              ]}
-              startIndex={galleryOpen ? 0 : null}
-              onClose={() => setGalleryOpen(false)}
-            />
-          </>
-        )
+      <div className="px-3 empty:hidden">
+        <PollCard postId={post.id} />
+      </div>
+      {!isVideo && post.image_url && (
+        <>
+          {/* Photo sits right under the profile row, full width, shown whole (never cropped). */}
+          <div className="relative mt-3 bg-black/5">
+            <button
+              type="button"
+              onClick={onPhotoClick}
+              aria-label="Open photo"
+              className="block w-full touch-manipulation select-none overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <img
+                src={post.image_url}
+                alt=""
+                loading="lazy"
+                draggable={false}
+                className="mx-auto block h-auto max-h-[80dvh] w-full object-contain"
+              />
+            </button>
+            <span
+              ref={heartPop}
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 grid place-items-center opacity-0"
+            >
+              <HeartIcon className="h-24 w-24 fill-red-500 text-red-500 drop-shadow-[0_4px_14px_rgba(0,0,0,0.35)]" />
+            </span>
+          </div>
+          <Gallery
+            items={[
+              {
+                id: post.id,
+                type: "image",
+                src: post.image_url,
+                caption: post.content,
+              },
+            ]}
+            startIndex={galleryOpen ? 0 : null}
+            onClose={() => setGalleryOpen(false)}
+          />
+        </>
       )}
 
+      <div className="px-3 pb-3">
       {/* Instagram-style action bar: icons only, each with its number beside it; Save sits at the far end. */}
       <div className="mt-3 flex items-center gap-1 border-t border-border pt-2 text-sm font-semibold max-sm:mt-1.5 max-sm:pt-0.5">
         <button
@@ -432,7 +446,91 @@ export function PostCard({
           onRemoved={() => setCommentCount((n) => Math.max(0, n - 1))}
         />
       )}
+      </div>
     </article>
+  );
+}
+
+/**
+ * Feed video: autoplays muted (no play button) while at least ~60% on screen and pauses when it
+ * scrolls away. Shown whole (letterboxed over a blurred copy of the poster, never cropped).
+ * Tapping anywhere on it opens the Reels viewer on this video.
+ */
+function FeedVideo({
+  src,
+  poster,
+  to,
+  label,
+}: {
+  src: string;
+  poster: string | null;
+  to: string;
+  label: string;
+}) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const [ratio, setRatio] = useState(4 / 5);
+
+  useEffect(() => {
+    const video = ref.current;
+    if (!video) return;
+    video.muted = true; // React doesn't always set the muted attribute; autoplay needs it.
+    const play = () => {
+      try {
+        const p = video.play();
+        if (p && typeof p.catch === "function") p.catch(() => {});
+      } catch {
+        /* autoplay blocked: the poster stays visible */
+      }
+    };
+    if (typeof IntersectionObserver === "undefined") {
+      play();
+      return;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry) return;
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.6) play();
+        else if (typeof video.pause === "function") video.pause();
+      },
+      { threshold: [0, 0.6, 1] },
+    );
+    observer.observe(video);
+    return () => observer.disconnect();
+  }, [src]);
+
+  return (
+    <Link
+      to="/videos"
+      search={{ video: to }}
+      aria-label={label}
+      className="relative block w-full overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      style={{ aspectRatio: ratio, maxHeight: "80dvh" }}
+    >
+      {poster && (
+        <img
+          src={poster}
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 h-full w-full scale-110 object-cover opacity-50 blur-2xl"
+        />
+      )}
+      <video
+        ref={ref}
+        src={src}
+        poster={poster ?? undefined}
+        muted
+        loop
+        playsInline
+        autoPlay
+        preload="metadata"
+        disablePictureInPicture
+        onLoadedMetadata={(e) => {
+          const { videoWidth: w, videoHeight: h } = e.currentTarget;
+          if (w && h) setRatio(w / h);
+        }}
+        className="absolute inset-0 h-full w-full object-contain"
+      />
+    </Link>
   );
 }
 
