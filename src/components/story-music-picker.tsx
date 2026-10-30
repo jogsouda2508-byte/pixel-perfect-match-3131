@@ -130,7 +130,7 @@ export function StoryMusicPicker({
       <div className="relative flex h-[78%] animate-in flex-col rounded-t-[28px] bg-zinc-900/95 text-white shadow-2xl ring-1 ring-white/10 backdrop-blur-xl duration-300 slide-in-from-bottom">
         <div className="mx-auto mt-2.5 h-1 w-10 rounded-full bg-white/25" />
         <div className="flex items-center justify-between px-5 pb-2 pt-3">
-          <h2 className="text-lg font-bold tracking-tight">Add music</h2>
+          <h2 className="text-base font-bold tracking-tight">Add music</h2>
           <button
             type="button"
             onClick={onClose}
@@ -169,7 +169,7 @@ export function StoryMusicPicker({
                     setChip(c);
                   }}
                   className={cn(
-                    "shrink-0 rounded-full px-4 py-1.5 text-[13px] font-semibold transition active:scale-95",
+                    "shrink-0 rounded-full px-3 py-1 text-[12px] font-semibold transition active:scale-95",
                     active ? "bg-white text-black" : "bg-white/10 text-white/85 hover:bg-white/15",
                   )}
                 >
@@ -231,16 +231,16 @@ export function StoryMusicPicker({
                       src={r.cover}
                       alt=""
                       loading="lazy"
-                      className="h-12 w-12 shrink-0 rounded-xl bg-white/10 object-cover"
+                      className="h-10 w-10 shrink-0 rounded-lg bg-white/10 object-cover"
                     />
                   ) : (
-                    <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-white/10">
+                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white/10">
                       <Music2 className="h-5 w-5" />
                     </div>
                   )}
                   <span className="min-w-0">
-                    <span className="block truncate text-[15px] font-semibold">{r.name}</span>
-                    <span className="block truncate text-[13px] text-white/55">{r.artist}</span>
+                    <span className="block truncate text-[14px] font-semibold">{r.name}</span>
+                    <span className="block truncate text-[12px] text-white/55">{r.artist}</span>
                   </span>
                 </button>
                 <button
@@ -248,7 +248,7 @@ export function StoryMusicPicker({
                   onClick={() => togglePlay(r)}
                   aria-label={playing === r.id ? `Pause ${r.name}` : `Play ${r.name}`}
                   className={cn(
-                    "grid h-10 w-10 shrink-0 place-items-center rounded-full transition active:scale-90",
+                    "grid h-8 w-8 shrink-0 place-items-center rounded-full transition active:scale-90",
                     playing === r.id ? "bg-white text-black" : "bg-white/10 text-white hover:bg-white/20",
                   )}
                 >

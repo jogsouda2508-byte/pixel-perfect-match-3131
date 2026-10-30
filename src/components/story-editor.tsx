@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
-import { Check, Loader2, Music2, Pencil, Send, Smile, Trash2, Type, Undo2, X } from "lucide-react";
+import { Check, ImagePlay, Loader2, Music2, Pencil, Send, Smile, Trash2, Type, Undo2, X } from "lucide-react";
+import { StoryGifPicker } from "@/components/story-gif-picker";
 import { StoryMusicPicker } from "@/components/story-music-picker";
+import { GIF_BASE_W, MAX_STORY_GIFS, gifUrl, type GifResult, type StoryGif } from "@/lib/story-gifs";
 import { withMusicSeconds, type StoryMusic } from "@/lib/story-music";
 import {
   BRUSH_COLORS,
@@ -11,6 +13,10 @@ import {
   CAPTION_Y,
   DESIGN_W,
   DEFAULT_TEXT_FONT,
+  EMOJI_PX,
+  FRAME_RATIO,
+  MUSIC_COVER,
+  MUSIC_PAD,
   clampView,
   type PhotoView,
   FONT_STACK,
@@ -46,7 +52,7 @@ const EMOJI_GROUPS: { label: string; items: string[] }[] = [
 ];
 
 type Tool = "none" | "draw";
-type Sheet = "none" | "emoji" | "music";
+type Sheet = "none" | "emoji" | "music" | "gif";
 type TextDraft = { id: string | null; text: string; color: string; box: boolean; font: string };
 
 type Gesture = {
@@ -86,7 +92,8 @@ export function StoryEditor({
 }: {
   file: File;
   onClose: () => void;
-  onShare: (file: File, music: { title: string; url: string } | null) => void;
+  /** `gifs` is only passed when the story has GIFs on it */
+  onShare: (file: File, music: { title: string; url: string } | null, gifs?: StoryGif[]) => void;
 }) {
   const [photoUrl, setPhotoUrl] = useState("");
   const [load, setLoad] = useState<"loading" | "ready" | "error">("loading");
@@ -137,8 +144,10 @@ export function StoryEditor({
   const areaRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const [stage, setStage] = useState({ w: 0, h: 0 });
-  // the photo's own shape (width / height); the stage takes exactly this shape
-  const [ratio, setRatio] = useState(9 / 16);
+  // the photo's own shape (width / height). The stage is always the full 9:16 canvas, and the
+  // photo sits inside it whole and unchanged, so things can be placed anywhere, not only on it.
+  const [photoRatio, setPhotoRatio] = useState(FRAME_RATIO);
+  const ratio = FRAME_RATIO;
   useEffect(() => {
     const el = areaRef.current;
     if (!el) return;
@@ -154,6 +163,11 @@ export function StoryEditor({
     ro.observe(el);
     return () => ro.disconnect();
   }, [ratio]);
+  // the photo's box inside the stage: as large as fits, centred, same shape
+  const photoBox =
+    photoRatio > FRAME_RATIO
+      ? { w: stage.w, h: stage.w / photoRatio }
+      : { w: stage.h * photoRatio, h: stage.h };
   // screen pixels per export pixel
   const f = (stage.w || DESIGN_W) / W;
 
@@ -218,9 +232,9 @@ export function StoryEditor({
   // -------------------------------------------------------------- closing
   const requestClose = useCallback(() => {
     if (sharing) return;
-    if (hasEdits) setConfirmDiscard(true);
-    else onClose();
-  }, [sharing, hasEdits, onClose]);
+    // Always ask first, so a stray tap on X never throws the story away.
+    setConfirmDiscard(true);
+  }, [sharing]);
 
   const commitText = useCallback(
     (draft: TextDraft | null) => {
@@ -444,8 +458,8 @@ export function StoryEditor({
     }
     if (!g.moved && g.pts.size < 2) return;
     const patch: Partial<StoryOverlay> = {
-      x: clamp(g.base.x + dx / r.width, -0.1, 1.1),
-      y: clamp(g.base.y + dy / r.height, -0.1, 1.1),
+      x: clamp(g.base.x + dx / r.width, 0, 1),
+      y: clamp(g.base.y + dy / r.height, 0, 1),
     };
     if (g.pts.size >= 2) {
       g.moved = true;
@@ -543,6 +557,10 @@ export function StoryEditor({
           url: music.seconds ? withMusicSeconds(music.url, music.seconds) : music.url,
         }
       : null;
+    const gifs: StoryGif[] = items
+      .filter((i) => i.kind === "gif" && i.gif)
+      .slice(0, MAX_STORY_GIFS)
+      .map((i) => ({ id: i.gif!.id, ratio: i.gif!.ratio, x: i.x, y: i.y, scale: i.scale, rot: i.rot }));
     if (!hasEdits) {
       onShare(file, null);
       return;
@@ -555,7 +573,8 @@ export function StoryEditor({
     setSharing(true);
     try {
       const out = await renderStoryFile({ photo, strokes, items, caption, view });
-      onShare(out, chosen);
+      if (gifs.length > 0) onShare(out, chosen, gifs);
+      else onShare(out, chosen);
     } catch (err) {
       setSharing(false);
       toast.error(err instanceof Error ? err.message : "Couldn't prepare your story.");
@@ -564,6 +583,17 @@ export function StoryEditor({
 
   const addEmoji = (emoji: string) => {
     setItems((list) => [...list, { id: newId(), kind: "emoji", x: 0.5, y: 0.52, scale: 1, rot: 0, emoji }]);
+    setSheet("none");
+  };
+  const addGif = (g: GifResult) => {
+    if (items.filter((i) => i.kind === "gif").length >= MAX_STORY_GIFS) {
+      toast.error(`You can add up to ${MAX_STORY_GIFS} GIFs.`);
+      return;
+    }
+    setItems((list) => [
+      ...list,
+      { id: newId(), kind: "gif", x: 0.5, y: 0.5, scale: 1, rot: 0, gif: { id: g.id, ratio: g.ratio } },
+    ]);
     setSheet("none");
   };
   const addMusic = (m: StoryMusic) => {
@@ -604,11 +634,23 @@ export function StoryEditor({
       );
     }
     if (it.kind === "emoji" && it.emoji) {
-      return <div style={{ font: `${64 * K * f}px/1 ${FONT_STACK}` }}>{it.emoji}</div>;
+      return <div style={{ font: `${EMOJI_PX * f}px/1 ${FONT_STACK}` }}>{it.emoji}</div>;
+    }
+    if (it.kind === "gif" && it.gif) {
+      const w = GIF_BASE_W * stage.w;
+      return (
+        <img
+          src={gifUrl(it.gif.id)}
+          alt="GIF"
+          draggable={false}
+          className="pointer-events-none block select-none rounded-lg"
+          style={{ width: w, height: w / (it.gif.ratio || 1) }}
+        />
+      );
     }
     if (it.kind === "music" && it.music) {
       const { name, artist } = splitMusicTitle(it.music.title);
-      const cover = 40 * K * f;
+      const cover = MUSIC_COVER * f;
       return (
         <div
           className="flex items-center bg-white/95 shadow-[0_6px_20px_rgba(0,0,0,.35)]"
@@ -616,8 +658,8 @@ export function StoryEditor({
             width: MUSIC_W * f,
             height: MUSIC_H * f,
             borderRadius: (MUSIC_H * f) / 2,
-            paddingLeft: 6 * K * f,
-            gap: 10 * K * f,
+            paddingLeft: MUSIC_PAD * f,
+            gap: 8 * K * f,
           }}
         >
           {it.music.cover ? (
@@ -631,7 +673,7 @@ export function StoryEditor({
           ) : (
             <div
               className="grid shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#6c63ff] to-[#c04dff] text-white"
-              style={{ width: cover, height: cover, fontSize: 22 * K * f }}
+              style={{ width: cover, height: cover, fontSize: 16 * K * f }}
             >
               ♪
             </div>
@@ -659,10 +701,11 @@ export function StoryEditor({
   };
 
   const rail: { key: string; label: string; icon: ReactNode; onClick: () => void; active?: boolean }[] = [
-    { key: "text", label: "Add text", icon: <Type className="h-5 w-5" />, onClick: () => setTextDraft({ id: null, text: "", color: "#ffffff", box: false, font: DEFAULT_TEXT_FONT }) },
-    { key: "emoji", label: "Add sticker", icon: <Smile className="h-5 w-5" />, onClick: () => setSheet("emoji") },
-    { key: "music", label: "Add music", icon: <Music2 className="h-5 w-5" />, onClick: () => setSheet("music"), active: !!music },
-    { key: "draw", label: "Draw", icon: <Pencil className="h-5 w-5" />, onClick: () => setTool("draw") },
+    { key: "text", label: "Add text", icon: <Type className="h-4 w-4 sm:h-5 sm:w-5" />, onClick: () => setTextDraft({ id: null, text: "", color: "#ffffff", box: false, font: DEFAULT_TEXT_FONT }) },
+    { key: "emoji", label: "Add sticker", icon: <Smile className="h-4 w-4 sm:h-5 sm:w-5" />, onClick: () => setSheet("emoji") },
+    { key: "gif", label: "Add GIF", icon: <ImagePlay className="h-4 w-4 sm:h-5 sm:w-5" />, onClick: () => setSheet("gif") },
+    { key: "music", label: "Add music", icon: <Music2 className="h-4 w-4 sm:h-5 sm:w-5" />, onClick: () => setSheet("music"), active: !!music },
+    { key: "draw", label: "Draw", icon: <Pencil className="h-4 w-4 sm:h-5 sm:w-5" />, onClick: () => setTool("draw") },
   ];
 
   const root = (
@@ -679,7 +722,7 @@ export function StoryEditor({
         <div className="absolute inset-x-0 bottom-0 top-[max(env(safe-area-inset-top),0.5rem)] flex items-center justify-center">
           <div
             ref={stageRef}
-            className="relative animate-in overflow-hidden rounded-[26px] bg-zinc-950 shadow-[0_20px_60px_rgba(0,0,0,.6)] ring-1 ring-white/10 duration-300 zoom-in-95 slide-in-from-bottom-4"
+            className="relative animate-in overflow-hidden bg-black duration-300 fade-in"
             style={{ width: stage.w, height: stage.h, touchAction: "none" }}
           >
             {photoUrl && load !== "error" && (
@@ -693,18 +736,20 @@ export function StoryEditor({
                   onLoad={(e) => {
                     const im = e.currentTarget;
                     if (im.naturalWidth > 0 && im.naturalHeight > 0) {
-                      setRatio(
-                        Math.min(3, Math.max(1 / 3, im.naturalWidth / im.naturalHeight)),
-                      );
+                      setPhotoRatio(im.naturalWidth / im.naturalHeight);
                     }
                     setLoad("ready");
                   }}
                   onError={() => setLoad("error")}
                   className={cn(
-                    "pointer-events-none absolute inset-0 h-full w-full select-none object-fill transition-opacity duration-500",
+                    "pointer-events-none absolute left-1/2 top-1/2 max-w-none select-none object-fill transition-opacity duration-500",
                     load === "ready" ? "opacity-100" : "opacity-0",
                   )}
                   style={{
+                    width: photoBox.w,
+                    height: photoBox.h,
+                    marginLeft: -photoBox.w / 2,
+                    marginTop: -photoBox.h / 2,
                     transform: `translate(${view.x * stage.w}px, ${view.y * stage.h}px) scale(${view.zoom})`,
                     transformOrigin: "center",
                   }}
@@ -848,18 +893,18 @@ export function StoryEditor({
               onClick={() => setStrokes((l) => l.slice(0, -1))}
               disabled={strokes.length === 0}
               aria-label="Undo last stroke"
-              className="grid h-11 w-11 place-items-center rounded-full bg-black/40 ring-1 ring-white/15 backdrop-blur-md transition active:scale-90 disabled:opacity-40"
+              className="grid h-9 w-9 place-items-center rounded-full bg-black/40 ring-1 ring-white/15 backdrop-blur-md transition active:scale-90 disabled:opacity-40 sm:h-11 sm:w-11"
             >
-              <Undo2 className="h-5 w-5" />
+              <Undo2 className="h-4 w-4 sm:h-5 sm:w-5" />
             </button>
           ) : (
             <button
               type="button"
               onClick={requestClose}
               aria-label="Close editor"
-              className="grid h-11 w-11 place-items-center rounded-full bg-black/40 ring-1 ring-white/15 backdrop-blur-md transition active:scale-90 hover:bg-black/55"
+              className="grid h-9 w-9 place-items-center rounded-full bg-black/40 ring-1 ring-white/15 backdrop-blur-md transition active:scale-90 hover:bg-black/55 sm:h-11 sm:w-11"
             >
-              <X className="h-5 w-5" />
+              <X className="h-4 w-4 sm:h-5 sm:w-5" />
             </button>
           )}
         </div>
@@ -868,7 +913,7 @@ export function StoryEditor({
         {tool === "none" && (
           <div
             className={cn(
-              "absolute right-3 top-[max(env(safe-area-inset-top),0.5rem)] z-10 flex flex-col gap-2.5 transition-all duration-200",
+              "absolute right-3 top-[max(env(safe-area-inset-top),0.5rem)] z-10 flex flex-col gap-2 sm:gap-2.5 transition-all duration-200",
               chromeHidden ? "pointer-events-none translate-x-2 opacity-0" : "opacity-100",
             )}
           >
@@ -881,7 +926,7 @@ export function StoryEditor({
                 title={b.label}
                 style={{ animationDelay: `${120 + i * 55}ms` }}
                 className={cn(
-                  "grid h-11 w-11 animate-in place-items-center rounded-full ring-1 backdrop-blur-md transition fill-mode-backwards duration-300 fade-in slide-in-from-right-3 active:scale-90",
+                  "grid h-9 w-9 animate-in place-items-center rounded-full ring-1 sm:h-11 sm:w-11 backdrop-blur-md transition fill-mode-backwards duration-300 fade-in slide-in-from-right-3 active:scale-90",
                   b.active ? "bg-white text-black ring-white" : "bg-black/40 text-white ring-white/15 hover:bg-black/55",
                 )}
               >
@@ -897,7 +942,7 @@ export function StoryEditor({
             <button
               type="button"
               onClick={() => setTool("none")}
-              className="absolute right-3 top-[max(env(safe-area-inset-top),0.5rem)] z-10 flex h-11 animate-in items-center gap-1.5 rounded-full bg-white px-5 text-sm font-bold text-black duration-200 fade-in active:scale-95"
+              className="absolute right-3 top-[max(env(safe-area-inset-top),0.5rem)] z-10 flex h-9 animate-in items-center gap-1.5 rounded-full bg-white px-4 text-[13px] font-bold sm:h-11 sm:px-5 sm:text-sm text-black duration-200 fade-in active:scale-95"
             >
               <Check className="h-4 w-4" /> Done
             </button>
@@ -911,7 +956,7 @@ export function StoryEditor({
                     aria-label={`Brush size ${s}`}
                     aria-pressed={brushSize === s}
                     className={cn(
-                      "grid h-8 w-8 place-items-center rounded-full transition active:scale-90",
+                      "grid h-7 w-7 place-items-center rounded-full transition active:scale-90 sm:h-8 sm:w-8",
                       brushSize === s ? "bg-white/25" : "bg-transparent",
                     )}
                   >
@@ -928,7 +973,7 @@ export function StoryEditor({
                     aria-label={`Brush colour ${c}`}
                     aria-pressed={brushColor === c}
                     className={cn(
-                      "h-6 w-6 shrink-0 rounded-full ring-2 transition active:scale-90 sm:h-8 sm:w-8",
+                      "h-5 w-5 shrink-0 rounded-full ring-2 transition active:scale-90 sm:h-8 sm:w-8",
                       brushColor === c ? "scale-110 ring-white" : "ring-white/30",
                     )}
                     style={{ background: c }}
@@ -985,7 +1030,7 @@ export function StoryEditor({
             <button
               type="button"
               onClick={() => setTextDraft(null)}
-              className="h-11 rounded-full px-4 text-[15px] font-semibold text-white/85 transition active:scale-95"
+              className="h-9 rounded-full px-3 text-[13px] font-semibold text-white/85 sm:h-11 sm:px-4 sm:text-[15px] transition active:scale-95"
             >
               Cancel
             </button>
@@ -995,7 +1040,7 @@ export function StoryEditor({
               aria-label="Toggle text background"
               aria-pressed={textDraft.box}
               className={cn(
-                "grid h-11 w-11 place-items-center rounded-full text-lg font-extrabold ring-1 transition active:scale-90",
+                "grid h-9 w-9 place-items-center rounded-full text-base font-extrabold ring-1 sm:h-11 sm:w-11 sm:text-lg transition active:scale-90",
                 textDraft.box ? "bg-white text-black ring-white" : "bg-white/10 text-white ring-white/20",
               )}
             >
@@ -1004,12 +1049,12 @@ export function StoryEditor({
             <button
               type="button"
               onClick={() => commitText(textDraft)}
-              className="h-11 rounded-full bg-white px-5 text-[15px] font-bold text-black transition active:scale-95"
+              className="h-9 rounded-full bg-white px-4 text-[13px] font-bold text-black sm:h-11 sm:px-5 sm:text-[15px] transition active:scale-95"
             >
               Done
             </button>
           </div>
-          <div className="flex gap-2 overflow-x-auto px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-2.5 sm:py-4">
+          <div className="flex gap-2 overflow-x-auto px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-2.5 sm:py-4">
             {TEXT_COLORS.map((c) => (
               <button
                 key={c}
@@ -1023,7 +1068,7 @@ export function StoryEditor({
                 aria-label={`Text colour ${c}`}
                 aria-pressed={textDraft.color === c}
                 className={cn(
-                  "h-8 w-8 shrink-0 rounded-full ring-2 transition active:scale-90",
+                  "h-6 w-6 shrink-0 rounded-full ring-2 transition active:scale-90 sm:h-8 sm:w-8",
                   textDraft.color === c ? "scale-110 ring-white" : "ring-white/30",
                 )}
                 style={{ background: c }}
@@ -1040,7 +1085,7 @@ export function StoryEditor({
               aria-label="Story text"
               rows={3}
               className={cn(
-                "w-full max-w-sm resize-none rounded-2xl border-0 bg-transparent p-3 text-center text-[30px] font-extrabold leading-tight outline-none placeholder:text-white/35",
+                "w-full max-w-sm resize-none rounded-2xl border-0 bg-transparent p-3 text-center text-[22px] font-extrabold leading-tight sm:text-[30px] outline-none placeholder:text-white/35",
               )}
               style={{
                 color: textDraft.box ? contrastColor(textDraft.color) : textDraft.color,
@@ -1053,7 +1098,7 @@ export function StoryEditor({
           </div>
           {/* font styles: a scrolling row right above the keyboard */}
           <div
-            className="flex gap-2 overflow-x-auto px-4 pb-3 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="flex gap-1.5 overflow-x-auto px-4 pb-2 pt-1 [scrollbar-width:none] sm:gap-2 sm:pb-3 sm:pt-2 [&::-webkit-scrollbar]:hidden"
             role="radiogroup"
             aria-label="Text font style"
             data-testid="text-font-row"
@@ -1074,7 +1119,7 @@ export function StoryEditor({
                     focusTextBox();
                   }}
                   className={cn(
-                    "shrink-0 rounded-2xl px-5 py-2.5 text-[18px] leading-tight ring-1 transition active:scale-95",
+                    "shrink-0 rounded-xl px-3 py-1.5 text-[14px] leading-tight ring-1 sm:rounded-2xl sm:px-5 sm:py-2.5 sm:text-[18px] transition active:scale-95",
                     active ? "bg-white text-black ring-white" : "bg-white/10 text-white ring-white/20 hover:bg-white/15",
                   )}
                   style={{ fontFamily: `${tf.family}, ${FONT_STACK}`, fontWeight: tf.weight, fontStyle: tf.style }}
@@ -1096,10 +1141,10 @@ export function StoryEditor({
             onClick={() => setSheet("none")}
             className="absolute inset-0 animate-in bg-black/55 backdrop-blur-[3px] duration-200 fade-in"
           />
-          <div className="relative flex h-[62%] animate-in flex-col rounded-t-[28px] bg-zinc-900/95 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl duration-300 slide-in-from-bottom">
+          <div className="relative flex h-[52%] animate-in flex-col rounded-t-[24px] sm:h-[62%] sm:rounded-t-[28px] bg-zinc-900/95 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl duration-300 slide-in-from-bottom">
             <div className="mx-auto mt-2.5 h-1 w-10 rounded-full bg-white/25" />
             <div className="flex items-center justify-between px-5 pb-1 pt-3">
-              <h2 className="text-lg font-bold tracking-tight">Stickers</h2>
+              <h2 className="text-base font-bold tracking-tight sm:text-lg">Stickers</h2>
               <button
                 type="button"
                 onClick={() => setSheet("none")}
@@ -1112,15 +1157,15 @@ export function StoryEditor({
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(env(safe-area-inset-bottom),1rem)]">
               {EMOJI_GROUPS.map((g) => (
                 <section key={g.label} className="pb-3">
-                  <h3 className="py-2 text-xs font-semibold uppercase tracking-wider text-white/45">{g.label}</h3>
-                  <div className="grid grid-cols-6 gap-1">
+                  <h3 className="py-1.5 text-[11px] font-semibold uppercase tracking-wider text-white/45 sm:py-2 sm:text-xs">{g.label}</h3>
+                  <div className="grid grid-cols-8 gap-0.5 sm:grid-cols-6 sm:gap-1">
                     {g.items.map((e) => (
                       <button
                         key={e}
                         type="button"
                         onClick={() => addEmoji(e)}
                         aria-label={`Add ${e}`}
-                        className="grid aspect-square place-items-center rounded-2xl text-[32px] transition active:scale-75 hover:bg-white/10"
+                        className="grid aspect-square place-items-center rounded-xl text-[22px] transition active:scale-75 hover:bg-white/10 sm:rounded-2xl sm:text-[32px]"
                       >
                         {e}
                       </button>
@@ -1132,6 +1177,8 @@ export function StoryEditor({
           </div>
         </div>
       )}
+
+      {sheet === "gif" && <StoryGifPicker onPick={addGif} onClose={() => setSheet("none")} />}
 
       {sheet === "music" && <StoryMusicPicker onPick={addMusic} onClose={() => setSheet("none")} />}
 

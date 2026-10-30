@@ -81,7 +81,7 @@ export const BRUSH_SIZES = [4, 8, 14];
 
 export type StoryOverlay = {
   id: string;
-  kind: "text" | "emoji" | "music";
+  kind: "text" | "emoji" | "music" | "gif";
   /** centre of the item, as a fraction of the picture (0..1) */
   x: number;
   y: number;
@@ -96,6 +96,11 @@ export type StoryOverlay = {
   font?: string;
   emoji?: string;
   music?: StoryMusic;
+  /**
+   * A GIF from Giphy. It is NOT drawn into the exported picture (a picture can't move): it is
+   * saved next to the story and played, animated, on top of it while the story is watched.
+   */
+  gif?: { id: string; ratio: number };
 };
 
 export type Stroke = {
@@ -183,7 +188,7 @@ export function fitText(
 }
 
 // ----------------------------------------------------------------------- text
-export const TEXT_FONT_PX = 34 * K;
+export const TEXT_FONT_PX = 30 * K;
 const TEXT_MAX_W = 280 * K;
 const TEXT_LINE = 1.22;
 const TEXT_PAD_X = 14 * K;
@@ -255,10 +260,12 @@ export function layoutCaption(text: string): TextLayout {
 }
 
 // ----------------------------------------------------------------- music label
-export const MUSIC_W = 232 * K;
-export const MUSIC_H = 52 * K;
-const MUSIC_COVER = 40 * K;
-const MUSIC_PAD = 6 * K;
+export const MUSIC_W = 176 * K;
+export const MUSIC_H = 38 * K;
+export const MUSIC_COVER = 30 * K;
+export const MUSIC_PAD = 4 * K;
+/** size of an emoji sticker placed on the story */
+export const EMOJI_PX = 48 * K;
 
 /** "Song - Artist" -> the two lines of the label */
 export function splitMusicTitle(title: string): { name: string; artist: string } {
@@ -267,10 +274,10 @@ export function splitMusicTitle(title: string): { name: string; artist: string }
   return { name: title.slice(0, i), artist: title.slice(i + 3) };
 }
 
-export const MUSIC_NAME_FONT = 14 * K;
-export const MUSIC_ARTIST_FONT = 11.5 * K;
-export const MUSIC_TEXT_X = MUSIC_PAD + MUSIC_COVER + 10 * K;
-export const MUSIC_TEXT_W = MUSIC_W - MUSIC_TEXT_X - 14 * K;
+export const MUSIC_NAME_FONT = 11 * K;
+export const MUSIC_ARTIST_FONT = 9 * K;
+export const MUSIC_TEXT_X = MUSIC_PAD + MUSIC_COVER + 8 * K;
+export const MUSIC_TEXT_W = MUSIC_W - MUSIC_TEXT_X - 12 * K;
 
 // --------------------------------------------------------------------- drawing
 function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
@@ -288,14 +295,22 @@ function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: num
   ctx.closePath();
 }
 
-/**
- * The story picture is exactly as wide and as tall as the photo (same shape), so there are no
- * bars or blurred borders. Width is fixed at W; the height follows the photo. Only extreme
- * shapes are limited (very tall or very wide), to keep the file a sensible size.
- */
-export function storyHeight(iw: number, ih: number): number {
-  if (!iw || !ih) return H;
-  return Math.round(Math.min(W * 3, Math.max(W / 3, (W * ih) / iw)));
+/** The story is a full-screen 9:16 canvas; the photo sits inside it, whole and unchanged. */
+export const FRAME_RATIO = W / H;
+
+/** Height of the story picture. It is always the full 9:16 canvas, so text, stickers and the
+ * song can be placed anywhere, also outside the photo (the photo itself is never cropped). */
+export function storyHeight(_iw?: number, _ih?: number): number {
+  return H;
+}
+
+/** Where the whole photo sits in the canvas (centred, as large as fits, same shape). */
+export function photoRect(iw: number, ih: number, cw: number, ch: number) {
+  if (!iw || !ih) return { x: 0, y: 0, w: cw, h: ch };
+  const s = Math.min(cw / iw, ch / ih);
+  const w = iw * s;
+  const h = ih * s;
+  return { x: (cw - w) / 2, y: (ch - h) / 2, w, h };
 }
 
 export function drawStrokes(ctx: CanvasRenderingContext2D, strokes: Stroke[], w: number, h: number) {
@@ -355,7 +370,7 @@ function drawMusicLabel(ctx: CanvasRenderingContext2D, music: StoryMusic, cover:
     ctx.fillStyle = g;
     ctx.fillRect(cx, cy, MUSIC_COVER, MUSIC_COVER);
     ctx.fillStyle = "#ffffff";
-    ctx.font = `700 ${22 * K}px ${FONT_STACK}`;
+    ctx.font = `700 ${16 * K}px ${FONT_STACK}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("♪", cx + MUSIC_COVER / 2, cy + MUSIC_COVER / 2 + 1 * K);
@@ -368,11 +383,11 @@ function drawMusicLabel(ctx: CanvasRenderingContext2D, music: StoryMusic, cover:
   const tx = x + MUSIC_TEXT_X;
   ctx.font = `700 ${MUSIC_NAME_FONT}px ${FONT_STACK}`;
   ctx.fillStyle = "#111111";
-  ctx.fillText(fitText(ctx, name, MUSIC_NAME_FONT, MUSIC_TEXT_W), tx, artist ? -7.5 * K : 0);
+  ctx.fillText(fitText(ctx, name, MUSIC_NAME_FONT, MUSIC_TEXT_W), tx, artist ? -5.5 * K : 0);
   if (artist) {
     ctx.font = `500 ${MUSIC_ARTIST_FONT}px ${FONT_STACK}`;
     ctx.fillStyle = "#6b6b78";
-    ctx.fillText(fitText(ctx, artist, MUSIC_ARTIST_FONT, MUSIC_TEXT_W), tx, 9 * K);
+    ctx.fillText(fitText(ctx, artist, MUSIC_ARTIST_FONT, MUSIC_TEXT_W), tx, 7 * K);
   }
 }
 
@@ -432,12 +447,15 @@ export function drawStory(ctx: CanvasRenderingContext2D, input: RenderInput) {
   const SH = storyHeight(iw, ih);
   ctx.clearRect(0, 0, W, SH);
 
-  // the photo fills the whole picture: nothing extra around it
+  // black canvas, with the whole photo in the middle (not cropped, no rounded corners)
+  ctx.fillStyle = "#000000";
+  ctx.fillRect(0, 0, W, SH);
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
   const v = clampView(input.view ?? { zoom: 1, x: 0, y: 0 });
-  const dw = W * v.zoom;
-  const dh = SH * v.zoom;
+  const pr = photoRect(iw, ih, W, SH);
+  const dw = pr.w * v.zoom;
+  const dh = pr.h * v.zoom;
   ctx.drawImage(photo, (W - dw) / 2 + v.x * W, (SH - dh) / 2 + v.y * SH, dw, dh);
 
   drawStrokes(ctx, strokes, W, SH);
@@ -450,10 +468,10 @@ export function drawStory(ctx: CanvasRenderingContext2D, input: RenderInput) {
     if (it.kind === "text" && it.text?.trim()) {
       drawTextBlock(ctx, layoutText(it.text, it.font), it.color ?? "#ffffff", !!it.box);
     } else if (it.kind === "emoji" && it.emoji) {
-      ctx.font = `${64 * K}px ${FONT_STACK}`;
+      ctx.font = `${EMOJI_PX}px ${FONT_STACK}`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(it.emoji, 0, 3 * K);
+      ctx.fillText(it.emoji, 0, 2 * K);
     } else if (it.kind === "music" && it.music) {
       drawMusicLabel(ctx, it.music, covers.get(it.music.url) ?? null);
     }
@@ -518,10 +536,7 @@ export async function renderStoryFile(input: Omit<RenderInput, "covers">): Promi
 
   const canvas = document.createElement("canvas");
   canvas.width = W;
-  canvas.height = storyHeight(
-    input.photo.naturalWidth || input.photo.width,
-    input.photo.naturalHeight || input.photo.height,
-  );
+  canvas.height = H;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Your browser can't edit stories.");
   drawStory(ctx, { ...input, covers });

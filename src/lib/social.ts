@@ -1,6 +1,7 @@
 import { randomId } from "@/lib/uuid";
 import { supabase } from "@/integrations/supabase/client";
 import { removeStoryVideoFile } from "@/lib/story-video";
+import { embedGifs, readEmbeddedGifs, type StoryGif } from "@/lib/story-gifs";
 import { embedMusic, readEmbeddedMusic } from "@/lib/story-music";
 import { videoUsedByHighlight } from "@/lib/highlights";
 import type {
@@ -405,6 +406,8 @@ export type StoryItem = {
   /** song attached to a photo story: "Song - Artist" and a short preview clip that plays with it */
   music_title?: string | null;
   music_url?: string | null;
+  /** GIFs placed on a photo story (saved inside the picture address; none on older stories) */
+  gifs?: StoryGif[];
   /** optional local flag used by withStoryLiked(); the app reads likes from StoryEngagement */
   liked_by_me?: boolean;
 };
@@ -539,7 +542,9 @@ export async function fetchStories(meId: string): Promise<StoryGroup[]> {
       latest: s.created_at,
     };
     // a song saved inside the picture address (when the music columns are missing)
-    const embedded = readEmbeddedMusic(s.image_url);
+    // GIFs are the last "#" part of the address, so they come off first
+    const withGifs = readEmbeddedGifs(s.image_url);
+    const embedded = readEmbeddedMusic(withGifs.image_url);
     g.items.push({
       id: s.id,
       media_type: s.media_type ?? "image",
@@ -553,6 +558,7 @@ export async function fetchStories(meId: string): Promise<StoryGroup[]> {
       created_at: s.created_at,
       music_title: songs.get(s.id)?.music_title ?? embedded.music_title,
       music_url: songs.get(s.id)?.music_url ?? embedded.music_url,
+      ...(withGifs.gifs.length > 0 ? { gifs: withGifs.gifs } : {}),
     });
     g.latest = s.created_at;
     groups.set(s.author_id, g);
@@ -572,8 +578,13 @@ export async function createStory(
   file: File,
   /** optional song: saved with the story and played while it is watched */
   music?: { title: string; url: string } | null,
+  /** optional GIFs: saved with the story and played on top of the picture while it is watched */
+  gifs?: StoryGif[] | null,
 ): Promise<void> {
-  const image_url = await uploadImage(authorId, "stories", file);
+  const uploaded = await uploadImage(authorId, "stories", file);
+  // GIFs ride at the end of the picture address (no new database column needed)
+  const withGifs = (url: string) => (gifs && gifs.length > 0 ? embedGifs(url, gifs) : url);
+  const image_url = withGifs(uploaded);
   const row = { author_id: authorId, image_url };
   if (music) {
     const withMusic = await supabase
@@ -586,7 +597,7 @@ export async function createStory(
     console.warn("Story music columns are missing; run 20261101000000_story_music.sql in Supabase.");
     const { error } = await supabase
       .from("stories")
-      .insert({ ...row, image_url: embedMusic(image_url, music) });
+      .insert({ ...row, image_url: withGifs(embedMusic(uploaded, music)) });
     if (error) fail("Creating the story", error);
     return;
   }

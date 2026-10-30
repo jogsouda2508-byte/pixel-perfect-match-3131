@@ -20,6 +20,8 @@ import { Avatar } from "@/components/ediraa";
 import { PollCard, PollSheet } from "@/components/poll-card";
 import { StoryEditor } from "@/components/story-editor";
 import { StoryMusicPlayer } from "@/components/story-music-player";
+import { StoryPhoto } from "@/components/story-gif-layer";
+import type { StoryGif } from "@/lib/story-gifs";
 import { readMusicSeconds } from "@/lib/story-music";
 import { StoryReplyBar } from "@/components/story-reply-bar";
 import { StoryVideoDialog } from "@/components/story-video-dialog";
@@ -48,7 +50,7 @@ import {
 } from "@/lib/story-seen";
 import { timeAgo } from "@/lib/time";
 
-const AVATAR = 64;
+const AVATAR = 56;
 /** Photos can be picked together; this keeps one upload batch sensible. */
 const MAX_PHOTOS_AT_ONCE = 10;
 const VIDEO_EXTENSIONS = ["mp4", "webm", "mov"];
@@ -137,14 +139,17 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
     mutationFn: async ({
       files,
       music,
+      gifs,
     }: {
       files: File[];
       music?: { title: string; url: string } | null;
+      gifs?: StoryGif[];
     }) => {
       let done = 0;
       try {
         for (const file of files) {
-          if (music) await createStory(meId, file, music);
+          if (gifs && gifs.length > 0) await createStory(meId, file, music ?? null, gifs);
+          else if (music) await createStory(meId, file, music);
           else await createStory(meId, file);
           done += 1;
         }
@@ -344,9 +349,9 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
         <StoryEditor
           file={editing}
           onClose={() => setEditing(null)}
-          onShare={(edited, music) => {
+          onShare={(edited, music, gifs) => {
             setEditing(null);
-            upload.mutate({ files: [edited], music });
+            upload.mutate({ files: [edited], music, ...(gifs ? { gifs } : {}) });
           }}
         />
       )}
@@ -831,12 +836,7 @@ function StoryViewer({
             onDone={advance}
           />
         ) : (
-          <img
-            src={item.image_url ?? ""}
-            alt=""
-            draggable={false}
-            className="max-h-full max-w-full object-contain"
-          />
+          <StoryPhoto src={item.image_url ?? ""} gifs={item.gifs} />
         )}
         {item.music_url && itemIsPhoto && (
           <StoryMusicPlayer

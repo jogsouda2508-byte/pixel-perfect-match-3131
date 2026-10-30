@@ -4,6 +4,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 const h = vi.hoisted(() => ({
   render: vi.fn(),
   search: vi.fn(),
+  gifs: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -16,6 +17,11 @@ vi.mock("@/lib/story-music", async (importOriginal) => {
   return { ...actual, searchMusic: h.search };
 });
 
+vi.mock("@/lib/story-gifs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/story-gifs")>();
+  return { ...actual, searchGifs: h.gifs };
+});
+
 import { StoryEditor } from "@/components/story-editor";
 
 const photo = new File([new Uint8Array(10)], "pic.jpg", { type: "image/jpeg" });
@@ -26,6 +32,10 @@ beforeEach(() => {
   URL.revokeObjectURL = vi.fn();
   h.render.mockReset();
   h.search.mockReset();
+  h.gifs.mockReset();
+  h.gifs.mockResolvedValue([
+    { id: "abc123XYZ", title: "wave", ratio: 1.5, preview: "https://media.giphy.com/media/abc123XYZ/200w.gif" },
+  ]);
   h.search.mockResolvedValue([
     {
       id: "1",
@@ -53,9 +63,12 @@ describe("story editor", () => {
     expect(h.render).not.toHaveBeenCalled();
   });
 
-  it("closes straight away when there are no edits", () => {
+  it("asks before closing even when there are no edits", () => {
     const { onClose } = setup();
     fireEvent.click(screen.getByRole("button", { name: "Close editor" }));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Discard" }));
     expect(onClose).toHaveBeenCalled();
   });
 
@@ -70,6 +83,22 @@ describe("story editor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close editor" }));
     fireEvent.click(screen.getByRole("button", { name: "Discard" }));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("adds a GIF from the GIF picker and shares it with the story", async () => {
+    h.render.mockResolvedValue(new File([new Uint8Array(1)], "out.jpg", { type: "image/jpeg" }));
+    const { onShare } = setup();
+    fireEvent.click(screen.getByRole("button", { name: "Add GIF" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Use GIF wave/ }));
+    expect(screen.getByTestId("overlay-gif")).toBeInTheDocument();
+    expect(screen.queryByTestId("story-gif-picker")).toBeNull();
+    // the picture may not be loaded in jsdom, so only check what was asked for
+    fireEvent.load(screen.getByAltText("Your photo"));
+    fireEvent.click(screen.getByRole("button", { name: "Share story" }));
+    await waitFor(() => expect(onShare).toHaveBeenCalled());
+    const gifs = onShare.mock.calls[0]?.[2];
+    expect(gifs).toHaveLength(1);
+    expect(gifs[0]).toMatchObject({ id: "abc123XYZ", ratio: 1.5 });
   });
 
   it("adds text from the text tool", () => {

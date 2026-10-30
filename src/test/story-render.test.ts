@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { contrastColor, fitText, layoutCaption, layoutText, splitMusicTitle, wrapLines } from "@/lib/story-render";
+import {
+  contrastColor,
+  fitText,
+  layoutCaption,
+  layoutText,
+  photoRect,
+  splitMusicTitle,
+  storyHeight,
+  wrapLines,
+} from "@/lib/story-render";
 import { bigCover, embedMusic, musicTitle, readEmbeddedMusic, searchMusic } from "@/lib/story-music";
 
 describe("story text layout", () => {
@@ -137,5 +146,27 @@ describe("photo view", () => {
     expect(clampView({ zoom: 0.5, x: 3, y: 3 })).toEqual({ zoom: 1, x: 0, y: 0 });
     expect(clampView({ zoom: 2, x: 5, y: -5 })).toEqual({ zoom: 2, x: 0.5, y: -0.5 });
     expect(clampView({ zoom: 99, x: 0, y: 0 }).zoom).toBe(4);
+  });
+});
+
+describe("story canvas", () => {
+  it("is always the full 9:16 canvas", () => {
+    expect(storyHeight(4000, 3000)).toBe(1920);
+    expect(storyHeight(1000, 4000)).toBe(1920);
+  });
+
+  it("keeps a wide photo whole and centred (not cropped)", () => {
+    const r = photoRect(2000, 1000, 1080, 1920);
+    expect(r.w).toBe(1080);
+    expect(r.h).toBe(540);
+    expect(r.x).toBe(0);
+    expect(r.y).toBe((1920 - 540) / 2);
+  });
+
+  it("keeps a tall photo whole and centred", () => {
+    const r = photoRect(1000, 4000, 1080, 1920);
+    expect(r.h).toBe(1920);
+    expect(r.w).toBe(480);
+    expect(r.x).toBe((1080 - 480) / 2);
   });
 });

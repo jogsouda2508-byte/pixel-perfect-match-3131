@@ -94,7 +94,7 @@ export function StoryVideoDialog({
 
         <video
           src={previewUrl}
-          className="max-h-56 w-full rounded-lg bg-black object-contain"
+          className="max-h-56 w-full bg-black object-contain"
           controls
           muted
           playsInline
