@@ -737,6 +737,28 @@ export async function fetchFollowList(
     .filter((p): p is FollowListPerson => !!p);
 }
 
+export type PostLiker = Pick<Profile, "id" | "full_name" | "username" | "avatar_url">;
+
+/** Who liked a post, newest like first (up to 200). Row-level security hides likes on posts you can't see. */
+export async function fetchPostLikers(postId: string): Promise<PostLiker[]> {
+  const { data, error } = await supabase
+    .from("post_likes")
+    .select("user_id")
+    .eq("post_id", postId)
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (error) fail("Loading likes", error);
+  const ids = (data ?? []).map((r) => r.user_id);
+  if (ids.length === 0) return [];
+  const { data: people, error: peopleError } = await supabase
+    .from("profiles")
+    .select("id, full_name, username, avatar_url")
+    .in("id", ids);
+  if (peopleError) fail("Loading likes", peopleError);
+  const byId = new Map((people ?? []).map((p) => [p.id, p as PostLiker]));
+  return ids.map((id) => byId.get(id)).filter((p): p is PostLiker => !!p);
+}
+
 // ---------------------------------------------------------------- edit profile
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 

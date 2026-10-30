@@ -16,6 +16,7 @@ import { Gallery } from "@/components/gallery";
 import { CommentIcon, HeartIcon, ShareIcon } from "@/components/icons";
 import { EmojiButton } from "@/components/emoji-button";
 import { PollCard } from "@/components/poll-card";
+import { PostLikedBy } from "@/components/post-likes";
 import { PostMeta } from "@/components/post-meta";
 import { ShareVideoDialog } from "@/components/share-video-dialog";
 import {
@@ -58,6 +59,9 @@ function RichText({ text }: { text: string }) {
   );
 }
 
+/** A caption longer than this (or with more than 2 lines) is cut short with a "more" button. */
+const CAPTION_PREVIEW_CHARS = 100;
+
 export function PostCard({
   post,
   openComments = false,
@@ -83,6 +87,7 @@ export function PostCard({
   const [draft, setDraft] = useState("");
   const [shareOpen, setShareOpen] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
+  const [captionOpen, setCaptionOpen] = useState(false);
 
   // Keep in sync when the feed refetches.
   useEffect(() => {
@@ -201,6 +206,13 @@ export function PostCard({
 
   const name = post.author_name || post.author_username;
 
+  // Caption sits under the photo / video. Long ones show a short preview and a "more" button.
+  const hasMedia = (isVideo && !!post.video_url) || !!post.image_url;
+  const captionText = post.content ?? "";
+  const captionLines = captionText.split("\n");
+  const longCaption = captionText.length > CAPTION_PREVIEW_CHARS || captionLines.length > 2;
+  const captionPreview = captionLines.slice(0, 2).join("\n").slice(0, CAPTION_PREVIEW_CHARS).trimEnd();
+
   return (
     <article className="glass-card p-3">
       <div className="flex items-center gap-3">
@@ -241,7 +253,8 @@ export function PostCard({
 
       <PostMeta post={post} />
 
-      {post.content && (
+      {/* A text-only post keeps its text on top; with a photo or video the caption goes underneath. */}
+      {post.content && !hasMedia && (
         <p className="mt-3 whitespace-pre-line break-words text-sm leading-relaxed">
           <RichText text={post.content} />
         </p>
@@ -311,7 +324,7 @@ export function PostCard({
       )}
 
       {/* Instagram-style action bar: icons only, each with its number beside it; Save sits at the far end. */}
-      <div className="mt-3 flex items-center gap-1 border-t border-border pt-2 text-sm font-semibold">
+      <div className="mt-3 flex items-center gap-1 border-t border-border pt-2 text-sm font-semibold max-sm:mt-1.5 max-sm:pt-0.5">
         <button
           type="button"
           onClick={onLikeClick}
@@ -368,6 +381,32 @@ export function PostCard({
           />
         </button>
       </div>
+
+      {user && <PostLikedBy postId={post.id} likes={likes} meId={user.id} authorId={post.author_id} />}
+
+      {captionText && hasMedia && (
+        <p className="mt-0 whitespace-pre-line break-words px-1 pb-0.5 text-sm leading-snug">
+          <Link
+            to="/u/$username"
+            params={{ username: post.author_username }}
+            className="mr-1.5 font-semibold hover:underline"
+          >
+            {post.author_username}
+          </Link>
+          <RichText text={longCaption && !captionOpen ? captionPreview : captionText} />
+          {longCaption && !captionOpen && <span className="text-muted-foreground">… </span>}
+          {longCaption && (
+            <button
+              type="button"
+              onClick={() => setCaptionOpen((v) => !v)}
+              aria-expanded={captionOpen}
+              className="ml-1 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {captionOpen ? "less" : "more"}
+            </button>
+          )}
+        </p>
+      )}
 
       <ShareVideoDialog
         post={shareOpen ? { id: post.id } : null}
