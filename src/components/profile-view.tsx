@@ -543,9 +543,9 @@ export function ProfileView({
                     {/* small video badge in the top-right corner */}
                     <span
                       aria-hidden="true"
-                      className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-md bg-white shadow-sm"
+                      className="pointer-events-none absolute right-1 top-1 grid h-4 w-4 place-items-center rounded-[5px] bg-white shadow-sm sm:right-1.5 sm:top-1.5 sm:h-6 sm:w-6 sm:rounded-md"
                     >
-                      <Play className="h-3.5 w-3.5 fill-black text-black" />
+                      <Play className="h-2 w-2 fill-black text-black sm:h-3.5 sm:w-3.5" />
                     </span>
                   </button>
                 ) : p.image_url ? (
