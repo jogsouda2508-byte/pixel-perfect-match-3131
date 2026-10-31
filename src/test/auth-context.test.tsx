@@ -32,6 +32,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   auth.getSession.mockResolvedValue({ data: { session: null } });
   auth.onAuthStateChange.mockReturnValue({ data: { subscription: { unsubscribe: () => {} } } });
+  rpc.mockImplementation(async (fn: string, args: { p_email?: string }) =>
+    fn === "plan_signup_email"
+      ? { data: { ok: true, auth_email: args.p_email }, error: null }
+      : { data: null, error: null },
+  );
 });
 
 async function ready() {
@@ -49,19 +54,15 @@ describe("AuthContext", () => {
     expect(result.current.profile).toBeNull();
   });
 
-  it("logs in with an email directly", async () => {
-    auth.signInWithPassword.mockResolvedValue({ error: null });
+  it("refuses an email: log-in is by username only", async () => {
     const { result } = await ready();
     let res: Res | undefined;
     await act(async () => {
-      res = await result.current.signIn("  me@x.com ", "pw123456");
+      res = await result.current.signIn("me@x.com", "pw123456");
     });
+    expect(res?.error).toMatch(/username, not your email/);
     expect(rpc).not.toHaveBeenCalled();
-    expect(auth.signInWithPassword).toHaveBeenCalledWith({
-      email: "me@x.com",
-      password: "pw123456",
-    });
-    expect(res?.error).toBeNull();
+    expect(auth.signInWithPassword).not.toHaveBeenCalled();
   });
 
   it("looks up the email when logging in with a username (with or without @)", async () => {
@@ -85,20 +86,21 @@ describe("AuthContext", () => {
     await act(async () => {
       res = await result.current.signIn("ghost", "pw123456");
     });
-    expect(res?.error).toMatch(/Incorrect/);
+    expect(res?.error).toMatch(/Incorrect username/);
     expect(auth.signInWithPassword).not.toHaveBeenCalled();
   });
 
   it("shows a friendly message for wrong credentials", async () => {
+    rpc.mockResolvedValue({ data: "me@x.com", error: null });
     auth.signInWithPassword.mockResolvedValue({
       error: { message: "Invalid login credentials", code: "invalid_credentials" },
     });
     const { result } = await ready();
     let res: Res | undefined;
     await act(async () => {
-      res = await result.current.signIn("me@x.com", "wrongpass");
+      res = await result.current.signIn("susheel_08", "wrongpass");
     });
-    expect(res?.error).toBe("Incorrect email/username or password.");
+    expect(res?.error).toBe("Incorrect username or password.");
   });
 
   it("sign-up sends full_name + lowercase username as metadata and asks for verification", async () => {
@@ -119,8 +121,9 @@ describe("AuthContext", () => {
     expect(auth.signUp.mock.calls[0]?.[0].options.data).toEqual({
       full_name: "Basava J",
       username: "basava_2005",
+      contact_email: "a@b.co",
     });
-    expect(res).toEqual({ error: null, needsVerification: true });
+    expect(res).toEqual({ error: null, needsVerification: true, authEmail: "a@b.co" });
   });
 
   it("sign-up skips verification when a session is returned (email confirmation off)", async () => {
@@ -167,5 +170,51 @@ describe("AuthContext", () => {
     });
     const { result } = await ready();
     expect(result.current.profile?.username).toBe("bas");
+  });
+
+  it("sign-up uses the inbox alias the database picks when the email already has an account", async () => {
+    rpc.mockResolvedValue({ data: { ok: true, auth_email: "a+bas2@b.co" }, error: null });
+    auth.signUp.mockResolvedValue({
+      data: { user: { identities: [{}] }, session: null },
+      error: null,
+    });
+    const { result } = await ready();
+    let res: { authEmail?: string } | undefined;
+    await act(async () => {
+      res = await result.current.signUp({
+        email: "a@b.co",
+        password: "Password1",
+        fullName: "B",
+        username: "bas2",
+      });
+    });
+    expect(rpc).toHaveBeenCalledWith("plan_signup_email", {
+      p_email: "a@b.co",
+      p_username: "bas2",
+    });
+    expect(auth.signUp.mock.calls[0]?.[0].email).toBe("a+bas2@b.co");
+    expect(auth.signUp.mock.calls[0]?.[0].options.data.contact_email).toBe("a@b.co");
+    expect(res?.authEmail).toBe("a+bas2@b.co");
+  });
+
+  it("sign-up is refused (no account created) when the username is taken or the email has 3 accounts", async () => {
+    const { result } = await ready();
+    for (const [reason, text] of [
+      ["username_taken", /already taken/],
+      ["limit_reached", /already has 3 accounts/],
+    ] as const) {
+      rpc.mockResolvedValue({ data: { ok: false, reason }, error: null });
+      let res: Res | undefined;
+      await act(async () => {
+        res = await result.current.signUp({
+          email: "a@b.co",
+          password: "Password1",
+          fullName: "B",
+          username: "bas",
+        });
+      });
+      expect(res?.error).toMatch(text);
+    }
+    expect(auth.signUp).not.toHaveBeenCalled();
   });
 });

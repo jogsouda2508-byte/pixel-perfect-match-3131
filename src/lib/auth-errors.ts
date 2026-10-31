@@ -27,6 +27,8 @@ export function friendlyAuthError(
     msg.includes("already been registered")
   )
     return "This email is already registered. Try logging in instead.";
+  if (msg.includes("email_limit"))
+    return "This email already has 3 accounts. Use a different email.";
   if (
     msg.includes("username_taken") ||
     msg.includes("database error saving new user") ||

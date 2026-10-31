@@ -585,6 +585,13 @@ export type Database = {
     Functions: {
       is_username_available: { Args: { p_username: string }; Returns: boolean };
       get_login_email: { Args: { p_username: string }; Returns: string | null };
+      /** needs 20261102000000_multi_account_per_email.sql */
+      plan_signup_email: {
+        Args: { p_email: string; p_username: string };
+        Returns: { ok: boolean; auth_email?: string; reason?: string };
+      };
+      get_login_emails: { Args: { p_email: string }; Returns: string[] };
+      get_reset_emails: { Args: { p_identifier: string }; Returns: string[] };
       get_feed: {
         Args: {
           p_tab: string;
@@ -606,6 +613,12 @@ export type Database = {
         Returns: undefined;
       };
       record_story_view: { Args: { p_story_id: string }; Returns: undefined };
+      /** needs 20261102000001_video_views.sql */
+      record_video_view: { Args: { p_post_id: string }; Returns: undefined };
+      get_video_view_counts: {
+        Args: { p_post_ids: string[] };
+        Returns: { post_id: string; view_count: number }[];
+      };
       set_story_like: {
         Args: { p_story_id: string; p_liked: boolean };
         /** the new liked state, or null when the story isn't available to me */

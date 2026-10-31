@@ -61,8 +61,10 @@ import { addComment, fetchComments, type CommentView } from "@/lib/social";
 import { timeAgo } from "@/lib/time";
 import { useFollow } from "@/lib/use-follow";
 import { ReelFollowedBy } from "@/components/reel-followed-by";
+import { isFeedMuted, setFeedMuted } from "@/lib/feed-sound";
 import { useSaved } from "@/lib/use-saved";
 import { downloadVideo } from "@/lib/video-download";
+import { recordVideoView } from "@/lib/videos";
 import {
   deleteVideoPost,
   fetchVideoById,
@@ -91,10 +93,8 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
   const [likeBusy, setLikeBusy] = useState<Record<string, boolean>>({});
   const lastScrollTarget = useRef("");
   const [activeId, setActiveId] = useState(initialVideoId ?? "");
-  const [muted, setMuted] = useState(() => {
-    if (typeof window === "undefined") return true;
-    return window.localStorage.getItem("ediraa-videos-muted") !== "false";
-  });
+  // Sound is ON by default; only muted when the person turned it off (shared with the feed).
+  const [muted, setMuted] = useState(() => isFeedMuted());
   const [playing, setPlaying] = useState(true);
   const [progress, setProgress] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
@@ -225,6 +225,14 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
     }
   }, [activeId, activeVideo, muted, playing, pageVisible]);
 
+  // A video counts as viewed once it has been the active one for a moment.
+  const activeVideoId = activeVideo?.id;
+  useEffect(() => {
+    if (!activeVideoId || !pageVisible) return;
+    const t = window.setTimeout(() => void recordVideoView(activeVideoId), 1500);
+    return () => window.clearTimeout(t);
+  }, [activeVideoId, pageVisible]);
+
   useEffect(() => {
     if (
       feed.hasNextPage &&
@@ -268,7 +276,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
   const toggleMute = () => {
     const next = !muted;
     setMuted(next);
-    window.localStorage.setItem("ediraa-videos-muted", String(next));
+    setFeedMuted(next);
   };
 
   const seekTo = (post: VideoFeedRow, percent: number) => {

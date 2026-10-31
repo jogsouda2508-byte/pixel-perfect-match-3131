@@ -84,7 +84,8 @@ function SignUpForm() {
     e.preventDefault();
     setFormError(undefined);
     const errs = validateSignUp(v);
-    if (!errs.username && avail === "taken") errs.username = "Already taken";
+    if (!errs.username && avail === "taken")
+      errs.username = "This username is already used. Try another one.";
     setErrors(errs);
     if (Object.values(errs).some(Boolean)) return;
 
@@ -103,7 +104,8 @@ function SignUpForm() {
     }
     if (res.needsVerification) {
       toast.success("We sent a 6-digit code to your email.");
-      navigate({ to: "/verify", search: { email: v.email.trim() } });
+      // verify with the email the account was really created with (an alias for the 2nd/3rd account)
+      navigate({ to: "/verify", search: { email: res.authEmail ?? v.email.trim() } });
     } else {
       toast.success("Account created!");
       navigate({ to: "/onboarding" });
@@ -133,7 +135,11 @@ function SignUpForm() {
     ) : avail === "taken" ? (
       <span className="flex items-center gap-1 text-destructive">
         <X className="h-3 w-3" />
-        Already taken
+        Username unavailable — already used
+      </span>
+    ) : avail === "error" ? (
+      <span className="flex items-center gap-1 text-muted-foreground">
+        Couldn't check right now — we'll check again when you sign up
       </span>
     ) : undefined;
 
@@ -157,7 +163,7 @@ function SignUpForm() {
           value={v.fullName}
           onChange={(e) => set("fullName", e.target.value)}
           error={errors.fullName}
-          placeholder="Basava Jarkande"
+          placeholder="Susheel"
         />
         <TextField
           label="Username"
@@ -167,7 +173,7 @@ function SignUpForm() {
           onChange={(e) => set("username", e.target.value)}
           error={errors.username}
           hint={usernameHint}
-          placeholder="basava_2005"
+          placeholder="susheel_08"
         />
         <TextField
           label="Email"
@@ -177,6 +183,11 @@ function SignUpForm() {
           onChange={(e) => set("email", e.target.value)}
           error={errors.email}
           placeholder="you@example.com"
+          hint={
+            <span className="text-muted-foreground">
+              You can use the same email for up to 3 different usernames.
+            </span>
+          }
         />
         <PasswordField
           label="Password"
@@ -303,7 +314,9 @@ function GoogleCompleteSignup() {
     if (error) {
       setSaving(false);
       const taken = error.code === "23505" || error.message.toLowerCase().includes("username");
-      const msg = taken ? "That username was just taken. Choose another." : "Couldn't save. Try again.";
+      const msg = taken
+        ? "That username was just taken. Choose another."
+        : "Couldn't save. Try again.";
       setErrors({ username: taken ? msg : undefined });
       toast.error(msg);
       return;
@@ -353,14 +366,14 @@ function GoogleCompleteSignup() {
             setErrors((p) => ({ ...p, username: undefined }));
           }}
           error={errors.username}
-          placeholder="basava_2005"
+          placeholder="susheel_08"
           hint={
             avail === "checking" ? (
               <span className="text-muted-foreground">Checking…</span>
             ) : avail === "available" ? (
               <span className="text-success">Username is available</span>
             ) : avail === "taken" ? (
-              <span className="text-destructive">Already taken</span>
+              <span className="text-destructive">Username unavailable — already used</span>
             ) : undefined
           }
         />

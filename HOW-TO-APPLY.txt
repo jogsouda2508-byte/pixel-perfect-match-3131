@@ -1,0 +1,11 @@
+1. Copy everything in this zip into the ROOT of your project (replace when asked).
+2. Run this SQL ONCE in Supabase -> SQL Editor (needed for the view counts):
+   supabase/migrations/20261102000001_video_views.sql
+3. Restart / rebuild.
+
+NEW:     supabase/migrations/20261102000001_video_views.sql
+CHANGED: src/components/profile-view.tsx   (edge-to-edge grid, video badge, views)
+         src/lib/videos.ts                 (record + read video views)
+         src/components/video-viewer.tsx   (counts a view when a reel is watched)
+         src/components/post-card.tsx      (counts a view when a feed video is watched)
+         src/integrations/supabase/types.ts

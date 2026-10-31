@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -27,6 +27,7 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/lib/auth";
 import { formatCount } from "@/lib/format-count";
+import { setFeedMuted, useFeedMuted } from "@/lib/feed-sound";
 import { togglePostLike } from "@/lib/post-cache";
 import { useShareCount } from "@/lib/post-shares";
 import {
@@ -38,7 +39,7 @@ import {
 } from "@/lib/social";
 import { timeAgo } from "@/lib/time";
 import { useSaved } from "@/lib/use-saved";
-import { deleteVideoPost } from "@/lib/videos";
+import { deleteVideoPost, recordVideoView } from "@/lib/videos";
 import type { FeedRow } from "@/integrations/supabase/types";
 
 /** Renders #hashtags in the brand colour. */
@@ -260,7 +261,7 @@ export function PostCard({
     <article className="glass-card overflow-hidden">
       {isVideo && post.video_url ? (
         // Video post: the video runs edge to edge (no side gaps) and the profile photo, name and
-        // location sit on top of it. It autoplays (muted) while on screen; tapping it opens Reels.
+        // location sit on top of it. It autoplays (with sound, see the speaker button) while on screen; tapping it opens Reels.
         <div className="relative w-full bg-black">
           <FeedVideo
             src={post.video_url}
@@ -399,7 +400,7 @@ export function PostCard({
       {user && <PostLikedBy postId={post.id} likes={likes} meId={user.id} authorId={post.author_id} />}
 
       {captionText && hasMedia && (
-        <p className="mt-0 whitespace-pre-line break-words px-1 pb-0.5 text-sm leading-snug">
+        <p className="mt-2 whitespace-pre-line break-words px-1 pb-0.5 text-sm leading-snug">
           <Link
             to="/u/$username"
             params={{ username: post.author_username }}
@@ -452,9 +453,44 @@ export function PostCard({
 }
 
 /**
- * Feed video: autoplays muted (no play button) while at least ~60% on screen and pauses when it
- * scrolls away. Shown whole (letterboxed over a blurred copy of the poster, never cropped).
- * Tapping anywhere on it opens the Reels viewer on this video.
+ * Speaker icon with sound waves. When the sound is off, a diagonal slash runs across it
+ * (with a small gap around the slash so it reads clearly).
+ */
+function SoundIcon({ muted }: { muted: boolean }) {
+  const maskId = useId();
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {muted && (
+        <mask id={maskId} maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24">
+          <rect width="24" height="24" fill="white" stroke="none" />
+          <path d="M4 4L20 20" stroke="black" strokeWidth="5" />
+        </mask>
+      )}
+      <g mask={muted ? `url(#${maskId})` : undefined}>
+        <path d="M2.5 9.5v5h3.5l5 4v-13l-5 4H2.5z" fill="currentColor" stroke="none" />
+        <path d="M15 9.2a4 4 0 0 1 0 5.6" />
+        <path d="M18 6.4a8 8 0 0 1 0 11.2" />
+      </g>
+      {muted && <path d="M4 4L20 20" />}
+    </svg>
+  );
+}
+
+/**
+ * Feed video: autoplays (with sound) while at least ~60% on screen and pauses when it scrolls
+ * away. A small speaker button (bottom right) turns the sound off / on. Sound is ON by default;
+ * if the browser refuses to autoplay with sound, the video plays muted and the button shows
+ * the muted icon, so one tap brings the sound back. Shown whole (letterboxed over a blurred
+ * copy of the poster, never cropped). Tapping the video opens the Reels viewer on it.
  */
 function FeedVideo({
   src,
@@ -469,15 +505,30 @@ function FeedVideo({
 }) {
   const ref = useRef<HTMLVideoElement>(null);
   const [ratio, setRatio] = useState(4 / 5);
+  const muted = useFeedMuted();
+
+  // Keep the element in step with the shared sound setting.
+  useEffect(() => {
+    if (ref.current) ref.current.muted = muted;
+  }, [muted]);
 
   useEffect(() => {
     const video = ref.current;
     if (!video) return;
-    video.muted = true; // React doesn't always set the muted attribute; autoplay needs it.
     const play = () => {
       try {
         const p = video.play();
-        if (p && typeof p.catch === "function") p.catch(() => {});
+        if (p && typeof p.catch === "function") {
+          p.catch(() => {
+            // The browser blocked autoplay WITH sound: play muted instead (not remembered),
+            // so the person can tap the speaker to turn the sound on.
+            if (video.muted) return; // already muted and still blocked: the poster stays
+            video.muted = true;
+            setFeedMuted(true, false);
+            const retry = video.play();
+            if (retry && typeof retry.catch === "function") retry.catch(() => {});
+          });
+        }
       } catch {
         /* autoplay blocked: the poster stays visible */
       }
@@ -486,51 +537,90 @@ function FeedVideo({
       play();
       return;
     }
+    let viewTimer: number | undefined;
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry) return;
-        if (entry.isIntersecting && entry.intersectionRatio >= 0.6) play();
-        else if (typeof video.pause === "function") video.pause();
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+          play();
+          // counts as a view after ~2 seconds on screen
+          window.clearTimeout(viewTimer);
+          viewTimer = window.setTimeout(() => void recordVideoView(to), 2000);
+        } else {
+          window.clearTimeout(viewTimer);
+          if (typeof video.pause === "function") video.pause();
+        }
       },
       { threshold: [0, 0.6, 1] },
     );
     observer.observe(video);
-    return () => observer.disconnect();
-  }, [src]);
+    return () => {
+      window.clearTimeout(viewTimer);
+      observer.disconnect();
+    };
+  }, [src, to]);
+
+  const toggleSound = () => {
+    const video = ref.current;
+    const next = !muted;
+    setFeedMuted(next);
+    if (video) {
+      video.muted = next;
+      // Turning sound on is a tap, so the browser lets it play with sound now.
+      if (!next && video.paused && typeof video.play === "function") {
+        try {
+          const p = video.play();
+          if (p && typeof p.catch === "function") p.catch(() => {});
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  };
 
   return (
-    <Link
-      to="/videos"
-      search={{ video: to }}
-      aria-label={label}
-      className="relative block w-full overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      style={{ aspectRatio: ratio, maxHeight: "80dvh" }}
-    >
-      {poster && (
-        <img
-          src={poster}
-          alt=""
-          aria-hidden="true"
-          className="absolute inset-0 h-full w-full scale-110 object-cover opacity-50 blur-2xl"
+    <div className="relative w-full">
+      <Link
+        to="/videos"
+        search={{ video: to }}
+        aria-label={label}
+        className="relative block w-full overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        style={{ aspectRatio: ratio, maxHeight: "80dvh" }}
+      >
+        {poster && (
+          <img
+            src={poster}
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-0 h-full w-full scale-110 object-cover opacity-50 blur-2xl"
+          />
+        )}
+        <video
+          ref={ref}
+          src={src}
+          poster={poster ?? undefined}
+          muted={muted}
+          loop
+          playsInline
+          preload="metadata"
+          disablePictureInPicture
+          onLoadedMetadata={(e) => {
+            const { videoWidth: w, videoHeight: h } = e.currentTarget;
+            if (w && h) setRatio(w / h);
+          }}
+          className="absolute inset-0 h-full w-full object-contain"
         />
-      )}
-      <video
-        ref={ref}
-        src={src}
-        poster={poster ?? undefined}
-        muted
-        loop
-        playsInline
-        autoPlay
-        preload="metadata"
-        disablePictureInPicture
-        onLoadedMetadata={(e) => {
-          const { videoWidth: w, videoHeight: h } = e.currentTarget;
-          if (w && h) setRatio(w / h);
-        }}
-        className="absolute inset-0 h-full w-full object-contain"
-      />
-    </Link>
+      </Link>
+      <button
+        type="button"
+        onClick={toggleSound}
+        aria-label={muted ? "Turn sound on" : "Turn sound off"}
+        aria-pressed={!muted}
+        className="absolute bottom-3 right-3 z-20 grid h-9 w-9 place-items-center rounded-full bg-black/55 text-white backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+      >
+        <SoundIcon muted={muted} />
+      </button>
+    </div>
   );
 }
 

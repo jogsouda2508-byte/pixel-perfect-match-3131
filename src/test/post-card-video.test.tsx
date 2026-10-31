@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FeedRow } from "@/integrations/supabase/types";
 
 const { saveState, followList, shareVideoWithUser } = vi.hoisted(() => ({
@@ -44,6 +44,7 @@ vi.mock("@/lib/post-shares", () => ({
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { PostCard } from "@/components/post-card";
+import { setFeedMuted } from "@/lib/feed-sound";
 
 function post(overrides: Partial<FeedRow> = {}): FeedRow {
   return {
@@ -89,6 +90,12 @@ beforeEach(() => {
   vi.clearAllMocks();
   saveState.saved = false;
   followList.people = [];
+  window.localStorage.removeItem("ediraa-videos-muted");
+  setFeedMuted(false, false);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("PostCard action bar", () => {
@@ -118,13 +125,13 @@ describe("PostCard action bar", () => {
 });
 
 describe("PostCard video posts", () => {
-  it("autoplays muted with no play button and opens the Reels viewer on tap", () => {
+  it("autoplays with sound on by default, has no play button and opens the Reels viewer on tap", () => {
     const { container } = renderCard(videoPost());
 
     const video = container.querySelector("video") as HTMLVideoElement;
     expect(video).not.toBeNull();
     expect(video).toHaveAttribute("src", "https://cdn.example/videos/a.mp4");
-    expect(video.muted).toBe(true);
+    expect(video.muted).toBe(false);
     expect(video).toHaveAttribute("loop");
     expect(video).not.toHaveAttribute("controls");
     expect(video).toHaveAttribute("poster", "https://cdn.example/videos/a.jpg");
@@ -132,6 +139,29 @@ describe("PostCard video posts", () => {
     expect(container.querySelector('a[href="/videos"] video')).not.toBeNull();
     // The profile name sits on top of the video, inside the same block.
     expect(container.querySelector("article > div.relative")?.textContent).toContain("Ana Author");
+  });
+
+  it("has a speaker button that turns the sound off and on, and remembers it", () => {
+    const { container } = renderCard(videoPost());
+    const video = container.querySelector("video") as HTMLVideoElement;
+
+    const off = screen.getByRole("button", { name: "Turn sound off" });
+    expect(video.muted).toBe(false);
+    // The button sits next to the video, not inside the link that opens Reels.
+    expect(container.querySelector("a button")).toBeNull();
+
+    fireEvent.click(off);
+    expect(video.muted).toBe(true);
+    expect(window.localStorage.getItem("ediraa-videos-muted")).toBe("true");
+
+    fireEvent.click(screen.getByRole("button", { name: "Turn sound on" }));
+    expect(video.muted).toBe(false);
+    expect(window.localStorage.getItem("ediraa-videos-muted")).toBe("false");
+  });
+
+  it("shows no speaker button on posts without a video", () => {
+    renderCard(post());
+    expect(screen.queryByRole("button", { name: /Turn sound/ })).toBeNull();
   });
 
   it("uses a star (not a bookmark) to save videos, and shows it filled when saved", () => {

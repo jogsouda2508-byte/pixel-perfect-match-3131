@@ -330,6 +330,36 @@ export async function fetchUserVideos(userId: string): Promise<PostRow[]> {
   return data ?? [];
 }
 
+const recordedViews = new Set<string>();
+
+/** Counts one view of a video for the signed-in person (once per video per page load). */
+export async function recordVideoView(postId: string): Promise<void> {
+  if (recordedViews.has(postId)) return;
+  recordedViews.add(postId);
+  try {
+    // Best effort: a missing database function must never break watching a video.
+    await supabase.rpc("record_video_view", { p_post_id: postId });
+  } catch {
+    /* ignore */
+  }
+}
+
+/** View count per video id. Returns null when counts aren't available (e.g. SQL not run yet). */
+export async function fetchVideoViewCounts(
+  postIds: string[],
+): Promise<Record<string, number> | null> {
+  if (postIds.length === 0) return {};
+  try {
+    const { data, error } = await supabase.rpc("get_video_view_counts", { p_post_ids: postIds });
+    if (error || !data) return null;
+    const counts: Record<string, number> = {};
+    for (const row of data) counts[row.post_id] = Number(row.view_count);
+    return counts;
+  } catch {
+    return null;
+  }
+}
+
 export async function deleteVideoPost(
   post: Pick<VideoFeedRow, "id" | "video_url" | "thumbnail_url">,
 ): Promise<void> {

@@ -32,6 +32,7 @@ function LoginPage() {
     password?: string | undefined;
   }>({});
   const [formError, setFormError] = useState<string>();
+  const [verifyEmail, setVerifyEmail] = useState<string>();
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
@@ -39,13 +40,14 @@ function LoginPage() {
     e.preventDefault();
     setFormError(undefined);
     const errs: typeof errors = {};
-    if (!identifier.trim()) errs.identifier = "Enter your email or username";
+    if (!identifier.trim()) errs.identifier = "Enter your username";
     if (!password) errs.password = "Enter your password";
     setErrors(errs);
     if (Object.keys(errs).length) return;
 
     setLoading(true);
-    const { error } = await signIn(identifier, password);
+    const { error, verifyEmail: toVerify } = await signIn(identifier, password);
+    setVerifyEmail(toVerify);
     // On success the session changes and <AuthGate /> sends the user to /home (or /onboarding).
     setLoading(false);
     if (error) {
@@ -63,9 +65,6 @@ function LoginPage() {
     }
   };
 
-  const needsVerify =
-    formError?.toLowerCase().includes("verify your email") && identifier.includes("@");
-
   return (
     <AuthShell
       title="Welcome back"
@@ -81,7 +80,7 @@ function LoginPage() {
     >
       <form onSubmit={submit} className="space-y-4" noValidate>
         <TextField
-          label="Email or username"
+          label="Username"
           autoComplete="username"
           autoCapitalize="none"
           value={identifier}
@@ -90,7 +89,7 @@ function LoginPage() {
             setErrors((p) => ({ ...p, identifier: undefined }));
           }}
           error={errors.identifier}
-          placeholder="you@example.com or @username"
+          placeholder="susheel_08"
         />
         <PasswordField
           label="Password"
@@ -114,10 +113,10 @@ function LoginPage() {
             className="rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
           >
             {formError}{" "}
-            {needsVerify && (
+            {verifyEmail && (
               <Link
                 to="/verify"
-                search={{ email: identifier.trim() }}
+                search={{ email: verifyEmail }}
                 className="font-semibold underline"
               >
                 Enter code

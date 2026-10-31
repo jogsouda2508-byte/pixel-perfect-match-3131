@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Building2,
   CalendarDays,
+  Eye,
   Grid3x3,
   Loader2,
   Lock,
@@ -24,6 +25,7 @@ import { ReelsIcon, ShareIcon } from "@/components/icons";
 import { Gallery, type GalleryItem } from "@/components/gallery";
 import { ProfileQrSheet } from "@/components/profile-qr";
 import { FollowedBy } from "@/components/followed-by";
+import { formatCount } from "@/lib/format-count";
 import { ProfileHighlights } from "@/components/profile-highlights";
 import { ProfileNoteBubble, useProfileNote } from "@/components/profile-note";
 import { profileUrl } from "@/lib/public-url";
@@ -46,7 +48,7 @@ import {
 import { followLabel, isProfileLocked } from "@/lib/follow-state";
 import { useFollow } from "@/lib/use-follow";
 import { startConversation } from "@/lib/chat";
-import { fetchUserVideos } from "@/lib/videos";
+import { fetchUserVideos, fetchVideoViewCounts } from "@/lib/videos";
 import type { Profile } from "@/integrations/supabase/types";
 import emptyPostsUrl from "@/assets/empty-posts.jpg";
 
@@ -110,6 +112,14 @@ export function ProfileView({
     enabled: tab === "Reels" && lockKnown && !locked,
   });
 
+  // View counts shown under each video in the Reels tab (null = not available yet).
+  const videoIds = (videos.data ?? []).map((v) => v.id);
+  const viewCounts = useQuery({
+    queryKey: ["video-view-counts", videoIds.join(",")],
+    queryFn: () => fetchVideoViewCounts(videoIds),
+    enabled: tab === "Reels" && videos.isSuccess && videoIds.length > 0,
+  });
+
   // Every photo and video post, in grid order, for the full-screen gallery.
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
   const [photoOpen, setPhotoOpen] = useState(false);
@@ -158,13 +168,13 @@ export function ProfileView({
   // The Share profile buttons open the QR code screen (it has its own Share / Copy / Download).
   const [qrOpen, setQrOpen] = useState(false);
   const reelsContent = (
-    <section aria-label="Videos" className="mt-1">
+    <section aria-label="Videos" className="-mx-4 sm:mx-0">
       {videos.isLoading && (
-        <div className="grid grid-cols-3 gap-1.5" aria-label="Loading videos">
+        <div className="grid grid-cols-3 gap-0.5 bg-card" aria-label="Loading videos">
           {[0, 1, 2, 3, 4, 5].map((item) => (
             <div
               key={item}
-              className="aspect-[9/16] animate-pulse rounded-lg bg-elevated"
+              className="aspect-[9/16] animate-pulse bg-elevated"
             />
           ))}
         </div>
@@ -181,14 +191,14 @@ export function ProfileView({
             : "No videos to show yet."}
         </p>
       )}
-      <div className="grid grid-cols-3 gap-1.5">
+      <div className="grid grid-cols-3 gap-0.5 bg-card">
         {videos.data?.map((video) => (
           <Link
             key={video.id}
             to="/videos"
             search={{ video: video.id }}
             aria-label={`Watch video${video.content ? `: ${video.content}` : ""}`}
-            className="group relative aspect-[9/16] overflow-hidden rounded-lg bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="group relative aspect-[9/16] overflow-hidden bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {video.thumbnail_url ? (
               <img
@@ -202,11 +212,14 @@ export function ProfileView({
                 <Video className="h-8 w-8" aria-hidden="true" />
               </div>
             )}
-            <span className="absolute bottom-2 right-2 rounded bg-black/65 px-1.5 py-0.5 text-xs text-white">
-              {video.duration_seconds
-                ? `${Math.ceil(video.duration_seconds)}s`
-                : "Video"}
-            </span>
+            {viewCounts.data && (
+              <span className="absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-black/55 to-transparent px-2 pb-1.5 pt-6 text-sm font-semibold text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.6)]">
+                <Eye className="h-4 w-4" aria-hidden="true" />
+                <span aria-label={`${viewCounts.data[video.id] ?? 0} views`}>
+                  {formatCount(viewCounts.data[video.id] ?? 0) || "0"}
+                </span>
+              </span>
+            )}
           </Link>
         ))}
       </div>
@@ -507,7 +520,7 @@ export function ProfileView({
                 )}
               </section>
             )}
-            <div className="mt-1 grid grid-cols-3 gap-1.5">
+            <div className="-mx-4 grid grid-cols-3 gap-0.5 bg-card sm:mx-0">
               {grid.data?.map((p) =>
                 p.media_type === "video" && p.video_url ? (
                   <button
@@ -517,7 +530,7 @@ export function ProfileView({
                       setGalleryIndex(galleryIndexByPost.get(p.id) ?? 0)
                     }
                     aria-label={`Play video${p.content ? `: ${p.content.slice(0, 60)}` : ""}`}
-                    className="relative block aspect-square w-full overflow-hidden rounded-lg bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="relative block aspect-square w-full overflow-hidden bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     {p.thumbnail_url && (
                       <img
@@ -527,13 +540,12 @@ export function ProfileView({
                         className="h-full w-full object-cover"
                       />
                     )}
-                    <span className="absolute inset-0 grid place-items-center">
-                      <span className="grid h-9 w-9 place-items-center rounded-full bg-black/55">
-                        <Play
-                          className="h-5 w-5 fill-white text-white"
-                          aria-hidden="true"
-                        />
-                      </span>
+                    {/* small video badge in the top-right corner */}
+                    <span
+                      aria-hidden="true"
+                      className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-md bg-white shadow-sm"
+                    >
+                      <Play className="h-3.5 w-3.5 fill-black text-black" />
                     </span>
                   </button>
                 ) : p.image_url ? (
@@ -544,7 +556,7 @@ export function ProfileView({
                       setGalleryIndex(galleryIndexByPost.get(p.id) ?? 0)
                     }
                     aria-label={`Open photo${p.content ? `: ${p.content.slice(0, 60)}` : ""}`}
-                    className="block aspect-square w-full overflow-hidden rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="block aspect-square w-full overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <img
                       src={p.image_url}
@@ -556,7 +568,7 @@ export function ProfileView({
                 ) : (
                   <div
                     key={p.id}
-                    className="flex aspect-square items-center rounded-lg bg-elevated p-3"
+                    className="flex aspect-square items-center bg-elevated p-3"
                   >
                     <p className="line-clamp-5 break-words text-xs font-medium leading-snug">
                       {p.content}
