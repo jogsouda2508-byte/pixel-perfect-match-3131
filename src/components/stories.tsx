@@ -26,6 +26,7 @@ import { readMusicSeconds } from "@/lib/story-music";
 import { StoryReplyBar } from "@/components/story-reply-bar";
 import { StoryVideoDialog } from "@/components/story-video-dialog";
 import { useAuth } from "@/lib/auth";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   createStory,
   deleteStory,
@@ -50,7 +51,9 @@ import {
 } from "@/lib/story-seen";
 import { timeAgo } from "@/lib/time";
 
-const AVATAR = 56;
+/** Story circle size: a little bigger on phones, unchanged on larger screens. */
+const AVATAR_DESKTOP = 56;
+const AVATAR_MOBILE = 64;
 /** Photos can be picked together; this keeps one upload batch sensible. */
 const MAX_PHOTOS_AT_ONCE = 10;
 const VIDEO_EXTENSIONS = ["mp4", "webm", "mov"];
@@ -63,6 +66,9 @@ function isVideoFile(file: File): boolean {
 }
 
 export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
+  const isMobile = useIsMobile();
+  const AVATAR = isMobile ? AVATAR_MOBILE : AVATAR_DESKTOP;
+  const COLUMN = AVATAR + 16; // 72px on desktop, 80px on phones
   const { user, profile } = useAuth();
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -265,7 +271,7 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
           }}
         />
 
-        <div role="listitem" className="relative w-[72px] shrink-0 snap-start">
+        <div role="listitem" className="relative shrink-0 snap-start" style={{ width: COLUMN }}>
           <StoryButton
             label="Create Story"
             ariaLabel={myGroup ? "View your story" : "Create a story"}
@@ -289,9 +295,9 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
               onClick={onOwnBubble}
               disabled={busy || syncing}
               aria-label="Add to your story"
-              // badge's bottom-right corner = avatar's bottom-right corner (row is 72px wide, avatar centred,
+              // badge's bottom-right corner = avatar's bottom-right corner (row is COLUMN px wide, avatar centred,
               // 4px button padding on top); follows AVATAR if it is resized
-              style={{ right: (72 - AVATAR) / 2, top: 4 + AVATAR - 24 }}
+              style={{ right: (COLUMN - AVATAR) / 2 - 4, top: 4 + AVATAR - 24 }}
               className="absolute grid h-6 w-6 place-items-center rounded-full border-2 border-background bg-primary text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-80"
             >
               {busy || syncing ? (
@@ -307,7 +313,7 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
           <div
             role="listitem"
             key={g.authorId}
-            className="w-[72px] shrink-0 snap-start"
+            className="shrink-0 snap-start" style={{ width: COLUMN }}
           >
             <StoryButton
               label={g.username || g.name.split(" ")[0] || "Story"}
@@ -329,7 +335,7 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
 
         {/* Optional shortcut to the Local feed tab; only shown when the page passes onLocalHub. */}
         {onLocalHub && (
-          <div role="listitem" className="w-[72px] shrink-0 snap-start">
+          <div role="listitem" className="shrink-0 snap-start" style={{ width: COLUMN }}>
             <StoryButton
               label="Local Hub"
               ariaLabel="Open the Local feed"
@@ -340,7 +346,7 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
                   className="grid place-items-center rounded-full bg-background"
                   style={{ height: AVATAR - 4, width: AVATAR - 4 }}
                 >
-                  <MapPin className="h-6 w-6 text-success" />
+                  <MapPin className="text-success" style={{ height: AVATAR * 0.43, width: AVATAR * 0.43 }} />
                 </div>
               </div>
             </StoryButton>

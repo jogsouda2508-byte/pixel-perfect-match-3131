@@ -136,9 +136,18 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
   const activeIndex = items.findIndex((item) => item.id === activeId);
   const activeVideo = items[activeIndex] ?? items[0];
 
+  // The video that was opened from a link is made active only ONCE. Without this, every scroll
+  // to the next video changed activeId, this effect ran again and forced the linked (first)
+  // video back to active, so its audio kept playing under the next video.
+  const appliedInitialId = useRef("");
   useEffect(() => {
     if (!items.length) return;
-    if (initialVideoId && items.some((item) => item.id === initialVideoId)) {
+    if (
+      initialVideoId &&
+      appliedInitialId.current !== initialVideoId &&
+      items.some((item) => item.id === initialVideoId)
+    ) {
+      appliedInitialId.current = initialVideoId;
       setActiveId(initialVideoId);
       return;
     }

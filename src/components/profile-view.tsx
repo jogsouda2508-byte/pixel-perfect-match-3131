@@ -233,7 +233,7 @@ export function ProfileView({
         <section className="glass-card overflow-hidden">
           <div className="px-4 pb-3 pt-4">
             {/* Top bar: @username (with a lock when private) and the settings menu. */}
-            <div className="-mx-4 -mt-4 flex items-center justify-between gap-3 bg-[linear-gradient(135deg,#f1e6ff_0%,#e6ecff_100%)] px-4 py-2 dark:bg-none dark:bg-elevated">
+            <div className="-mx-4 -mt-4 flex min-h-[60px] items-center justify-between gap-3 bg-[linear-gradient(135deg,#f1e6ff_0%,#e6ecff_100%)] px-4 py-2 dark:bg-none dark:bg-elevated">
               <h1 className="flex min-w-0 items-center gap-1.5 text-lg font-bold">
                 {profile.is_private && (
                   <Lock
