@@ -19,6 +19,7 @@ const PROTECTED = [
   "/saved",
   "/groups",
   "/business",
+  "/business-edit",
   "/settings",
   "/help",
 ];

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, Search } from "lucide-react";
 import { BottomNav, Pill, SideNav, UserRow } from "@/components/ediraa";
+import { BusinessDirectory } from "@/components/business-directory";
 import { GroupsPanel } from "@/components/groups-panel";
 import { PostCard } from "@/components/post-card";
 import { useAuth } from "@/lib/auth";
@@ -46,12 +47,11 @@ function DiscoverPage() {
   const q = useDebounced(query.trim());
   const follow = useFollow();
 
-  const showPeople =
-    filter === "All" || filter === "People" || filter === "Business";
+  const showPeople = filter === "All" || filter === "People";
   const people = useQuery({
     queryKey: ["people", "discover", q, filter, meId],
     queryFn: () =>
-      fetchPeople({ query: q, businessOnly: filter === "Business", limit: 20 }),
+      fetchPeople({ query: q, limit: 20 }),
     enabled: !!meId && showPeople,
   });
 
@@ -98,15 +98,13 @@ function DiscoverPage() {
 
         {filter === "Groups" ? (
           <GroupsPanel query={q} />
+        ) : filter === "Business" ? (
+          <BusinessDirectory query={q} />
         ) : (
           <section className="glass-card p-5">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-sm font-semibold sm:text-lg">
-                {q
-                  ? "People"
-                  : filter === "Business"
-                    ? "Businesses"
-                    : "People you may know"}
+                {q ? "People" : "People you may know"}
               </h2>
             </div>
             <div className="space-y-5">

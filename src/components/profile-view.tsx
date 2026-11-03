@@ -26,6 +26,7 @@ import { Gallery, type GalleryItem } from "@/components/gallery";
 import { ProfileQrSheet } from "@/components/profile-qr";
 import { FollowedBy } from "@/components/followed-by";
 import { formatCount } from "@/lib/format-count";
+import { BusinessInfoCard } from "@/components/business-card";
 import { ProfileHighlights } from "@/components/profile-highlights";
 import { ProfileNoteBubble, useProfileNote } from "@/components/profile-note";
 import { profileUrl } from "@/lib/public-url";
@@ -406,6 +407,9 @@ export function ProfileView({
                 </button>
               </div>
             )}
+
+            {/* Business accounts: category, open/closed, rating, prices and Call / WhatsApp buttons */}
+            {!locked && <BusinessInfoCard profile={profile} isMe={isMe} />}
 
             {/* Story highlights, right under the buttons */}
             {!locked && (

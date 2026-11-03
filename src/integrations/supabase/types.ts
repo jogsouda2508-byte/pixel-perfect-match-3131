@@ -157,6 +157,52 @@ export type PersonRow = {
   is_following: boolean;
 };
 
+export type BusinessInfoRow = {
+  owner_id: string;
+  category: string | null;
+  /** 10-digit Indian mobile number, no +91 */
+  phone: string | null;
+  whatsapp: string | null;
+  address: string | null;
+  hours: unknown;
+  updated_at: string;
+};
+
+export type BusinessServiceRow = {
+  id: string;
+  owner_id: string;
+  name: string;
+  price: number;
+  price_from: boolean;
+  description: string | null;
+  sort_order: number;
+  created_at: string;
+};
+
+export type BusinessReviewRow = {
+  business_id: string;
+  reviewer_id: string;
+  rating: number;
+  body: string;
+  owner_reply: string | null;
+  replied_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** One row of `get_business_directory` */
+export type BusinessDirectoryRow = {
+  id: string;
+  full_name: string;
+  username: string;
+  avatar_url: string | null;
+  category: string | null;
+  address: string | null;
+  hours: unknown;
+  rating_avg: number | null;
+  rating_count: number;
+};
+
 export type TrendingRow = { tag: string; uses: number };
 
 /** One row of `get_saved_posts` (same shape as the feed, plus when it was saved) */
@@ -580,9 +626,75 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      /** needs 20261103000000_business_pages.sql */
+      business_info: {
+        Row: BusinessInfoRow;
+        Insert: {
+          owner_id: string;
+          category?: string | null;
+          phone?: string | null;
+          whatsapp?: string | null;
+          address?: string | null;
+          hours?: unknown;
+          updated_at?: string;
+        };
+        Update: {
+          category?: string | null;
+          phone?: string | null;
+          whatsapp?: string | null;
+          address?: string | null;
+          hours?: unknown;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      business_services: {
+        Row: BusinessServiceRow;
+        Insert: {
+          owner_id: string;
+          name: string;
+          price: number;
+          price_from?: boolean;
+          description?: string | null;
+          sort_order?: number;
+        };
+        Update: {
+          name?: string;
+          price?: number;
+          price_from?: boolean;
+          description?: string | null;
+          sort_order?: number;
+        };
+        Relationships: [];
+      };
+      business_reviews: {
+        Row: BusinessReviewRow;
+        Insert: {
+          business_id: string;
+          reviewer_id: string;
+          rating: number;
+          body?: string;
+        };
+        Update: { rating?: number; body?: string; updated_at?: string };
+        Relationships: [];
+      };
     };
     Views: { [_ in never]: never };
     Functions: {
+      /** needs 20261103000000_business_pages.sql */
+      get_business_page: { Args: { p_owner_id: string }; Returns: unknown };
+      get_business_directory: {
+        Args: { p_query: string | null; p_category: string | null; p_limit: number };
+        Returns: BusinessDirectoryRow[];
+      };
+      get_business_categories: {
+        Args: Record<string, never>;
+        Returns: { category: string; n: number }[];
+      };
+      reply_to_business_review: {
+        Args: { p_reviewer_id: string; p_reply: string };
+        Returns: undefined;
+      };
       is_username_available: { Args: { p_username: string }; Returns: boolean };
       get_login_email: { Args: { p_username: string }; Returns: string | null };
       /** needs 20261102000000_multi_account_per_email.sql */

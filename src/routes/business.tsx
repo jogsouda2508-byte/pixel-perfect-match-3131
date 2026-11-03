@@ -1,12 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Building2, Loader2 } from "lucide-react";
-import { Avatar, UserRow } from "@/components/ediraa";
+import { Building2, Check, ChevronRight, Loader2 } from "lucide-react";
+import { BusinessDirectory } from "@/components/business-directory";
+import { Stars } from "@/components/business-reviews";
+import { Avatar } from "@/components/ediraa";
 import { PageHeader, PageShell } from "@/components/page-shell";
 import { useAuth } from "@/lib/auth";
-import { fetchFollowCounts, fetchPeople, updateMyProfile } from "@/lib/social";
-import { useFollow } from "@/lib/use-follow";
+import { setupProgress, useBusinessPage, type BusinessPage } from "@/lib/business";
+import { fetchFollowCounts, updateMyProfile } from "@/lib/social";
 
 export const Route = createFileRoute("/business")({
   head: () => ({
@@ -26,17 +28,12 @@ function BusinessPage() {
   const qc = useQueryClient();
   const meId = user?.id ?? "";
   const isBusiness = profile?.account_type === "business";
-  const follow = useFollow();
+  const biz = useBusinessPage(meId, isBusiness);
 
   const stats = useQuery({
     queryKey: ["follow-counts", meId],
     queryFn: () => fetchFollowCounts(meId),
     enabled: !!meId && isBusiness,
-  });
-  const businesses = useQuery({
-    queryKey: ["people", "business", meId],
-    queryFn: () => fetchPeople({ businessOnly: true, limit: 20 }),
-    enabled: !!meId,
   });
 
   const switchType = useMutation({
@@ -45,6 +42,8 @@ function BusinessPage() {
       await refreshProfile();
       void qc.invalidateQueries({ queryKey: ["feed"] });
       void qc.invalidateQueries({ queryKey: ["people"] });
+      void qc.invalidateQueries({ queryKey: ["business-directory"] });
+      void qc.invalidateQueries({ queryKey: ["business-page"] });
       toast.success(
         next === "business"
           ? "You now have a Business page"
@@ -84,6 +83,32 @@ function BusinessPage() {
             Your posts appear in the Business tab of everyone's feed, and your profile is marked as
             a business.
           </p>
+
+          <SetupChecklist page={biz.data} loading={biz.isLoading} />
+
+          {biz.data && biz.data.rating_count > 0 && (
+            <Link
+              to="/profile"
+              hash="reviews"
+              className="flex min-h-11 items-center gap-2 rounded-xl bg-elevated/60 px-3 text-sm"
+            >
+              <Stars value={biz.data.rating_avg ?? 0} size={15} />
+              <span className="font-semibold">{(biz.data.rating_avg ?? 0).toFixed(1)}</span>
+              <span className="text-muted-foreground">
+                · {biz.data.rating_count} review{biz.data.rating_count === 1 ? "" : "s"}
+              </span>
+              <span className="ml-auto flex items-center gap-0.5 font-semibold text-primary">
+                See &amp; reply <ChevronRight className="h-4 w-4" aria-hidden="true" />
+              </span>
+            </Link>
+          )}
+
+          <Link
+            to="/business-edit"
+            className="flex min-h-12 w-full items-center justify-center rounded-full bg-gradient-brand text-sm font-semibold text-primary-foreground"
+          >
+            {setupProgress(biz.data).done === 0 ? "Set up business info" : "Edit business info"}
+          </Link>
           <div className="grid grid-cols-2 gap-3">
             <Link
               to="/profile"
@@ -95,7 +120,7 @@ function BusinessPage() {
               to="/settings"
               className="rounded-full border border-border py-2.5 text-center text-sm font-semibold"
             >
-              Edit details
+              Edit profile
             </Link>
           </div>
           <button
@@ -117,8 +142,9 @@ function BusinessPage() {
           </div>
           <h2 className="text-lg font-bold">Grow your business on Ediraa</h2>
           <p className="text-sm text-muted-foreground">
-            Switch to a Business account to get a business badge on your profile and have your posts
-            show up in the Business feed. You can switch back any time.
+            Switch to a Business account to get a business badge, show your opening hours, prices
+            and Call / WhatsApp buttons, collect customer reviews, and have your posts show up in
+            the Business feed. You can switch back any time.
           </p>
           <button
             type="button"
@@ -132,33 +158,7 @@ function BusinessPage() {
         </section>
       )}
 
-      <section className="glass-card p-4">
-        <h2 className="mb-4 font-semibold">Businesses on Ediraa</h2>
-        <div className="space-y-4">
-          {businesses.isLoading && (
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-          )}
-          {businesses.isError && (
-            <p className="text-sm text-destructive">Couldn't load businesses.</p>
-          )}
-          {businesses.isSuccess && businesses.data.length === 0 && (
-            <p className="text-sm text-muted-foreground">No other businesses have joined yet.</p>
-          )}
-          {businesses.data?.map((p) => (
-            <UserRow
-              key={p.id}
-              name={p.full_name || p.username}
-              username={p.username}
-              sub={`@${p.username}`}
-              img={p.avatar_url}
-              following={follow.isFollowing(p.id, p.is_following)}
-              requested={follow.isRequested(p.id)}
-              pending={follow.isPending(p.id)}
-              onToggle={() => follow.toggle(p.id, follow.isFollowing(p.id, p.is_following))}
-            />
-          ))}
-        </div>
-      </section>
+      <BusinessDirectory showSearch />
     </PageShell>
   );
 }
@@ -168,6 +168,80 @@ function Stat({ n, l }: { n: number; l: string }) {
     <div>
       <p className="text-lg font-bold">{n}</p>
       <p className="text-xs text-muted-foreground">{l}</p>
+    </div>
+  );
+}
+
+/** "Complete your business page": what is done, and one tap to the part that is missing. */
+function SetupChecklist({
+  page,
+  loading,
+}: {
+  page: BusinessPage | null | undefined;
+  loading: boolean;
+}) {
+  if (loading) return null;
+  const p = setupProgress(page);
+  if (p.done === p.total)
+    return (
+      <p className="flex items-center gap-2 rounded-xl bg-success/10 px-3 py-2.5 text-sm font-medium text-success">
+        <Check className="h-4 w-4" aria-hidden="true" />
+        Your business page is complete
+      </p>
+    );
+  const items = [
+    { done: p.contact, label: "Category and phone number", hash: "category" },
+    { done: p.hours, label: "Opening hours", hash: "hours" },
+    { done: p.prices, label: "Price list", hash: "prices" },
+  ];
+  return (
+    <div className="rounded-2xl border border-border p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-semibold">Complete your business page</p>
+        <p className="text-xs text-muted-foreground">
+          {p.done} of {p.total} done
+        </p>
+      </div>
+      <div
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={p.total}
+        aria-valuenow={p.done}
+        aria-label="Business page set-up progress"
+        className="mt-2 h-1.5 overflow-hidden rounded-full bg-border"
+      >
+        <div
+          className="h-full rounded-full bg-gradient-brand transition-all"
+          style={{ width: `${(p.done / p.total) * 100}%` }}
+        />
+      </div>
+      <ul className="mt-1">
+        {items.map((item) => (
+          <li key={item.hash}>
+            <Link
+              to="/business-edit"
+              hash={item.hash}
+              className="flex min-h-11 items-center gap-3 text-sm"
+            >
+              <span
+                aria-hidden="true"
+                className={`grid h-5 w-5 place-items-center rounded-full border ${item.done ? "border-success bg-success text-success-foreground" : "border-border"}`}
+              >
+                {item.done && <Check className="h-3 w-3" />}
+              </span>
+              <span className={item.done ? "text-muted-foreground line-through" : "font-medium"}>
+                {item.label}
+              </span>
+              {!item.done && (
+                <ChevronRight
+                  className="ml-auto h-4 w-4 text-muted-foreground"
+                  aria-hidden="true"
+                />
+              )}
+            </Link>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

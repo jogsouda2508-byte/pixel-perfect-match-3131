@@ -1,0 +1,27 @@
+BUSINESS PAGES FEATURE - how to apply
+=====================================
+1. Unzip into the ROOT of your project and choose "replace" when asked.
+   (Folders inside the zip already match your project: src/..., supabase/...)
+
+2. Run the database migration ONCE:
+   Supabase Dashboard -> SQL Editor -> paste and run
+   supabase/migrations/20261103000000_business_pages.sql
+   (safe to run more than once)
+
+3. Start the app. New route: /business-edit
+
+What you get
+- Business page -> "Set up business info" + a checklist (category/phone, hours, price list)
+- Edit screen: category list, +91 phone (10 digits, starts 6-9), WhatsApp (same or different),
+  address, opening hours for 7 days (closed / 24 hours / after-midnight), price list in Rs
+  (Indian grouping 1,50,000, "From" prices, reorder), unsaved-changes warning
+- Profile of any business: category, "Open now / Closes 8 PM", rating, Call + WhatsApp buttons,
+  address, price list, hours, reviews
+- Reviews: 1-5 stars + one line, one review per person, edit/delete own, owner cannot review own
+  shop, owner can reply but not delete
+- Discover -> Business and Business page: search, category chips, "Open now" filter
+
+New files: src/lib/business.ts, src/components/business-card.tsx, business-reviews.tsx,
+business-directory.tsx, src/routes/business-edit.tsx, src/test/business.test.ts, the migration
+Changed files: auth-gate.tsx, profile-view.tsx, supabase/types.ts, routeTree.gen.ts,
+business.tsx, discover.tsx
