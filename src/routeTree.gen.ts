@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as BusinessRouteImport } from './routes/business'
 import { Route as BusinessEditRouteImport } from './routes/business-edit'
+import { Route as CommunityRouteImport } from './routes/community'
 import { Route as CreateRouteImport } from './routes/create'
 import { Route as DiscoverRouteImport } from './routes/discover'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
@@ -49,6 +50,11 @@ const BusinessRoute = BusinessRouteImport.update({
 const BusinessEditRoute = BusinessEditRouteImport.update({
   id: '/business-edit',
   path: '/business-edit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CommunityRoute = CommunityRouteImport.update({
+  id: '/community',
+  path: '/community',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CreateRoute = CreateRouteImport.update({
@@ -171,6 +177,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/business': typeof BusinessRoute
   '/business-edit': typeof BusinessEditRoute
+  '/community': typeof CommunityRoute
   '/create': typeof CreateRoute
   '/discover': typeof DiscoverRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -199,6 +206,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/business': typeof BusinessRoute
   '/business-edit': typeof BusinessEditRoute
+  '/community': typeof CommunityRoute
   '/create': typeof CreateRoute
   '/discover': typeof DiscoverRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -228,6 +236,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/business': typeof BusinessRoute
   '/business-edit': typeof BusinessEditRoute
+  '/community': typeof CommunityRoute
   '/create': typeof CreateRoute
   '/discover': typeof DiscoverRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -258,6 +267,7 @@ export interface FileRouteTypes {
     | '/'
     | '/business'
     | '/business-edit'
+    | '/community'
     | '/create'
     | '/discover'
     | '/forgot-password'
@@ -286,6 +296,7 @@ export interface FileRouteTypes {
     | '/'
     | '/business'
     | '/business-edit'
+    | '/community'
     | '/create'
     | '/discover'
     | '/forgot-password'
@@ -314,6 +325,7 @@ export interface FileRouteTypes {
     | '/'
     | '/business'
     | '/business-edit'
+    | '/community'
     | '/create'
     | '/discover'
     | '/forgot-password'
@@ -343,6 +355,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BusinessRoute: typeof BusinessRoute
   BusinessEditRoute: typeof BusinessEditRoute
+  CommunityRoute: typeof CommunityRoute
   CreateRoute: typeof CreateRoute
   DiscoverRoute: typeof DiscoverRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
@@ -389,6 +402,13 @@ declare module '@tanstack/react-router' {
       path: '/business-edit'
       fullPath: '/business-edit'
       preLoaderRoute: typeof BusinessEditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/community': {
+      id: '/community'
+      path: '/community'
+      fullPath: '/community'
+      preLoaderRoute: typeof CommunityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/create': {
@@ -559,6 +579,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BusinessRoute: BusinessRoute,
   BusinessEditRoute: BusinessEditRoute,
+  CommunityRoute: CommunityRoute,
   CreateRoute: CreateRoute,
   DiscoverRoute: DiscoverRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,

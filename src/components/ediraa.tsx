@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import logoUrl from "@/assets/logo.png";
-import { Home, Search, MessageSquare, User, BadgeCheck } from "lucide-react";
+import { Home, Search, MessageSquare, User, BadgeCheck, HeartHandshake } from "lucide-react";
 import { useId, type ComponentType, type ReactNode } from "react";
 import { ComposerLauncher } from "@/components/composer";
 import { ReelsIcon } from "@/components/icons";
@@ -422,6 +422,19 @@ export function SideNav() {
           {i.to === "/chat" && <UnreadBadge count={chatUnread} className="ml-auto" />}
         </Link>
       ))}
+      <Link
+        to="/community"
+        activeProps={{
+          className: "flex items-center gap-3 rounded-xl px-3 py-2.5 bg-elevated text-primary",
+        }}
+        inactiveProps={{
+          className:
+            "flex items-center gap-3 rounded-xl px-3 py-2.5 text-muted-foreground hover:bg-card",
+        }}
+      >
+        <HeartHandshake className="h-5 w-5" />
+        Community
+      </Link>
       <ComposerLauncher variant="sidebar" />
     </aside>
   );
