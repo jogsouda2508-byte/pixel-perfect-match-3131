@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useCanGoBack, useNavigate, useRouter } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import type { ReactNode } from "react";
 import { BottomNav, SideNav } from "@/components/ediraa";
@@ -25,19 +25,34 @@ export function PageShell({
 export function PageHeader({
   title,
   back = "/more",
+  smartBack = false,
 }: {
   title: string;
   back?: "/more" | "/home" | "/profile";
+  /** Go back to wherever the person came from (e.g. Home or More); `back` is only the fallback. */
+  smartBack?: boolean;
 }) {
+  const router = useRouter();
+  const canGoBack = useCanGoBack();
+  const navigate = useNavigate();
+  const cls =
+    "grid h-11 w-11 place-items-center rounded-full hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
   return (
     <header className="flex items-center gap-3">
-      <Link
-        to={back}
-        aria-label="Back"
-        className="grid h-11 w-11 place-items-center rounded-full hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <ArrowLeft className="h-5 w-5" />
-      </Link>
+      {smartBack ? (
+        <button
+          type="button"
+          aria-label="Back"
+          onClick={() => (canGoBack ? router.history.back() : navigate({ to: back }))}
+          className={cls}
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+      ) : (
+        <Link to={back} aria-label="Back" className={cls}>
+          <ArrowLeft className="h-5 w-5" />
+        </Link>
+      )}
       <h1 className="text-2xl font-bold">{title}</h1>
     </header>
   );

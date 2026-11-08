@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { Bell, Loader2 } from "lucide-react";
+import { Bell, HeartHandshake, Loader2 } from "lucide-react";
 import {
   Avatar,
   BottomNav,
@@ -126,7 +126,17 @@ function HomePage() {
               </Pill>
             ))}
           </div>
-          <div className="order-2 flex shrink-0 items-center gap-4 md:order-2">
+          <div className="order-2 flex shrink-0 items-center gap-2 md:order-2 md:gap-4">
+            {/* Community: phones only (desktop has it in the side menu). */}
+            <Link
+              to="/community"
+              aria-label="Community"
+              className="group relative rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
+            >
+              <span className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-[#F3EFFF] to-[#E2DAFF] text-[#4F36D6] shadow-[0_4px_14px_-6px_rgba(79,54,214,0.5)] ring-1 ring-[#CFC3FF]/80 transition active:scale-95 dark:from-[#2E2460] dark:to-[#1C1740] dark:text-[#C9B8FF] dark:ring-white/10">
+                <HeartHandshake className="h-5 w-5" />
+              </span>
+            </Link>
             <Link
               to="/notifications"
               aria-label={`Notifications${(unread.data ?? 0) > 0 ? `, ${unread.data} unread` : ""}`}

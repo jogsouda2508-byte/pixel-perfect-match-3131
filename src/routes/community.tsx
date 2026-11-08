@@ -74,7 +74,7 @@ function CommunityPage() {
 
   return (
     <PageShell>
-      <PageHeader title="Community" />
+      <PageHeader title="Community" back="/home" smartBack />
       <LocalityBar locality={locality} profileLocation={profileLocation} onChange={setLocality} />
       <TodayStrip locality={locality} onGo={go} />
 
@@ -147,8 +147,9 @@ function TodayStrip({ locality, onGo }: { locality: string | null; onGo: (t: Tab
   const days = streak.data ?? 0;
 
   return (
-    <section aria-label="Today" className="grid grid-cols-3 gap-2">
+    <section aria-label="Today" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
       <Tile
+        wide
         onClick={() => onGo("events")}
         icon={<CalendarDays className="h-4 w-4" />}
         label="Next event"
@@ -186,6 +187,7 @@ function Tile({
   onClick,
   loading,
   accent,
+  wide,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -194,12 +196,17 @@ function Tile({
   onClick: () => void;
   loading?: boolean;
   accent?: boolean;
+  /** Full width on phones so the event title has room. */
+  wide?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="glass-card min-w-0 p-3 text-left transition active:scale-95"
+      className={cn(
+        "glass-card min-w-0 p-3 text-left transition active:scale-95",
+        wide && "col-span-2 sm:col-span-1",
+      )}
     >
       <span
         className={cn(
