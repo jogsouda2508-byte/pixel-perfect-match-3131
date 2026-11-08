@@ -16,8 +16,8 @@ import { PhoneAuth } from "@/components/phone-auth";
 export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [
-      { title: "Log In — Gicco chat" },
-      { name: "description", content: "Log in to Gicco chat to see what your network is up to." },
+      { title: "Log In — SabZone" },
+      { name: "description", content: "Log in to SabZone to see what your network is up to." },
     ],
   }),
   component: LoginPage,

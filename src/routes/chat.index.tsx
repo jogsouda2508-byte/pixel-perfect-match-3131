@@ -27,7 +27,7 @@ import { timeAgo } from "@/lib/time";
 
 export const Route = createFileRoute("/chat/")({
   head: () => ({
-    meta: [{ title: "Chat — Gicco chat" }],
+    meta: [{ title: "Chat — SabZone" }],
   }),
   component: ChatPage,
 });

@@ -85,12 +85,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Gicco chat" },
-      { name: "description", content: "Gicco chat social network" },
+      { title: "SabZone" },
+      { name: "description", content: "SabZone social network" },
       { name: "author", content: "Lovable" },
       { name: "theme-color", content: "#15121f" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
-      { name: "apple-mobile-web-app-title", content: "Gicco" },
+      { name: "apple-mobile-web-app-title", content: "SabZone" },
       
       
       { property: "og:type", content: "website" },

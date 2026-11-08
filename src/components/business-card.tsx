@@ -67,7 +67,7 @@ export function BusinessInfoCard({ profile, isMe }: { profile: Profile; isMe: bo
   const rows = hoursRows(page.hours, now);
   const progress = setupProgress(page);
   const name = profile.full_name || profile.username;
-  const whatsappMsg = `Hi ${name}, I found you on Gicco chat.`;
+  const whatsappMsg = `Hi ${name}, I found you on SabZone.`;
 
   return (
     <>

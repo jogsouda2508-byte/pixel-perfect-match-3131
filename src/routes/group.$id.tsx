@@ -34,7 +34,7 @@ import {
 } from "@/lib/social";
 
 export const Route = createFileRoute("/group/$id")({
-  head: () => ({ meta: [{ title: "Group — Gicco chat" }] }),
+  head: () => ({ meta: [{ title: "Group — SabZone" }] }),
   component: GroupPage,
 });
 

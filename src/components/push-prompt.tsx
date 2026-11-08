@@ -57,7 +57,7 @@ export function usePush() {
       else if (result === "denied")
         toast.error(
           isNativePlatform()
-            ? "Notifications are blocked. Allow them in your phone's Settings > Apps > Gicco."
+            ? "Notifications are blocked. Allow them in your phone's Settings > Apps > SabZone."
             : "Notifications are blocked in your browser settings.",
         );
       else if (result === "needs-app-update") toast.error(pushStateText("needs-app-update"));

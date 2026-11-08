@@ -17,8 +17,8 @@ import { passwordSchema, passwordStrength } from "@/lib/validation";
 export const Route = createFileRoute("/settings")({
   head: () => ({
     meta: [
-      { title: "Settings & Privacy — Gicco chat" },
-      { name: "description", content: "Edit your profile and manage your Gicco chat account." },
+      { title: "Settings & Privacy — SabZone" },
+      { name: "description", content: "Edit your profile and manage your SabZone account." },
     ],
   }),
   component: SettingsPage,
@@ -96,7 +96,7 @@ function PrivacyCard({ profile }: { profile: Profile }) {
           <p className="text-xs text-muted-foreground">
             {isPrivate
               ? "Only people you approve can see your posts and stories. New followers must send a request."
-              : "Anyone on Gicco chat can see your posts and follow you. Turn this on to approve followers yourself."}
+              : "Anyone on SabZone can see your posts and follow you. Turn this on to approve followers yourself."}
           </p>
         </div>
         <Switch

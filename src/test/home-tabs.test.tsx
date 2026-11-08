@@ -102,14 +102,11 @@ beforeEach(() => {
 
 const tab = (name: string) => screen.getByRole("button", { name });
 
-describe("Gicco chat header", () => {
-  it("shows Gicco on the first line and chat directly under it, next to the logo", async () => {
+describe("SabZone header", () => {
+  it("shows the SabZone name next to the logo", async () => {
     renderHome();
-    const gicco = (await screen.findAllByText("Gicco"))[0]!;
-    const chat = gicco.nextElementSibling;
-    expect(chat?.textContent).toBe("chat");
-    expect(gicco.parentElement?.className).toContain("flex-col");
-    expect(document.querySelector('img[alt="Gicco chat logo"]')).toBeInTheDocument();
+    expect((await screen.findAllByText("SabZone"))[0]).toBeInTheDocument();
+    expect(document.querySelector('img[alt="SabZone logo"]')).toBeInTheDocument();
   });
 });
 

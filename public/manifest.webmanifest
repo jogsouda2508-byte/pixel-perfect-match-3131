@@ -1,7 +1,7 @@
 {
-  "name": "Gicco chat",
-  "short_name": "Gicco",
-  "description": "Gicco chat social network",
+  "name": "SabZone",
+  "short_name": "SabZone",
+  "description": "SabZone social network",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

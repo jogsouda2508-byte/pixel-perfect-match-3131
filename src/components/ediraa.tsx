@@ -14,7 +14,7 @@ export function Logo({ size = 96, className = "" }: { size?: number; className?:
       src={logoUrl}
       width={size}
       height={size}
-      alt="Gicco chat logo"
+      alt="SabZone logo"
       decoding="async"
       className={`select-none object-contain dark:invert ${className}`}
       draggable={false}
@@ -23,22 +23,21 @@ export function Logo({ size = 96, className = "" }: { size?: number; className?:
 }
 
 /**
- * "Gicco" on the first line, "chat" directly underneath. Text only: the Logo
+ * The "SabZone" wordmark: one premium gradient word, no second line. Text only: the Logo
  * component above is deliberately not touched.
  */
 export function BrandName({ compact = false }: { compact?: boolean }) {
   return (
     <span className="flex min-w-0 flex-col items-start" translate="no">
       <span
-        className={`bg-gradient-to-r from-[#2B1B8F] via-[#4F36D6] to-[#6A33E0] bg-clip-text font-extrabold leading-[0.95] tracking-tight text-transparent dark:from-[#B9C0FF] dark:via-[#B79CFF] dark:to-[#D2B4FF] ${compact ? "text-[19px]" : "text-[26px]"}`}
+        className={`bg-gradient-to-br from-[#1E1170] via-[#4F36D6] to-[#8A3FE8] bg-clip-text font-extrabold leading-none tracking-[-0.02em] text-transparent drop-shadow-[0_1px_8px_rgba(106,51,224,0.28)] dark:from-[#E4E7FF] dark:via-[#C3B0FF] dark:to-[#E0C2FF] dark:drop-shadow-[0_1px_10px_rgba(183,156,255,0.35)] ${compact ? "text-[22px]" : "text-[30px]"}`}
       >
-        Gicco
+        SabZone
       </span>
       <span
-        className={`font-semibold leading-none tracking-[0.2em] text-[#5B3FD9] dark:text-[#C9B8FF] ${compact ? "mt-0.5 text-[10px]" : "mt-1 text-xs"}`}
-      >
-        chat
-      </span>
+        aria-hidden="true"
+        className={`rounded-full bg-gradient-to-r from-[#4F36D6] via-[#8A3FE8] to-transparent ${compact ? "mt-1 h-[2px] w-9" : "mt-1.5 h-[2.5px] w-12"}`}
+      />
     </span>
   );
 }
@@ -53,7 +52,7 @@ export function BrandLockup({
 }) {
   return (
     <span
-      className={`${fill ? "flex w-full justify-center" : "inline-flex"} items-center rounded-2xl bg-gradient-to-br from-[#F3EFFF] to-[#E6E0FF] ring-1 ring-[#D9D0FF]/70 dark:from-[#2A2150] dark:to-[#1F1A42] dark:ring-white/10 ${compact ? "gap-2 px-2.5 py-1.5" : "gap-3 px-3 py-2.5"}`}
+      className={`${fill ? "flex w-full justify-center" : "inline-flex"} items-center rounded-2xl bg-gradient-to-br from-[#F7F4FF] via-[#EEE9FF] to-[#E2DAFF] shadow-[0_6px_20px_-8px_rgba(79,54,214,0.35),inset_0_1px_0_rgba(255,255,255,0.8)] ring-1 ring-[#CFC3FF]/80 dark:from-[#2E2460] dark:via-[#251D4E] dark:to-[#1C1740] dark:shadow-[0_6px_24px_-8px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.08)] dark:ring-white/10 ${compact ? "gap-2 px-3 py-1.5" : "gap-3 px-4 py-3"}`}
     >
       <span aria-hidden="true" className="shrink-0">
         <Logo size={compact ? 28 : 40} />

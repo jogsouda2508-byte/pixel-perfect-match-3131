@@ -20,7 +20,7 @@ import { useAuth } from "@/lib/auth";
 export const Route = createFileRoute("/more")({
   head: () => ({
     meta: [
-      { title: "More — Gicco chat" },
+      { title: "More — SabZone" },
       { name: "description", content: "Your profile, saved posts, settings and more." },
     ],
   }),
@@ -55,9 +55,9 @@ function MorePage() {
 
   const invite = async () => {
     const url = `${window.location.origin}/signup`;
-    const text = "Join me on Gicco chat — connect with people and businesses around you.";
+    const text = "Join me on SabZone — connect with people and businesses around you.";
     try {
-      if (navigator.share) await navigator.share({ title: "Gicco chat", text, url });
+      if (navigator.share) await navigator.share({ title: "SabZone", text, url });
       else {
         await navigator.clipboard.writeText(`${text} ${url}`);
         toast.success("Invite link copied to clipboard");

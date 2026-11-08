@@ -7,13 +7,13 @@ import { useAuth } from "@/lib/auth";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Gicco chat — Connect • Share • Grow" },
+      { title: "SabZone — Connect • Share • Grow" },
       {
         name: "description",
         content:
           "More than just social. Build your network, grow your business and join your local community.",
       },
-      { property: "og:title", content: "Gicco chat — Connect • Share • Grow" },
+      { property: "og:title", content: "SabZone — Connect • Share • Grow" },
       {
         property: "og:description",
         content: "Build your network, grow your business and be part of your local community.",
@@ -43,7 +43,7 @@ function Splash() {
   return (
     <main
       className="grid min-h-screen place-items-center"
-      aria-label="Loading Gicco chat"
+      aria-label="Loading SabZone"
     >
       <Logo size={112} />
     </main>

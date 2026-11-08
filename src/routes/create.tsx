@@ -23,15 +23,15 @@ import type { Audience } from "@/integrations/supabase/types";
 export const Route = createFileRoute("/create")({
   head: () => ({
     meta: [
-      { title: "Create Post — Gicco chat" },
+      { title: "Create Post — SabZone" },
       {
         name: "description",
-        content: "Share an update with your Gicco chat network.",
+        content: "Share an update with your SabZone network.",
       },
-      { property: "og:title", content: "Create Post — Gicco chat" },
+      { property: "og:title", content: "Create Post — SabZone" },
       {
         property: "og:description",
-        content: "Share an update with your Gicco chat network.",
+        content: "Share an update with your SabZone network.",
       },
     ],
   }),

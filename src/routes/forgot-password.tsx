@@ -7,7 +7,7 @@ import { friendlyAuthError } from "@/lib/auth-errors";
 import { AuthShell, PrimaryButton, TextField } from "@/components/auth-ui";
 
 export const Route = createFileRoute("/forgot-password")({
-  head: () => ({ meta: [{ title: "Forgot Password — Gicco chat" }] }),
+  head: () => ({ meta: [{ title: "Forgot Password — SabZone" }] }),
   component: ForgotPasswordPage,
 });
 

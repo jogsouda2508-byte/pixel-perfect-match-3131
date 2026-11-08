@@ -269,7 +269,7 @@ export function eventToIcs(e: CommunityEvent, now: Date = new Date()): string {
   return [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Gicco chat//Community//EN",
+    "PRODID:-//SabZone//Community//EN",
     "CALSCALE:GREGORIAN",
     "BEGIN:VEVENT",
     `UID:${e.id}@gicco-chat`,
@@ -278,7 +278,7 @@ export function eventToIcs(e: CommunityEvent, now: Date = new Date()): string {
     `DTEND:${icsDate(eventEnd(e))}`,
     `SUMMARY:${icsText(e.title)}`,
     `LOCATION:${icsText(place)}`,
-    `DESCRIPTION:${icsText(e.description ?? `Hosted by ${e.host.name} on Gicco chat`)}`,
+    `DESCRIPTION:${icsText(e.description ?? `Hosted by ${e.host.name} on SabZone`)}`,
     "BEGIN:VALARM",
     "ACTION:DISPLAY",
     `DESCRIPTION:${icsText(e.title)} starts in 1 hour`,

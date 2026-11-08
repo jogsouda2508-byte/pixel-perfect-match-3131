@@ -87,7 +87,7 @@ describe("service worker (public/sw.js)", () => {
       waitUntil: (p: Promise<unknown>) => (done = p),
     });
     await done;
-    expect(sw.shown[0]).toMatchObject({ title: "Gicco chat", options: { body: "plain text" } });
+    expect(sw.shown[0]).toMatchObject({ title: "SabZone", options: { body: "plain text" } });
   });
 
   const click = async (sw: ReturnType<typeof loadSw>, url: string) => {

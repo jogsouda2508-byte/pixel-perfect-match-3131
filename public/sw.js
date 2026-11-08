@@ -1,4 +1,4 @@
-/* Gicco chat service worker: shows Web Push notifications and opens the right screen on click.
+/* SabZone service worker: shows Web Push notifications and opens the right screen on click.
    Plain JS on purpose (no build step). It does NOT cache pages, so it can never serve stale app code. */
 
 self.addEventListener("install", () => self.skipWaiting());
@@ -21,7 +21,7 @@ self.addEventListener("push", (event) => {
   } catch {
     data = { body: event.data ? event.data.text() : "" };
   }
-  const title = data.title || "Gicco chat";
+  const title = data.title || "SabZone";
   const options = {
     body: data.body || "",
     icon: "/icon-192.png",

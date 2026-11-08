@@ -9,8 +9,8 @@ import { fetchProfileByUsername } from "@/lib/social";
 export const Route = createFileRoute("/u/$username")({
   head: ({ params }) => ({
     meta: [
-      { title: `@${params.username} — Gicco chat` },
-      { name: "description", content: `See @${params.username}'s posts on Gicco chat.` },
+      { title: `@${params.username} — SabZone` },
+      { name: "description", content: `See @${params.username}'s posts on SabZone.` },
     ],
   }),
   component: UserProfilePage,
@@ -51,7 +51,7 @@ function UserProfilePage() {
           <p className="text-sm text-muted-foreground">
             {isError
               ? "Please try again in a moment."
-              : `There's no one on Gicco chat called @${handle}.`}
+              : `There's no one on SabZone called @${handle}.`}
           </p>
           {isError ? (
             <button

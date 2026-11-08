@@ -29,17 +29,17 @@ import { useFollow } from "@/lib/use-follow";
 export const Route = createFileRoute("/home")({
   head: () => ({
     meta: [
-      { title: "Home Feed — Gicco chat" },
+      { title: "Home Feed — SabZone" },
       {
         name: "description",
         content:
-          "Stories, posts and local updates from your Gicco chat network.",
+          "Stories, posts and local updates from your SabZone network.",
       },
-      { property: "og:title", content: "Home Feed — Gicco chat" },
+      { property: "og:title", content: "Home Feed — SabZone" },
       {
         property: "og:description",
         content:
-          "Stories, posts and local updates from your Gicco chat network.",
+          "Stories, posts and local updates from your SabZone network.",
       },
     ],
   }),
@@ -111,7 +111,7 @@ function HomePage() {
         <header className="flex flex-wrap items-center justify-between gap-y-3 md:flex-nowrap md:gap-4 lg:min-h-16 2xl:min-h-[4.5rem]">
           {/* The name lives in the side menu on desktop; keep it on phones, which have no side menu. */}
           <h1 className="order-1 md:hidden">
-            <span className="sr-only">Gicco chat</span>
+            <span className="sr-only">SabZone</span>
             <BrandLockup compact />
           </h1>
           <div className="scrollbar-hidden order-3 flex w-full gap-2 overflow-x-auto md:order-1 md:w-auto md:min-w-0 md:flex-1">
@@ -275,7 +275,7 @@ function HomePage() {
             ))}
           </div>
           <p className="mt-4 flex items-center gap-1 text-xs text-muted-foreground">
-            Gicco chat Official <Verified />
+            SabZone Official <Verified />
           </p>
         </section>
       </aside>

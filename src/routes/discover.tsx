@@ -13,15 +13,15 @@ import { useFollow } from "@/lib/use-follow";
 export const Route = createFileRoute("/discover")({
   head: () => ({
     meta: [
-      { title: "Discover — Gicco chat" },
+      { title: "Discover — SabZone" },
       {
         name: "description",
-        content: "Find people, businesses and trending topics on Gicco chat.",
+        content: "Find people, businesses and trending topics on SabZone.",
       },
-      { property: "og:title", content: "Discover — Gicco chat" },
+      { property: "og:title", content: "Discover — SabZone" },
       {
         property: "og:description",
-        content: "Find people, businesses and trending topics on Gicco chat.",
+        content: "Find people, businesses and trending topics on SabZone.",
       },
     ],
   }),

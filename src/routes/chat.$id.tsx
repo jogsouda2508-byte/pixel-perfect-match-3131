@@ -85,7 +85,7 @@ const byTime = (a: MessageRow, b: MessageRow) =>
 
 export const Route = createFileRoute("/chat/$id")({
   head: () => ({
-    meta: [{ title: "Conversation — Gicco chat" }],
+    meta: [{ title: "Conversation — SabZone" }],
   }),
   component: ConversationPage,
 });

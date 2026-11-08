@@ -1,7 +1,7 @@
 import { forwardRef, useState, type ComponentProps, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import { Logo } from "@/components/ediraa";
+import { BrandName, Logo } from "@/components/ediraa";
 import { passwordStrength } from "@/lib/validation";
 
 /** Full-screen centered layout used by every auth screen. */
@@ -38,9 +38,9 @@ export function AuthShell({
         <path d="M0 800V680C140 780 300 730 400 580V800Z" fill="url(#a2)" />
       </svg>
       <div className="relative w-full max-w-md">
-        <Link to="/" className="mx-auto flex w-fit items-center gap-2" aria-label="Gicco chat home">
+        <Link to="/" className="mx-auto flex w-fit items-center gap-2" aria-label="SabZone home">
           <Logo size={56} className="lg:h-16 lg:w-16" />
-          <span className="text-2xl font-bold">Gicco chat</span>
+          <BrandName />
         </Link>
         <div className="glass-card mt-6 p-6">
           <h1 className="text-2xl font-bold">{title}</h1>

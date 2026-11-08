@@ -180,12 +180,12 @@ export function pushStateText(state: PushState): string {
       return "Get notified about messages, likes, comments and follows, even when the app is closed.";
     case "denied":
       return isNativePlatform()
-        ? "Notifications are blocked. Open your phone's Settings > Apps > Gicco > Notifications, allow them, then come back."
+        ? "Notifications are blocked. Open your phone's Settings > Apps > SabZone > Notifications, allow them, then come back."
         : "Notifications are blocked. Allow them for this site in your browser settings, then come back.";
     case "needs-app-update":
       return "This version of the app can't show notifications yet. Please install the latest version of the app.";
     case "needs-install":
-      return "On iPhone, first tap Share → Add to Home Screen, then open Gicco from your Home Screen to turn notifications on.";
+      return "On iPhone, first tap Share → Add to Home Screen, then open SabZone from your Home Screen to turn notifications on.";
     case "not-configured":
       return "Notifications aren't set up yet.";
     default:

@@ -77,7 +77,7 @@ export async function nativeCopy(text: string): Promise<boolean> {
 export const isNativeApp = (): boolean => Capacitor.isNativePlatform();
 
 /**
- * Saves the QR picture on the phone: first into the Gallery (album "Gicco chat"), then the
+ * Saves the QR picture on the phone: first into the Gallery (album "SabZone"), then the
  * Documents folder, and only if Android refuses both, the share sheet.
  * Returns "gallery", "saved", "shared", or false when the plugins aren't in the app.
  */
@@ -85,7 +85,7 @@ export async function nativeSaveImage(
   blob: Blob,
   fileName: string,
 ): Promise<"gallery" | "saved" | "shared" | false> {
-  const ALBUM = "Gicco chat";
+  const ALBUM = "SabZone";
   // 1) Best: save into the phone's Gallery (works on every Android, no permission prompt).
   if (has("Media")) {
     try {

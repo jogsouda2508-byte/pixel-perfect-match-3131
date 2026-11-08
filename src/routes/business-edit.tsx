@@ -22,7 +22,7 @@ import {
 
 export const Route = createFileRoute("/business-edit")({
   head: () => ({
-    meta: [{ title: "Edit business info — Gicco chat" }],
+    meta: [{ title: "Edit business info — SabZone" }],
   }),
   component: BusinessEditPage,
 });

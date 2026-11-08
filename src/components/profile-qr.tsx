@@ -115,10 +115,10 @@ export function ProfileQrSheet({
   /** Share profile: the phone's own share sheet when there is one, else our list of apps. */
   const shareProfile = async () => {
     // Android app: the real Android share sheet
-    if (await nativeShareLink({ title: label, text: `${label} on Gicco chat`, url })) return;
+    if (await nativeShareLink({ title: label, text: `${label} on SabZone`, url })) return;
     if (typeof navigator.share === "function") {
       try {
-        await navigator.share({ title: label, text: `${label} on Gicco chat`, url });
+        await navigator.share({ title: label, text: `${label} on SabZone`, url });
         return;
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -191,7 +191,7 @@ export function ProfileQrSheet({
       // Android app: Gallery first, then Documents, then the share sheet
       const native = await nativeSaveImage(blob, fileName);
       if (native === "gallery") {
-        toast.success('Downloaded. Saved in your Gallery, album "Gicco chat"', { id });
+        toast.success('Downloaded. Saved in your Gallery, album "SabZone"', { id });
         return;
       }
       if (native === "saved") {
@@ -226,15 +226,15 @@ export function ProfileQrSheet({
     }
   };
 
-  const text = encodeURIComponent(`${label} on Gicco chat: ${url}`);
+  const text = encodeURIComponent(`${label} on SabZone: ${url}`);
   const link = encodeURIComponent(url);
   const apps = [
     { name: "WhatsApp", href: `https://wa.me/?text=${text}` },
-    { name: "Telegram", href: `https://t.me/share/url?url=${link}&text=${encodeURIComponent(`${label} on Gicco chat`)}` },
+    { name: "Telegram", href: `https://t.me/share/url?url=${link}&text=${encodeURIComponent(`${label} on SabZone`)}` },
     { name: "Facebook", href: `https://www.facebook.com/sharer/sharer.php?u=${link}` },
     { name: "X", href: `https://twitter.com/intent/tweet?text=${text}` },
     { name: "Messages", href: `sms:?&body=${text}` },
-    { name: "Email", href: `mailto:?subject=${encodeURIComponent(`${label} on Gicco chat`)}&body=${text}` },
+    { name: "Email", href: `mailto:?subject=${encodeURIComponent(`${label} on SabZone`)}&body=${text}` },
   ];
 
   const actionBtn =

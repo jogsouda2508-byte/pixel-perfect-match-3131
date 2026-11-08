@@ -5,8 +5,8 @@ import { PageHeader, PageShell } from "@/components/page-shell";
 export const Route = createFileRoute("/groups")({
   head: () => ({
     meta: [
-      { title: "Groups — Gicco chat" },
-      { name: "description", content: "Find, join and create groups on Gicco chat." },
+      { title: "Groups — SabZone" },
+      { name: "description", content: "Find, join and create groups on SabZone." },
     ],
   }),
   component: GroupsPage,

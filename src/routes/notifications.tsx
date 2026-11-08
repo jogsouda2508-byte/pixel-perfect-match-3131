@@ -30,17 +30,17 @@ import type { NotificationRow } from "@/integrations/supabase/types";
 export const Route = createFileRoute("/notifications")({
   head: () => ({
     meta: [
-      { title: "Notifications — Gicco chat" },
+      { title: "Notifications — SabZone" },
       {
         name: "description",
         content:
-          "Likes, comments and new followers from your Gicco chat network.",
+          "Likes, comments and new followers from your SabZone network.",
       },
-      { property: "og:title", content: "Notifications — Gicco chat" },
+      { property: "og:title", content: "Notifications — SabZone" },
       {
         property: "og:description",
         content:
-          "Likes, comments and new followers from your Gicco chat network.",
+          "Likes, comments and new followers from your SabZone network.",
       },
     ],
   }),

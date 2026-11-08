@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/community")({
   head: () => ({
     meta: [
-      { title: "Community — Gicco chat" },
+      { title: "Community — SabZone" },
       {
         name: "description",
         content: "Local events, alerts, skill swaps, polls and questions from your neighbourhood.",

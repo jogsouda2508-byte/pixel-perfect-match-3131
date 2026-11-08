@@ -114,7 +114,7 @@ export function BusinessDirectory({
   const filtered = !!q || !!category || openOnly;
 
   return (
-    <section className="glass-card space-y-3 p-4" aria-label="Businesses on Gicco chat">
+    <section className="glass-card space-y-3 p-4" aria-label="Businesses on SabZone">
       <h2 className="font-semibold">Businesses near you</h2>
 
       {showSearch && (

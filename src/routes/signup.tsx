@@ -25,10 +25,10 @@ import { PhoneAuth } from "@/components/phone-auth";
 export const Route = createFileRoute("/signup")({
   head: () => ({
     meta: [
-      { title: "Create Account — Gicco chat" },
+      { title: "Create Account — SabZone" },
       {
         name: "description",
-        content: "Join Gicco chat to connect, share and grow your local network.",
+        content: "Join SabZone to connect, share and grow your local network.",
       },
     ],
   }),
@@ -256,7 +256,7 @@ function SignUpPage() {
   return isGoogleSignupPending(user, profile) ? <GoogleCompleteSignup /> : <SignUpForm />;
 }
 
-/** Shown when someone taps "Continue with Google" but has no Gicco chat account yet. */
+/** Shown when someone taps "Continue with Google" but has no SabZone account yet. */
 function GoogleCompleteSignup() {
   const { user, profile, refreshProfile, signOut } = useAuth();
   const navigate = useNavigate();
@@ -331,7 +331,7 @@ function GoogleCompleteSignup() {
   return (
     <AuthShell
       title="Finish signing up"
-      subtitle="You don't have an Gicco chat account yet. Create one to continue."
+      subtitle="You don't have a SabZone account yet. Create one to continue."
       footer={
         <button
           type="button"
