@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, type ComponentType } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeftRight,
   BarChart3,
@@ -24,6 +24,7 @@ import {
   formatEventWhen,
   useCommunityLocality,
 } from "@/lib/community";
+import { markCommunitySeen } from "@/lib/community-home";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/community")({
@@ -36,6 +37,9 @@ export const Route = createFileRoute("/community")({
       },
     ],
   }),
+  // /community?tab=alerts: the tab is read in CommunityPage; this only lets links pass it.
+  validateSearch: (search: Record<string, unknown>): { tab?: string } =>
+    typeof search["tab"] === "string" ? { tab: search["tab"] } : {},
   component: CommunityPage,
 });
 
@@ -53,7 +57,13 @@ const isTab = (k: string | null): k is TabKey => !!k && TABS.some((t) => t.key =
 function CommunityPage() {
   const { user } = useAuth();
   const meId = user?.id ?? "";
+  const queryClient = useQueryClient();
   const { locality, setLocality, profileLocation } = useCommunityLocality();
+
+  // Opening Community clears the dot and the "new" count on Home.
+  useEffect(() => {
+    markCommunitySeen(meId, queryClient);
+  }, [meId, queryClient]);
   const [tab, setTab] = useState<TabKey>("events");
 
   useEffect(() => {

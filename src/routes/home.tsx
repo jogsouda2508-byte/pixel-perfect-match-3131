@@ -11,6 +11,7 @@ import {
   UserRow,
   Verified,
 } from "@/components/ediraa";
+import { CommunityBadge, CommunityHomeStrip } from "@/components/community-home";
 import { LocalityPicker } from "@/components/locality-picker";
 import { PostCard } from "@/components/post-card";
 import { Stories } from "@/components/stories";
@@ -32,14 +33,12 @@ export const Route = createFileRoute("/home")({
       { title: "Home Feed — SabZone" },
       {
         name: "description",
-        content:
-          "Stories, posts and local updates from your SabZone network.",
+        content: "Stories, posts and local updates from your SabZone network.",
       },
       { property: "og:title", content: "Home Feed — SabZone" },
       {
         property: "og:description",
-        content:
-          "Stories, posts and local updates from your SabZone network.",
+        content: "Stories, posts and local updates from your SabZone network.",
       },
     ],
   }),
@@ -74,13 +73,10 @@ function HomePage() {
 
   const feed = useInfiniteQuery({
     queryKey: ["feed", tab, meId, tab === "local" ? (pickedLocality ?? "") : ""],
-    queryFn: ({ pageParam }) =>
-      fetchFeed({ tab, before: pageParam, location: pickedLocality }),
+    queryFn: ({ pageParam }) => fetchFeed({ tab, before: pageParam, location: pickedLocality }),
     initialPageParam: null as string | null,
     getNextPageParam: (last) =>
-      last.length === FEED_PAGE_SIZE
-        ? (last[last.length - 1]?.created_at ?? null)
-        : undefined,
+      last.length === FEED_PAGE_SIZE ? (last[last.length - 1]?.created_at ?? null) : undefined,
     enabled: !!meId && !localNeedsSetup,
   });
   const posts = feed.data?.pages.flat() ?? [];
@@ -116,12 +112,7 @@ function HomePage() {
           </h1>
           <div className="scrollbar-hidden order-3 flex w-full gap-2 overflow-x-auto md:order-1 md:w-auto md:min-w-0 md:flex-1">
             {TABS.map((t) => (
-              <Pill
-                key={t.key}
-                active={tab === t.key}
-                compact
-                onClick={() => setTab(t.key)}
-              >
+              <Pill key={t.key} active={tab === t.key} compact onClick={() => setTab(t.key)}>
                 {t.label}
               </Pill>
             ))}
@@ -136,6 +127,7 @@ function HomePage() {
               <span className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-[#F3EFFF] to-[#E2DAFF] text-[#4F36D6] shadow-[0_4px_14px_-6px_rgba(79,54,214,0.5)] ring-1 ring-[#CFC3FF]/80 transition active:scale-95 dark:from-[#2E2460] dark:to-[#1C1740] dark:text-[#C9B8FF] dark:ring-white/10">
                 <HeartHandshake className="h-5 w-5" />
               </span>
+              <CommunityBadge className="absolute -right-1 -top-1" />
             </Link>
             <Link
               to="/notifications"
@@ -161,11 +153,11 @@ function HomePage() {
             className="flex items-center gap-3 rounded-xl border border-border bg-elevated/40 p-3"
           >
             <Avatar src={me} name={myName} size={34} />
-            <span className="text-sm text-muted-foreground">
-              What's on your mind?
-            </span>
+            <span className="text-sm text-muted-foreground">What's on your mind?</span>
           </Link>
         </section>
+
+        <CommunityHomeStrip />
 
         {tab === "local" && (
           <LocalityPicker
@@ -228,9 +220,7 @@ function HomePage() {
             disabled={feed.isFetchingNextPage}
             className="mx-auto flex items-center gap-2 rounded-full border border-border px-5 py-2 text-sm font-medium disabled:opacity-60"
           >
-            {feed.isFetchingNextPage && (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            )}
+            {feed.isFetchingNextPage && <Loader2 className="h-4 w-4 animate-spin" />}
             Load more
           </button>
         )}
@@ -239,13 +229,9 @@ function HomePage() {
       <aside className="sticky top-6 hidden h-fit space-y-4 lg:block">
         <section className="glass-card space-y-4 p-4">
           <h2 className="font-semibold">People you may know</h2>
-          {people.isLoading && (
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-          )}
+          {people.isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
           {people.isSuccess && people.data.length === 0 && (
-            <p className="text-sm text-muted-foreground">
-              No suggestions right now.
-            </p>
+            <p className="text-sm text-muted-foreground">No suggestions right now.</p>
           )}
           {people.data?.map((p) => (
             <UserRow
@@ -261,18 +247,14 @@ function HomePage() {
               following={follow.isFollowing(p.id, p.is_following)}
               requested={follow.isRequested(p.id)}
               pending={follow.isPending(p.id)}
-              onToggle={() =>
-                follow.toggle(p.id, follow.isFollowing(p.id, p.is_following))
-              }
+              onToggle={() => follow.toggle(p.id, follow.isFollowing(p.id, p.is_following))}
             />
           ))}
         </section>
         <section className="glass-card p-4">
           <h2 className="mb-3 font-semibold">Trending Topics</h2>
           {trending.isSuccess && trending.data.length === 0 && (
-            <p className="text-sm text-muted-foreground">
-              Hashtags used in posts will trend here.
-            </p>
+            <p className="text-sm text-muted-foreground">Hashtags used in posts will trend here.</p>
           )}
           <div className="flex flex-wrap gap-2">
             {trending.data?.map((t) => (

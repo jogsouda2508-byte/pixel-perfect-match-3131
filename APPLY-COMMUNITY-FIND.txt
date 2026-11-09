@@ -1,0 +1,32 @@
+Community easier to find (step 4 of the improvements list)
+
+Apply steps 1 and 2 first (this edits community.tsx, which step 1 changed, and home.tsx).
+
+1. Unzip into the ROOT of your project (same folder structure). Replace when asked.
+2. Supabase > SQL Editor > paste and run:
+     supabase/migrations/20261106000000_community_home.sql
+   (needs 20261104000000_community.sql; safe to run twice).
+   If you skip this, nothing breaks: the dot and the card just stay hidden.
+
+What changes:
+  - Home top bar (phones) and the desktop side menu: a small count on the Community icon =
+    alerts and events from OTHER people posted since you last opened Community (9+ if more).
+    Opening Community clears it.
+  - Home feed: a one-line card under "What's on your mind?", tap opens the right tab:
+      new alerts            "1 new alert near you"            (alert title underneath)
+      events today          "2 events today near you"
+      events this weekend   "2 events this weekend near you"  (next event + time underneath)
+      active alerts         "3 active alerts near you"
+      next event            "Next event near you"
+      nothing yet           "See what's happening near you"
+    "near you" = the area Community is set to; if it is set to everywhere it says "on Community".
+  - /community?tab=alerts links now also work from inside the app (route accepts ?tab).
+
+Files:
+  supabase/migrations/20261106000000_community_home.sql   (new, one read-only function)
+  src/lib/community-home.ts, src/components/community-home.tsx   (new)
+  src/routes/home.tsx, src/routes/community.tsx, src/components/ediraa.tsx   (edited)
+  src/test/community-home.test.ts, supabase/tests/community_home.test.sql   (tests)
+
+Tested: migration twice on a fresh Postgres; 12 SQL checks; 12 new frontend tests; Home tests still
+pass; production build succeeds.

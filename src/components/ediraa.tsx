@@ -4,6 +4,7 @@ import { Home, Search, MessageSquare, User, BadgeCheck, HeartHandshake } from "l
 import { useId, type ComponentType, type ReactNode } from "react";
 import { ComposerLauncher } from "@/components/composer";
 import { ReelsIcon } from "@/components/icons";
+import { CommunityBadge } from "@/components/community-home";
 import { UnreadBadge, useChatUnread } from "@/lib/use-chat-unread";
 import { followLabel } from "@/lib/follow-state";
 import { useAuth } from "@/lib/auth";
@@ -272,8 +273,14 @@ export function UserRow({
     <>
       <Avatar src={img} name={name} size={large ? 48 : 40} />
       <div className="min-w-0 flex-1">
-        <p className={`truncate font-semibold ${large ? "text-[13px] sm:text-base" : "text-sm"}`}>{name}</p>
-        <p className={`truncate text-muted-foreground ${large ? "text-[11px] sm:text-sm" : "text-xs"}`}>{sub}</p>
+        <p className={`truncate font-semibold ${large ? "text-[13px] sm:text-base" : "text-sm"}`}>
+          {name}
+        </p>
+        <p
+          className={`truncate text-muted-foreground ${large ? "text-[11px] sm:text-sm" : "text-xs"}`}
+        >
+          {sub}
+        </p>
       </div>
     </>
   );
@@ -382,11 +389,7 @@ function NavItem({
             ) : isActive && to === "/home" ? (
               <HomeSelectedIcon />
             ) : (
-              <Icon
-                  className="h-6 w-6"
-                  strokeWidth={isActive ? 2.6 : 2}
-                  aria-hidden="true"
-                />
+              <Icon className="h-6 w-6" strokeWidth={isActive ? 2.6 : 2} aria-hidden="true" />
             )}
           </span>
           <UnreadBadge count={count} className="absolute right-1/4 top-0.5" />
@@ -433,6 +436,7 @@ export function SideNav() {
       >
         <HeartHandshake className="h-5 w-5" />
         Community
+        <CommunityBadge className="ml-auto" />
       </Link>
       <ComposerLauncher variant="sidebar" />
     </aside>
