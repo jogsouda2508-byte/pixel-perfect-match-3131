@@ -1,0 +1,12 @@
+Community tab bar: five equal tabs on phones (UI only, no database change)
+
+1. Unzip into the ROOT of your project. Replace src/routes/community.tsx when asked.
+2. Nothing to run in Supabase.
+
+Phones (below 768px): Events, Alerts, Swap, Polls, Ask share one row, each with the icon above a
+small label. No sideways scrolling, nothing hidden. The active tab is purple. "Skill swap" is
+shown as "Swap" (screen readers still hear "Skill swap").
+Tablets and desktop: unchanged (icon beside the name, rounded pills).
+
+This file also contains the earlier Community changes (opening Community clears the new-count
+dot, and ?tab= links), so it replaces the previous version of community.tsx.

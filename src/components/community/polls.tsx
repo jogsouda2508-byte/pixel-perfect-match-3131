@@ -129,11 +129,11 @@ export function PollsTab({ locality }: { locality: string | null }) {
           className="flex items-center gap-3 p-4"
           style={{ background: "var(--gradient-primary)" }}
         >
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/20 text-white">
-            <Lightbulb className="h-5 w-5" />
+          <span className="grid h-11 w-11 max-md:h-9 max-md:w-9 shrink-0 place-items-center rounded-full bg-white/20 text-white">
+            <Lightbulb className="h-5 w-5 max-md:h-4 max-md:w-4" />
           </span>
           <div className="min-w-0 flex-1 text-white">
-            <p className="text-xs font-semibold uppercase tracking-wide text-white/80">
+            <p className="text-xs max-md:text-[11px] font-semibold uppercase tracking-wide text-white/80">
               Today's {daily.kind === "quiz" ? "quiz" : "question"}
             </p>
             <p className="font-bold leading-snug">{daily.question}</p>
@@ -142,11 +142,12 @@ export function PollsTab({ locality }: { locality: string | null }) {
         <div className="flex items-center gap-2 p-3">
           <span
             className={cn(
-              "inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 text-sm font-bold",
+              "inline-flex min-h-9 max-md:min-h-8 items-center gap-1.5 rounded-full px-3 text-sm max-md:text-xs font-bold",
               days > 0 ? "bg-orange-500/15 text-orange-500" : "bg-muted text-muted-foreground",
             )}
           >
-            <Flame className="h-4 w-4" /> {days > 0 ? `${days}-day streak` : "Start a streak"}
+            <Flame className="h-4 w-4 max-md:h-3.5 max-md:w-3.5" />{" "}
+            {days > 0 ? `${days}-day streak` : "Start a streak"}
           </span>
           <PrimaryButton
             className="ml-auto !px-4"
@@ -172,8 +173,12 @@ export function PollsTab({ locality }: { locality: string | null }) {
             </Chip>
           ))}
         </ChipRow>
-        <PrimaryButton onClick={() => openSheet()} className="w-9 shrink-0 !px-0 sm:w-auto sm:!px-4">
-          <Plus className="h-4 w-4" /> <span className="sr-only sm:not-sr-only">New</span>
+        <PrimaryButton
+          onClick={() => openSheet()}
+          className="w-9 shrink-0 !px-0 sm:w-auto sm:!px-4"
+        >
+          <Plus className="h-4 w-4 max-md:h-3.5 max-md:w-3.5" />{" "}
+          <span className="sr-only sm:not-sr-only">New</span>
         </PrimaryButton>
       </div>
 
@@ -243,14 +248,14 @@ function PollCard({
         <PersonLine person={p.author} sub={p.locality ? p.locality : "Everyone"} size={28} />
         <span
           className={cn(
-            "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold",
+            "shrink-0 rounded-full px-2 py-0.5 text-[11px] max-md:text-[10px] font-bold",
             quiz ? "bg-violet/15 text-violet" : "bg-elevated text-primary",
           )}
         >
           {quiz ? "QUIZ" : "POLL"}
         </span>
       </div>
-      <h3 className="text-base font-bold leading-snug">{p.question}</h3>
+      <h3 className="text-base max-md:text-sm font-bold leading-snug">{p.question}</h3>
       <ul className="space-y-2">
         {p.options.map((o) => {
           const pct = pctOf(o.votes, p.total_votes);
@@ -264,7 +269,7 @@ function PollCard({
                 disabled={showResults || closed}
                 onClick={() => onVote(o.id)}
                 className={cn(
-                  "relative flex min-h-12 w-full items-center gap-2 overflow-hidden rounded-xl border px-3.5 text-left text-[15px] font-medium transition",
+                  "relative flex min-h-12 max-md:min-h-10 w-full items-center gap-2 overflow-hidden rounded-xl border px-3.5 text-left text-[15px] max-md:text-[13px] font-medium transition",
                   !showResults && "active:scale-[0.98] hover:border-primary",
                   showResults ? "border-border" : "border-border bg-card",
                   right && showResults && "border-success",
@@ -290,10 +295,12 @@ function PollCard({
                 )}
                 <span className="relative flex-1 break-words">{o.label}</span>
                 {showResults && (
-                  <span className="relative flex items-center gap-1.5 text-sm font-bold">
-                    {right && <Check className="h-4 w-4 text-success" />}
-                    {wrong && <X className="h-4 w-4 text-destructive" />}
-                    {mine && !quiz && <Check className="h-4 w-4 text-primary" />}
+                  <span className="relative flex items-center gap-1.5 text-sm max-md:text-xs font-bold">
+                    {right && <Check className="h-4 w-4 max-md:h-3.5 max-md:w-3.5 text-success" />}
+                    {wrong && <X className="h-4 w-4 max-md:h-3.5 max-md:w-3.5 text-destructive" />}
+                    {mine && !quiz && (
+                      <Check className="h-4 w-4 max-md:h-3.5 max-md:w-3.5 text-primary" />
+                    )}
                     {pct}%
                   </span>
                 )}
@@ -305,7 +312,7 @@ function PollCard({
       {quiz && p.my_vote && (
         <p
           className={cn(
-            "rounded-xl px-3 py-2 text-sm font-semibold",
+            "rounded-xl px-3 py-2 text-sm max-md:text-xs font-semibold",
             gotIt ? "bg-success/15 text-success" : "bg-destructive/10 text-destructive",
           )}
         >
@@ -315,7 +322,7 @@ function PollCard({
       {!closed && (
         <WhatsAppShare className="w-full" text={pollShareText(p, communityLink("polls"))} />
       )}
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
+      <div className="flex items-center justify-between text-xs max-md:text-[11px] text-muted-foreground">
         <span>
           {p.total_votes} {p.total_votes === 1 ? "vote" : "votes"} ·{" "}
           {pollClosesText(p.closes_at, now)}
@@ -335,9 +342,9 @@ function PollCard({
               type="button"
               onClick={() => setConfirm(true)}
               aria-label="Delete poll"
-              className="grid h-9 w-9 place-items-center rounded-full text-destructive"
+              className="grid h-9 w-9 max-md:h-8 max-md:w-8 place-items-center rounded-full text-destructive"
             >
-              <Trash2 className="h-4 w-4" />
+              <Trash2 className="h-4 w-4 max-md:h-3.5 max-md:w-3.5" />
             </button>
           ))}
       </div>
@@ -411,7 +418,7 @@ function PollSheet({
         />
       </Field>
       <div className="space-y-2">
-        <p className="text-sm font-semibold">
+        <p className="text-sm max-md:text-xs font-semibold">
           Options
           {form.kind === "quiz" && (
             <span className="font-normal text-muted-foreground">
@@ -429,13 +436,13 @@ function PollSheet({
                 aria-label={`Option ${i + 1} is the right answer`}
                 aria-pressed={form.correct === i}
                 className={cn(
-                  "grid h-8 w-8 shrink-0 place-items-center rounded-full border-2",
+                  "grid h-8 w-8 max-md:h-7 max-md:w-7 shrink-0 place-items-center rounded-full border-2",
                   form.correct === i
                     ? "border-success bg-success text-success-foreground"
                     : "border-border",
                 )}
               >
-                {form.correct === i && <Check className="h-4 w-4" />}
+                {form.correct === i && <Check className="h-4 w-4 max-md:h-3.5 max-md:w-3.5" />}
               </button>
             )}
             <input
@@ -457,29 +464,29 @@ function PollSheet({
                       form.correct === i ? 0 : form.correct > i ? form.correct - 1 : form.correct,
                   })
                 }
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-muted-foreground"
+                className="grid h-10 w-10 max-md:h-9 max-md:w-9 shrink-0 place-items-center rounded-full text-muted-foreground"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4 max-md:h-3.5 max-md:w-3.5" />
               </button>
             )}
           </div>
         ))}
         {tried && (errors.options || errors.correct) && (
-          <p role="alert" className="text-xs font-medium text-destructive">
+          <p role="alert" className="text-xs max-md:text-[11px] font-medium text-destructive">
             {errors.options ?? errors.correct}
           </p>
         )}
         {form.options.length < 6 && (
           <GhostButton
             onClick={() => set({ options: [...form.options, ""] })}
-            className="!min-h-10 !px-4"
+            className="!min-h-10 max-md:min-h-9 !px-4"
           >
-            <Plus className="h-4 w-4" /> Add option
+            <Plus className="h-4 w-4 max-md:h-3.5 max-md:w-3.5" /> Add option
           </GhostButton>
         )}
       </div>
       <div>
-        <p className="mb-1.5 text-sm font-semibold">Open for</p>
+        <p className="mb-1.5 text-sm max-md:text-xs font-semibold">Open for</p>
         <ChipRow>
           {DURATIONS.map((d) => (
             <Chip key={d.h} active={form.hours === d.h} onClick={() => set({ hours: d.h })}>
@@ -489,7 +496,7 @@ function PollSheet({
         </ChipRow>
       </div>
       <div>
-        <p className="mb-1.5 text-sm font-semibold">Who can see it?</p>
+        <p className="mb-1.5 text-sm max-md:text-xs font-semibold">Who can see it?</p>
         <ChipRow>
           <Chip
             active={!form.everyone}

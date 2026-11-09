@@ -115,15 +115,15 @@ export function AlertsTab({ locality, meId }: { locality: string | null; meId: s
   return (
     <div className="space-y-4">
       <div className="glass-card flex items-center gap-3 p-3.5">
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-elevated text-primary">
-          <BellRing className="h-5 w-5" />
+        <span className="grid h-11 w-11 max-md:h-9 max-md:w-9 shrink-0 place-items-center rounded-full bg-elevated text-primary">
+          <BellRing className="h-5 w-5 max-md:h-4 max-md:w-4" />
         </span>
-        <p className="min-w-0 flex-1 text-sm text-muted-foreground">
+        <p className="min-w-0 flex-1 text-sm max-md:text-xs text-muted-foreground">
           See something? Tell your neighbours.{" "}
           <span className="text-foreground">Others confirm it</span>, so alerts stay honest.
         </p>
         <PrimaryButton onClick={() => setSheet(true)} className="shrink-0 !px-4">
-          <Plus className="h-4 w-4" /> Report
+          <Plus className="h-4 w-4 max-md:h-3.5 max-md:w-3.5" /> Report
         </PrimaryButton>
       </div>
 
@@ -154,7 +154,9 @@ export function AlertsTab({ locality, meId }: { locality: string | null; meId: s
           </ul>
           {done.length > 0 && (
             <>
-              <h2 className="pt-1 text-sm font-semibold text-muted-foreground">Recently fixed</h2>
+              <h2 className="pt-1 text-sm max-md:text-xs font-semibold text-muted-foreground">
+                Recently fixed
+              </h2>
               <ul className="space-y-3">
                 {done.map((a) => (
                   <li key={a.id}>
@@ -205,22 +207,29 @@ function AlertCard({
   return (
     <article className={cn("glass-card space-y-3 p-4", resolved && "opacity-75")}>
       <div className="flex gap-3">
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-elevated text-primary">
-          <Icon className="h-5 w-5" />
+        <span className="grid h-11 w-11 max-md:h-9 max-md:w-9 shrink-0 place-items-center rounded-2xl bg-elevated text-primary">
+          <Icon className="h-5 w-5 max-md:h-4 max-md:w-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <p className="text-xs max-md:text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             {alertKindLabel(a.kind)} · {a.locality}
           </p>
-          <h3 className="text-base font-bold leading-snug">{a.title}</h3>
-          {a.details && <p className="mt-0.5 text-sm text-foreground/90">{a.details}</p>}
-          <p className="mt-1 text-xs text-muted-foreground">
+          <h3 className="text-base max-md:text-sm font-bold leading-snug">{a.title}</h3>
+          {a.details && (
+            <p className="mt-0.5 text-sm max-md:text-xs text-foreground/90">{a.details}</p>
+          )}
+          <p className="mt-1 text-xs max-md:text-[11px] text-muted-foreground">
             {timeAgo(a.created_at)} · by {a.is_mine ? "you" : (a.author?.name ?? "a neighbour")}
             {!resolved && ` · ${alertExpiryText(a.expires_at, now)}`}
           </p>
         </div>
       </div>
-      <p className={cn("rounded-xl px-3 py-2 text-sm font-semibold", STATUS_STYLE[a.status])}>
+      <p
+        className={cn(
+          "rounded-xl px-3 py-2 text-sm max-md:text-xs font-semibold",
+          STATUS_STYLE[a.status],
+        )}
+      >
         {alertStatusText(a)}
       </p>
 
@@ -231,26 +240,26 @@ function AlertCard({
             onClick={() => onVote(a.my_vote === "confirm" ? null : "confirm")}
             aria-pressed={a.my_vote === "confirm"}
             className={cn(
-              "inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full border text-sm font-semibold transition active:scale-95",
+              "inline-flex min-h-11 max-md:min-h-9 flex-1 items-center justify-center gap-1.5 rounded-full border text-sm max-md:text-xs font-semibold transition active:scale-95",
               a.my_vote === "confirm"
                 ? "border-success bg-success text-success-foreground"
                 : "border-border bg-card",
             )}
           >
-            <Check className="h-4 w-4" /> Yes, it's true
+            <Check className="h-4 w-4 max-md:h-3.5 max-md:w-3.5" /> Yes, it's true
           </button>
           <button
             type="button"
             onClick={() => onVote(a.my_vote === "dispute" ? null : "dispute")}
             aria-pressed={a.my_vote === "dispute"}
             className={cn(
-              "inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full border text-sm font-semibold transition active:scale-95",
+              "inline-flex min-h-11 max-md:min-h-9 flex-1 items-center justify-center gap-1.5 rounded-full border text-sm max-md:text-xs font-semibold transition active:scale-95",
               a.my_vote === "dispute"
                 ? "border-destructive bg-destructive text-destructive-foreground"
                 : "border-border bg-card",
             )}
           >
-            <X className="h-4 w-4" /> Not true
+            <X className="h-4 w-4 max-md:h-3.5 max-md:w-3.5" /> Not true
           </button>
         </div>
       )}
@@ -266,17 +275,17 @@ function AlertCard({
             <button
               type="button"
               onClick={() => onAct("resolve")}
-              className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground active:scale-95"
+              className="inline-flex min-h-10 max-md:min-h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-sm max-md:text-xs font-semibold text-primary-foreground active:scale-95"
             >
-              <Check className="h-4 w-4" /> It's fixed
+              <Check className="h-4 w-4 max-md:h-3.5 max-md:w-3.5" /> It's fixed
             </button>
           )}
           <button
             type="button"
             onClick={() => onAct("delete")}
-            className="ml-auto inline-flex min-h-10 items-center gap-1.5 rounded-full px-3 text-sm font-semibold text-destructive"
+            className="ml-auto inline-flex min-h-10 max-md:min-h-9 items-center gap-1.5 rounded-full px-3 text-sm max-md:text-xs font-semibold text-destructive"
           >
-            <Trash2 className="h-4 w-4" /> Remove
+            <Trash2 className="h-4 w-4 max-md:h-3.5 max-md:w-3.5" /> Remove
           </button>
         </div>
       )}
@@ -340,7 +349,7 @@ function AlertSheet({
       onSubmit={submit}
     >
       <div>
-        <p className="mb-1.5 text-sm font-semibold">What kind?</p>
+        <p className="mb-1.5 text-sm max-md:text-xs font-semibold">What kind?</p>
         <ChipRow>
           {ALERT_KINDS.map((k) => {
             const Icon = ICONS[k.kind];
@@ -353,7 +362,7 @@ function AlertSheet({
                   if (!title.trim()) setTitle(k.example);
                 }}
               >
-                <Icon className="h-4 w-4" /> {k.label}
+                <Icon className="h-4 w-4 max-md:h-3.5 max-md:w-3.5" /> {k.label}
               </Chip>
             );
           })}
@@ -386,9 +395,10 @@ function AlertSheet({
           placeholder="Whitefield"
         />
       </Field>
-      <p className="flex items-start gap-2 rounded-xl bg-elevated p-3 text-xs text-muted-foreground">
-        <HelpCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary" /> Only post what you have seen
-        yourself. Neighbours vote “true” or “not true”, and wrong alerts get flagged.
+      <p className="flex items-start gap-2 rounded-xl bg-elevated p-3 text-xs max-md:text-[11px] text-muted-foreground">
+        <HelpCircle className="mt-0.5 h-4 w-4 max-md:h-3.5 max-md:w-3.5 shrink-0 text-primary" />{" "}
+        Only post what you have seen yourself. Neighbours vote “true” or “not true”, and wrong
+        alerts get flagged.
       </p>
     </FormSheet>
   );

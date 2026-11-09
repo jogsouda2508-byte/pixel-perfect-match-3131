@@ -1,0 +1,14 @@
+Community: smaller text and buttons on phones only (UI only, no database change)
+
+1. Unzip into the ROOT of your project. Replace the files when asked.
+2. Nothing to run in Supabase.
+
+Below 768px (phones) every Community screen (Events, Alerts, Swap, Polls, Ask, the top cards,
+tabs, forms and sheets) uses smaller text, shorter buttons and slightly smaller icons:
+  text 16 -> 14, 14 -> 12, 12 -> 11, 11 -> 10 px (inputs 15 -> 13 px)
+  button/chip height one step lower (e.g. 44 -> 36 px, 40 -> 36 px, 36 -> 32 px)
+  round icons / avatars one step smaller; form sheets use the compact sheet
+Tablets and desktop look exactly as before. It is done with max-md: classes, so it is easy to undo.
+
+These files already contain the earlier Community changes (Filter button, floating +, five equal tabs,
+home dot), so they replace the previous versions of those files.

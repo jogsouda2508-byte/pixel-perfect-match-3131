@@ -18,7 +18,7 @@ export function useNow(everyMs = 30_000) {
 }
 
 export const inputCls =
-  "w-full rounded-xl border border-border bg-card px-3.5 py-3 text-[15px] outline-none transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-primary/25";
+  "w-full rounded-xl border border-border bg-card px-3.5 py-3 max-md:py-2.5 text-[15px] max-md:text-[13px] outline-none transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-primary/25";
 
 export function Chip({
   active,
@@ -40,7 +40,7 @@ export function Chip({
       disabled={disabled}
       aria-pressed={active}
       className={cn(
-        "inline-flex min-h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-3 text-xs font-medium transition active:scale-95 disabled:opacity-50 sm:min-h-9 sm:gap-1.5 sm:px-3.5 sm:text-sm",
+        "inline-flex min-h-8 max-md:min-h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-3 text-xs max-md:text-[11px] font-medium transition active:scale-95 disabled:opacity-50 sm:min-h-9 sm:gap-1.5 sm:px-3.5 sm:text-sm",
         active
           ? "border-primary bg-primary text-primary-foreground shadow-sm"
           : "border-border bg-card text-muted-foreground hover:text-foreground",
@@ -79,14 +79,17 @@ export function Field({
 }) {
   return (
     <label className="block space-y-1.5">
-      <span className="text-sm font-semibold">{label}</span>
+      <span className="text-sm max-md:text-xs font-semibold">{label}</span>
       {children}
       {error ? (
-        <span role="alert" className="block text-xs font-medium text-destructive">
+        <span
+          role="alert"
+          className="block text-xs max-md:text-[11px] font-medium text-destructive"
+        >
           {error}
         </span>
       ) : hint ? (
-        <span className="block text-xs text-muted-foreground">{hint}</span>
+        <span className="block text-xs max-md:text-[11px] text-muted-foreground">{hint}</span>
       ) : null}
     </label>
   );
@@ -105,11 +108,11 @@ export function EmptyState({
 }) {
   return (
     <div className="glass-card flex flex-col items-center gap-2 px-6 py-10 text-center">
-      <div className="grid h-14 w-14 place-items-center rounded-full bg-elevated text-primary">
+      <div className="grid h-14 w-14 max-md:h-12 max-md:w-12 place-items-center rounded-full bg-elevated text-primary">
         {icon}
       </div>
-      <p className="text-base font-semibold">{title}</p>
-      <p className="max-w-xs text-sm text-muted-foreground">{text}</p>
+      <p className="text-base max-md:text-sm font-semibold">{title}</p>
+      <p className="max-w-xs text-sm max-md:text-xs text-muted-foreground">{text}</p>
       {action && <div className="mt-2">{action}</div>}
     </div>
   );
@@ -119,14 +122,14 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry: () => 
   const msg = error instanceof Error ? error.message : "Something went wrong.";
   return (
     <div className="glass-card flex flex-col items-center gap-3 px-6 py-8 text-center" role="alert">
-      <AlertCircle className="h-8 w-8 text-destructive" aria-hidden="true" />
-      <p className="max-w-sm text-sm text-muted-foreground">{msg}</p>
+      <AlertCircle className="h-8 w-8 max-md:h-7 max-md:w-7 text-destructive" aria-hidden="true" />
+      <p className="max-w-sm text-sm max-md:text-xs text-muted-foreground">{msg}</p>
       <button
         type="button"
         onClick={onRetry}
-        className="inline-flex min-h-10 items-center gap-2 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground active:scale-95"
+        className="inline-flex min-h-10 max-md:min-h-9 items-center gap-2 rounded-full bg-primary px-4 text-sm max-md:text-xs font-semibold text-primary-foreground active:scale-95"
       >
-        <RefreshCw className="h-4 w-4" /> Try again
+        <RefreshCw className="h-4 w-4 max-md:h-3.5 max-md:w-3.5" /> Try again
       </button>
     </div>
   );
@@ -170,11 +173,13 @@ export function PrimaryButton({
       onClick={onClick}
       disabled={busy || disabled}
       className={cn(
-        "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-xs font-semibold sm:min-h-11 sm:gap-2 sm:px-5 sm:text-sm text-primary-foreground shadow-sm transition active:scale-95 disabled:opacity-60",
+        "inline-flex min-h-9 max-md:min-h-8 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-xs max-md:text-[11px] font-semibold sm:min-h-11 sm:gap-2 sm:px-5 sm:text-sm text-primary-foreground shadow-sm transition active:scale-95 disabled:opacity-60",
         className,
       )}
     >
-      {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+      {busy && (
+        <Loader2 className="h-4 w-4 max-md:h-3.5 max-md:w-3.5 animate-spin" aria-hidden="true" />
+      )}
       {children}
     </button>
   );
@@ -197,7 +202,7 @@ export function GhostButton({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border bg-card px-5 text-sm font-semibold transition active:scale-95 disabled:opacity-60",
+        "inline-flex min-h-11 max-md:min-h-9 items-center justify-center gap-2 rounded-full border border-border bg-card px-5 text-sm max-md:text-xs font-semibold transition active:scale-95 disabled:opacity-60",
         className,
       )}
     >
@@ -232,6 +237,7 @@ export function FormSheet({
       onOpenChange={(o) => !busy && onOpenChange(o)}
       title={title}
       description={description}
+      compact
       focusOnOpen={false}
       footer={
         <>
@@ -272,11 +278,11 @@ export function PersonLine({
     <div className="flex min-w-0 items-center gap-2">
       <Avatar src={person.avatar_url} name={person.name} size={size} />
       <div className="min-w-0 leading-tight">
-        <p className="flex items-center gap-1.5 truncate text-sm font-semibold">
+        <p className="flex items-center gap-1.5 truncate text-sm max-md:text-xs font-semibold">
           <span className="truncate">{person.name}</span>
           {badge}
         </p>
-        {sub && <p className="truncate text-xs text-muted-foreground">{sub}</p>}
+        {sub && <p className="truncate text-xs max-md:text-[11px] text-muted-foreground">{sub}</p>}
       </div>
     </div>
   );
@@ -328,14 +334,22 @@ export function LocalityBar({
         className="glass-card flex w-full items-center gap-2.5 p-2.5 text-left transition active:scale-[0.99] sm:gap-3 sm:p-3"
         aria-label="Change area"
       >
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-elevated text-primary sm:h-10 sm:w-10">
-          {locality ? <MapPin className="h-4 w-4 sm:h-5 sm:w-5" /> : <Globe2 className="h-4 w-4 sm:h-5 sm:w-5" />}
+        <span className="grid h-9 w-9 max-md:h-8 max-md:w-8 shrink-0 place-items-center rounded-full bg-elevated text-primary sm:h-10 sm:w-10">
+          {locality ? (
+            <MapPin className="h-4 w-4 max-md:h-3.5 max-md:w-3.5 sm:h-5 sm:w-5" />
+          ) : (
+            <Globe2 className="h-4 w-4 max-md:h-3.5 max-md:w-3.5 sm:h-5 sm:w-5" />
+          )}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[11px] text-muted-foreground sm:text-xs">Showing</span>
-          <span className="block truncate text-sm font-semibold sm:text-base">{locality ?? "Everywhere"}</span>
+          <span className="block text-[11px] max-md:text-[10px] text-muted-foreground sm:text-xs">
+            Showing
+          </span>
+          <span className="block truncate text-sm max-md:text-xs font-semibold sm:text-base">
+            {locality ?? "Everywhere"}
+          </span>
         </span>
-        <span className="rounded-full bg-elevated px-2.5 py-1 text-[11px] font-semibold text-primary sm:px-3 sm:py-1.5 sm:text-xs">
+        <span className="rounded-full bg-elevated px-2.5 py-1 text-[11px] max-md:text-[10px] font-semibold text-primary sm:px-3 sm:py-1.5 sm:text-xs">
           Change
         </span>
       </button>
@@ -360,7 +374,7 @@ export function LocalityBar({
               if (draft.trim().length >= 2) pick(draft);
             }}
           >
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 max-md:h-3.5 max-md:w-3.5 -translate-y-1/2 text-muted-foreground" />
             <input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
@@ -374,9 +388,9 @@ export function LocalityBar({
                 type="button"
                 onClick={() => setDraft("")}
                 aria-label="Clear"
-                className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full text-muted-foreground"
+                className="absolute right-2 top-1/2 grid h-8 w-8 max-md:h-7 max-md:w-7 -translate-y-1/2 place-items-center rounded-full text-muted-foreground"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4 max-md:h-3.5 max-md:w-3.5" />
               </button>
             )}
           </form>
@@ -384,24 +398,24 @@ export function LocalityBar({
             <button
               type="button"
               onClick={() => pick(draft)}
-              className="flex min-h-12 w-full items-center gap-3 rounded-xl bg-elevated px-3 text-left font-semibold text-primary"
+              className="flex min-h-12 max-md:min-h-10 w-full items-center gap-3 rounded-xl bg-elevated px-3 text-left font-semibold text-primary"
             >
-              <MapPin className="h-4 w-4" /> Use “{draft.trim()}”
+              <MapPin className="h-4 w-4 max-md:h-3.5 max-md:w-3.5" /> Use “{draft.trim()}”
             </button>
           )}
           <button
             type="button"
             onClick={() => pick(null)}
             className={cn(
-              "flex min-h-12 w-full items-center gap-3 rounded-xl border px-3 text-left",
+              "flex min-h-12 max-md:min-h-10 w-full items-center gap-3 rounded-xl border px-3 text-left",
               locality === null ? "border-primary bg-elevated" : "border-border",
             )}
           >
-            <Globe2 className="h-4 w-4 text-primary" /> Everywhere
+            <Globe2 className="h-4 w-4 max-md:h-3.5 max-md:w-3.5 text-primary" /> Everywhere
           </button>
           {places.isLoading && open && (
-            <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> Finding areas…
+            <p className="flex items-center gap-2 text-sm max-md:text-xs text-muted-foreground">
+              <Loader2 className="h-4 w-4 max-md:h-3.5 max-md:w-3.5 animate-spin" /> Finding areas…
             </p>
           )}
           {list.map((p) => (
@@ -410,16 +424,18 @@ export function LocalityBar({
               type="button"
               onClick={() => pick(p)}
               className={cn(
-                "flex min-h-12 w-full items-center gap-3 rounded-xl border px-3 text-left",
+                "flex min-h-12 max-md:min-h-10 w-full items-center gap-3 rounded-xl border px-3 text-left",
                 locality?.toLowerCase() === p.toLowerCase()
                   ? "border-primary bg-elevated"
                   : "border-border",
               )}
             >
-              <MapPin className="h-4 w-4 text-muted-foreground" />
+              <MapPin className="h-4 w-4 max-md:h-3.5 max-md:w-3.5 text-muted-foreground" />
               <span className="flex-1 truncate">{p}</span>
               {p === profileLocation && (
-                <span className="text-xs text-muted-foreground">Your profile</span>
+                <span className="text-xs max-md:text-[11px] text-muted-foreground">
+                  Your profile
+                </span>
               )}
             </button>
           ))}

@@ -1,0 +1,20 @@
+Community > Events on phones: Filter button + floating + (small UI change, no database change)
+
+1. Unzip into the ROOT of your project (same folder structure). Replace when asked.
+2. Nothing to run in Supabase.
+
+Phones (below 768px):
+  - The two rows of chips are replaced by ONE row: what is showing ("Upcoming", "Upcoming . Sports",
+    "My plans") on the left and a "Filter" button on the right. The button shows a small number when a
+    filter is on.
+  - Filter opens a bottom sheet: Show (Upcoming / My plans / Hosting / Past) and, for Upcoming, Category.
+    Choices apply at once; "Reset" goes back to Upcoming + All; "Show events" closes the sheet.
+  - The + (host an event) is a round button at the bottom right, above the bottom bar.
+Tablets and desktop look exactly as before (chips and the Host button).
+
+Files:
+  src/components/community/events.tsx   (edited)
+  src/lib/community.ts                  (edited: 3 small helpers added)
+  src/test/community-events-filter.test.tsx   (new)
+If you applied the earlier Community zips, this file layers on top of them (community.ts and events.tsx
+are the same files; this zip has the latest version of both).

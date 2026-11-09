@@ -44,12 +44,18 @@ export const Route = createFileRoute("/community")({
 });
 
 type TabKey = "events" | "alerts" | "swap" | "polls" | "ask";
-const TABS: { key: TabKey; label: string; icon: ComponentType<{ className?: string }> }[] = [
-  { key: "events", label: "Events", icon: CalendarDays },
-  { key: "alerts", label: "Alerts", icon: BellRing },
-  { key: "swap", label: "Skill swap", icon: ArrowLeftRight },
-  { key: "polls", label: "Polls", icon: BarChart3 },
-  { key: "ask", label: "Ask", icon: MessageCircleQuestion },
+const TABS: {
+  key: TabKey;
+  label: string;
+  /** Shorter name for phones, where five tabs share one row. */
+  short: string;
+  icon: ComponentType<{ className?: string }>;
+}[] = [
+  { key: "events", label: "Events", short: "Events", icon: CalendarDays },
+  { key: "alerts", label: "Alerts", short: "Alerts", icon: BellRing },
+  { key: "swap", label: "Skill swap", short: "Swap", icon: ArrowLeftRight },
+  { key: "polls", label: "Polls", short: "Polls", icon: BarChart3 },
+  { key: "ask", label: "Ask", short: "Ask", icon: MessageCircleQuestion },
 ];
 const TAB_KEY = "ediraa.community-tab";
 const isTab = (k: string | null): k is TabKey => !!k && TABS.some((t) => t.key === k);
@@ -107,7 +113,7 @@ function CommunityPage() {
         >
           <div
             role="tablist"
-            className="flex gap-1 overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="grid grid-cols-5 gap-1 py-1 md:flex md:overflow-x-auto md:[scrollbar-width:none] md:[&::-webkit-scrollbar]:hidden"
           >
             {TABS.map((t) => (
               <button
@@ -115,15 +121,21 @@ function CommunityPage() {
                 role="tab"
                 type="button"
                 aria-selected={tab === t.key}
+                aria-label={t.label}
                 onClick={() => go(t.key)}
                 className={cn(
-                  "inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full px-3 text-xs font-semibold transition active:scale-95 sm:min-h-10 sm:gap-1.5 sm:px-3.5 sm:text-sm",
+                  "flex min-h-12 max-md:min-h-10 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-[11px] max-md:text-[10px] font-semibold leading-none transition active:scale-95 md:inline-flex md:min-h-10 md:shrink-0 md:flex-row md:gap-1.5 md:rounded-full md:px-3.5 md:text-sm",
                   tab === t.key
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "text-muted-foreground hover:bg-card",
                 )}
               >
-                <t.icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> {t.label}
+                <t.icon
+                  className="h-5 w-5 max-md:h-4 max-md:w-4 md:h-4 md:w-4"
+                  aria-hidden="true"
+                />
+                <span className="max-w-full truncate md:hidden">{t.short}</span>
+                <span className="hidden md:inline">{t.label}</span>
               </button>
             ))}
           </div>
@@ -244,8 +256,12 @@ function Tile({
         <span className="block h-4 w-3/4 animate-pulse rounded bg-muted" />
       ) : (
         <>
-          <span className="block truncate text-[13px] font-bold sm:text-sm">{value}</span>
-          <span className="block truncate text-[11px] text-muted-foreground sm:text-xs">{sub}</span>
+          <span className="block truncate text-[13px] max-md:text-[12px] font-bold sm:text-sm">
+            {value}
+          </span>
+          <span className="block truncate text-[11px] max-md:text-[10px] text-muted-foreground sm:text-xs">
+            {sub}
+          </span>
         </>
       )}
     </button>

@@ -28,11 +28,11 @@ export function WhatsAppShare({
       target="_blank"
       rel="noopener noreferrer"
       className={cn(
-        "inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-success px-4 text-sm font-semibold text-success transition active:scale-95",
+        "inline-flex min-h-10 max-md:min-h-9 items-center justify-center gap-2 rounded-full border border-success px-4 text-sm max-md:text-xs font-semibold text-success transition active:scale-95",
         className,
       )}
     >
-      <MessageCircle className="h-4 w-4" aria-hidden="true" />
+      <MessageCircle className="h-4 w-4 max-md:h-3.5 max-md:w-3.5" aria-hidden="true" />
       {label}
     </a>
   );

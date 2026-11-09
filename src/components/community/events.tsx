@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -8,18 +9,22 @@ import {
   Check,
   MapPin,
   Plus,
+  SlidersHorizontal,
   Star,
   Trash2,
   Users,
 } from "lucide-react";
 import {
+  activeEventFilterCount,
   cancelEvent,
   createEvent,
   deleteEvent,
   EVENT_CATEGORIES,
   eventBadge,
   eventStatus,
+  eventFilterSummary,
   eventToIcs,
+  EVENT_SCOPE_LABELS,
   fetchEvents,
   formatEventWhen,
   istToday,
@@ -32,6 +37,7 @@ import {
   type RsvpStatus,
 } from "@/lib/community";
 import { eventShareText } from "@/lib/community-share";
+import { BottomSheet } from "@/components/bottom-sheet";
 import { cn } from "@/lib/utils";
 import {
   Chip,
@@ -40,6 +46,7 @@ import {
   ErrorState,
   Field,
   FormSheet,
+  GhostButton,
   inputCls,
   PersonLine,
   PrimaryButton,
@@ -48,12 +55,9 @@ import {
 } from "./shared";
 import { communityLink, WhatsAppShare } from "./share-button";
 
-const SCOPES: { key: EventScope; label: string }[] = [
-  { key: "upcoming", label: "Upcoming" },
-  { key: "going", label: "My plans" },
-  { key: "hosting", label: "Hosting" },
-  { key: "past", label: "Past" },
-];
+const SCOPES: { key: EventScope; label: string }[] = (
+  ["upcoming", "going", "hosting", "past"] as const
+).map((key) => ({ key, label: EVENT_SCOPE_LABELS[key] }));
 
 const emptyForm = (locality: string): EventForm => ({
   title: "",
@@ -73,6 +77,10 @@ export function EventsTab({ locality, meId }: { locality: string | null; meId: s
   const [scope, setScope] = useState<EventScope>("upcoming");
   const [category, setCategory] = useState("");
   const [sheet, setSheet] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const filterCount = activeEventFilterCount(scope, category);
 
   const key = ["community", "events", locality, scope, category] as const;
   const q = useQuery({
@@ -125,8 +133,30 @@ export function EventsTab({ locality, meId }: { locality: string | null; meId: s
   });
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
+    <div className="space-y-4 pb-16 md:pb-0">
+      {/* Phones: one calm row, what is showing on the left and a Filter button on the right. */}
+      <div className="flex items-center justify-between gap-3 md:hidden">
+        <p className="min-w-0 truncate text-sm max-md:text-xs font-semibold">
+          {eventFilterSummary(scope, category)}
+        </p>
+        <button
+          type="button"
+          onClick={() => setFilterOpen(true)}
+          aria-label={filterCount > 0 ? `Filter, ${filterCount} selected` : "Filter"}
+          className="relative inline-flex min-h-9 max-md:min-h-8 shrink-0 items-center gap-1.5 rounded-full border border-border bg-card px-3.5 text-xs max-md:text-[11px] font-semibold shadow-sm transition active:scale-95"
+        >
+          <SlidersHorizontal className="h-4 w-4 max-md:h-3.5 max-md:w-3.5" aria-hidden="true" />{" "}
+          Filter
+          {filterCount > 0 && (
+            <span className="grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-primary-foreground">
+              {filterCount}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Tablets and desktop: the chips and the Host button stay as they were. */}
+      <div className="hidden items-center justify-between gap-3 md:flex">
         <ChipRow className="mx-0 min-w-0 flex-1 px-0">
           {SCOPES.map((s) => (
             <Chip key={s.key} active={scope === s.key} onClick={() => setScope(s.key)}>
@@ -134,13 +164,13 @@ export function EventsTab({ locality, meId }: { locality: string | null; meId: s
             </Chip>
           ))}
         </ChipRow>
-        <PrimaryButton onClick={() => setSheet(true)} className="w-9 shrink-0 !px-0 sm:w-auto sm:!px-4">
-          <Plus className="h-4 w-4" /> <span className="sr-only sm:not-sr-only">Host</span>
+        <PrimaryButton onClick={() => setSheet(true)} className="shrink-0 !px-4">
+          <Plus className="h-4 w-4 max-md:h-3.5 max-md:w-3.5" /> Host
         </PrimaryButton>
       </div>
 
       {scope === "upcoming" && (
-        <ChipRow>
+        <ChipRow className="hidden md:flex">
           <Chip tone="plain" active={category === ""} onClick={() => setCategory("")}>
             All
           </Chip>
@@ -151,6 +181,75 @@ export function EventsTab({ locality, meId }: { locality: string | null; meId: s
           ))}
         </ChipRow>
       )}
+
+      <BottomSheet
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
+        title="Filter events"
+        description="Choose what to show."
+        compact
+        focusOnOpen={false}
+        footer={
+          <>
+            <GhostButton
+              className="flex-1"
+              disabled={filterCount === 0}
+              onClick={() => {
+                setScope("upcoming");
+                setCategory("");
+              }}
+            >
+              Reset
+            </GhostButton>
+            <PrimaryButton className="flex-[2]" onClick={() => setFilterOpen(false)}>
+              Show events
+            </PrimaryButton>
+          </>
+        }
+      >
+        <div className="space-y-5 pb-2">
+          <div className="space-y-2">
+            <h3 className="text-sm max-md:text-xs font-semibold">Show</h3>
+            <div className="flex flex-wrap gap-2">
+              {SCOPES.map((s) => (
+                <Chip key={s.key} active={scope === s.key} onClick={() => setScope(s.key)}>
+                  {s.label}
+                </Chip>
+              ))}
+            </div>
+          </div>
+          {scope === "upcoming" && (
+            <div className="space-y-2">
+              <h3 className="text-sm max-md:text-xs font-semibold">Category</h3>
+              <div className="flex flex-wrap gap-2">
+                <Chip active={category === ""} onClick={() => setCategory("")}>
+                  All
+                </Chip>
+                {EVENT_CATEGORIES.map((c) => (
+                  <Chip key={c} active={category === c} onClick={() => setCategory(c)}>
+                    {c}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </BottomSheet>
+
+      {/* Phones: the + sits at the bottom right, above the bottom bar. A portal keeps it fixed to the screen. */}
+      {mounted &&
+        createPortal(
+          <button
+            type="button"
+            onClick={() => setSheet(true)}
+            aria-label="Host an event"
+            className="fixed right-4 z-40 grid h-14 w-14 max-md:h-12 max-md:w-12 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 md:hidden"
+            style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 5rem)" }}
+          >
+            <Plus className="h-6 w-6 max-md:h-5 max-md:w-5" aria-hidden="true" />
+          </button>,
+          document.body,
+        )}
 
       {q.isLoading ? (
         <SkeletonList />
@@ -234,21 +333,21 @@ function EventCard({
   return (
     <article className={cn("glass-card space-y-3 p-4", e.cancelled && "opacity-70")}>
       <div className="flex gap-3">
-        <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-elevated text-center leading-none">
+        <div className="grid h-14 w-14 max-md:h-12 max-md:w-12 shrink-0 place-items-center rounded-2xl bg-elevated text-center leading-none">
           <div>
             <p className="text-[10px] font-bold tracking-widest text-primary">{badge.month}</p>
-            <p className="text-xl font-extrabold">{badge.day}</p>
+            <p className="text-xl max-md:text-lg font-extrabold">{badge.day}</p>
           </div>
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="rounded-full bg-elevated px-2 py-0.5 text-[11px] font-semibold text-primary">
+            <span className="rounded-full bg-elevated px-2 py-0.5 text-[11px] max-md:text-[10px] font-semibold text-primary">
               {e.category}
             </span>
             {status.text && (
               <span
                 className={cn(
-                  "rounded-full px-2 py-0.5 text-[11px] font-bold",
+                  "rounded-full px-2 py-0.5 text-[11px] max-md:text-[10px] font-bold",
                   status.state === "live" && "bg-success/15 text-success",
                   status.state === "soon" && "bg-primary/15 text-primary",
                   (status.state === "cancelled" || status.state === "ended") &&
@@ -263,14 +362,17 @@ function EventCard({
             )}
           </div>
           <h3
-            className={cn("mt-1 text-base font-bold leading-snug", e.cancelled && "line-through")}
+            className={cn(
+              "mt-1 text-base max-md:text-sm font-bold leading-snug",
+              e.cancelled && "line-through",
+            )}
           >
             {e.title}
           </h3>
-          <p className="mt-0.5 text-sm text-muted-foreground">
+          <p className="mt-0.5 text-sm max-md:text-xs text-muted-foreground">
             {formatEventWhen(e.starts_at, now)}
           </p>
-          <p className="flex items-center gap-1 text-sm text-muted-foreground">
+          <p className="flex items-center gap-1 text-sm max-md:text-xs text-muted-foreground">
             <MapPin className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{[e.venue, e.locality].filter(Boolean).join(", ")}</span>
           </p>
@@ -278,15 +380,15 @@ function EventCard({
       </div>
 
       {e.description && (
-        <p className="whitespace-pre-line text-sm leading-relaxed text-foreground/90">
+        <p className="whitespace-pre-line text-sm max-md:text-xs leading-relaxed text-foreground/90">
           {e.description}
         </p>
       )}
 
-      <div className="flex items-center justify-between gap-2 text-sm">
+      <div className="flex items-center justify-between gap-2 text-sm max-md:text-xs">
         <PersonLine person={e.host} sub={e.host.is_business ? "Business host" : "Host"} size={28} />
         <p className="flex shrink-0 items-center gap-1 text-muted-foreground">
-          <Users className="h-4 w-4" />
+          <Users className="h-4 w-4 max-md:h-3.5 max-md:w-3.5" />
           <span className="font-semibold text-foreground">{e.going_count}</span> going
           {left !== null && (
             <span className={cn("ml-1", left === 0 ? "font-semibold text-destructive" : "")}>
@@ -303,7 +405,7 @@ function EventCard({
             disabled={full}
             onClick={() => onRsvp(e.my_status === "going" ? null : "going")}
             className={cn(
-              "inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full text-sm font-semibold transition active:scale-95 disabled:opacity-50",
+              "inline-flex min-h-11 max-md:min-h-9 flex-1 items-center justify-center gap-2 rounded-full text-sm max-md:text-xs font-semibold transition active:scale-95 disabled:opacity-50",
               e.my_status === "going"
                 ? "bg-success text-success-foreground"
                 : "bg-primary text-primary-foreground",
@@ -311,7 +413,7 @@ function EventCard({
           >
             {e.my_status === "going" ? (
               <>
-                <Check className="h-4 w-4" /> Going
+                <Check className="h-4 w-4 max-md:h-3.5 max-md:w-3.5" /> Going
               </>
             ) : full ? (
               "Event full"
@@ -324,22 +426,27 @@ function EventCard({
             onClick={() => onRsvp(e.my_status === "interested" ? null : "interested")}
             aria-pressed={e.my_status === "interested"}
             className={cn(
-              "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border px-4 text-sm font-semibold transition active:scale-95",
+              "inline-flex min-h-11 max-md:min-h-9 items-center justify-center gap-1.5 rounded-full border px-4 text-sm max-md:text-xs font-semibold transition active:scale-95",
               e.my_status === "interested"
                 ? "border-primary bg-elevated text-primary"
                 : "border-border bg-card",
             )}
           >
-            <Star className={cn("h-4 w-4", e.my_status === "interested" && "fill-current")} />{" "}
+            <Star
+              className={cn(
+                "h-4 w-4 max-md:h-3.5 max-md:w-3.5",
+                e.my_status === "interested" && "fill-current",
+              )}
+            />{" "}
             Interested
           </button>
           <button
             type="button"
             onClick={addToCalendar}
             aria-label="Add to calendar with reminders"
-            className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card transition active:scale-95"
+            className="grid h-11 w-11 max-md:h-9 max-md:w-9 place-items-center rounded-full border border-border bg-card transition active:scale-95"
           >
-            <CalendarPlus className="h-4 w-4" />
+            <CalendarPlus className="h-4 w-4 max-md:h-3.5 max-md:w-3.5" />
           </button>
         </div>
       )}
@@ -355,13 +462,13 @@ function EventCard({
         <div className="flex items-center gap-2 border-t border-border pt-3">
           {confirm ? (
             <>
-              <span className="flex-1 text-sm font-medium">
+              <span className="flex-1 text-sm max-md:text-xs font-medium">
                 {confirm === "cancel" ? "Cancel this event?" : "Delete this event for good?"}
               </span>
               <button
                 type="button"
                 onClick={() => setConfirm(null)}
-                className="min-h-10 rounded-full px-3 text-sm font-semibold text-muted-foreground"
+                className="min-h-10 max-md:min-h-9 rounded-full px-3 text-sm max-md:text-xs font-semibold text-muted-foreground"
               >
                 Keep
               </button>
@@ -371,7 +478,7 @@ function EventCard({
                   onManage(confirm);
                   setConfirm(null);
                 }}
-                className="min-h-10 rounded-full bg-destructive px-4 text-sm font-semibold text-destructive-foreground"
+                className="min-h-10 max-md:min-h-9 rounded-full bg-destructive px-4 text-sm max-md:text-xs font-semibold text-destructive-foreground"
               >
                 Yes
               </button>
@@ -382,7 +489,7 @@ function EventCard({
                 <button
                   type="button"
                   onClick={() => setConfirm("cancel")}
-                  className="min-h-10 rounded-full px-3 text-sm font-semibold text-muted-foreground hover:text-foreground"
+                  className="min-h-10 max-md:min-h-9 rounded-full px-3 text-sm max-md:text-xs font-semibold text-muted-foreground hover:text-foreground"
                 >
                   Cancel event
                 </button>
@@ -390,9 +497,9 @@ function EventCard({
               <button
                 type="button"
                 onClick={() => setConfirm("delete")}
-                className="ml-auto inline-flex min-h-10 items-center gap-1.5 rounded-full px-3 text-sm font-semibold text-destructive"
+                className="ml-auto inline-flex min-h-10 max-md:min-h-9 items-center gap-1.5 rounded-full px-3 text-sm max-md:text-xs font-semibold text-destructive"
               >
-                <Trash2 className="h-4 w-4" /> Delete
+                <Trash2 className="h-4 w-4 max-md:h-3.5 max-md:w-3.5" /> Delete
               </button>
             </>
           )}
@@ -464,7 +571,7 @@ function EventSheet({
         />
       </Field>
       <div>
-        <p className="mb-1.5 text-sm font-semibold">Category</p>
+        <p className="mb-1.5 text-sm max-md:text-xs font-semibold">Category</p>
         <ChipRow>
           {EVENT_CATEGORIES.map((c) => (
             <Chip key={c} active={f.category === c} onClick={() => set("category", c)}>
@@ -540,9 +647,9 @@ function EventSheet({
           placeholder="What should people know or bring?"
         />
       </Field>
-      <p className="flex items-center gap-2 rounded-xl bg-elevated p-3 text-xs text-muted-foreground">
-        <CalendarCheck className="h-4 w-4 shrink-0 text-primary" /> Anyone who taps “I'm going” can
-        add a calendar reminder (1 day and 1 hour before).
+      <p className="flex items-center gap-2 rounded-xl bg-elevated p-3 text-xs max-md:text-[11px] text-muted-foreground">
+        <CalendarCheck className="h-4 w-4 max-md:h-3.5 max-md:w-3.5 shrink-0 text-primary" /> Anyone
+        who taps “I'm going” can add a calendar reminder (1 day and 1 hour before).
       </p>
     </FormSheet>
   );

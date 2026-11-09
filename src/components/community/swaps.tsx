@@ -68,7 +68,7 @@ export function SwapsTab({ locality, meId }: { locality: string | null; meId: st
     <div className="space-y-4">
       <div className="flex gap-2">
         <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 max-md:h-3.5 max-md:w-3.5 -translate-y-1/2 text-muted-foreground" />
           <input
             className={cn(inputCls, "pl-10")}
             value={query}
@@ -78,13 +78,13 @@ export function SwapsTab({ locality, meId }: { locality: string | null; meId: st
           />
         </div>
         <PrimaryButton onClick={() => setSheet(true)} className="shrink-0 !px-4">
-          <Plus className="h-4 w-4" /> Post
+          <Plus className="h-4 w-4 max-md:h-3.5 max-md:w-3.5" /> Post
         </PrimaryButton>
       </div>
 
       {mine.some((s) => s.active) && matches > 0 && (
-        <p className="flex items-center gap-2 rounded-2xl bg-primary/10 p-3 text-sm font-semibold text-primary">
-          <Sparkles className="h-4 w-4" /> {matches} nearby{" "}
+        <p className="flex items-center gap-2 rounded-2xl bg-primary/10 p-3 text-sm max-md:text-xs font-semibold text-primary">
+          <Sparkles className="h-4 w-4 max-md:h-3.5 max-md:w-3.5" /> {matches} nearby{" "}
           {matches === 1 ? "person matches" : "people match"} your swap!
         </p>
       )}
@@ -108,7 +108,9 @@ export function SwapsTab({ locality, meId }: { locality: string | null; meId: st
         <>
           {mine.length > 0 && (
             <section className="space-y-2">
-              <h2 className="text-sm font-semibold text-muted-foreground">Your swaps</h2>
+              <h2 className="text-sm max-md:text-xs font-semibold text-muted-foreground">
+                Your swaps
+              </h2>
               <ul className="space-y-3">
                 {mine.map((s) => (
                   <li key={s.id}>
@@ -120,7 +122,9 @@ export function SwapsTab({ locality, meId }: { locality: string | null; meId: st
           )}
           {others.length > 0 && (
             <section className="space-y-2">
-              <h2 className="text-sm font-semibold text-muted-foreground">People nearby</h2>
+              <h2 className="text-sm max-md:text-xs font-semibold text-muted-foreground">
+                People nearby
+              </h2>
               <ul className="space-y-3">
                 {others.map((s) => (
                   <li key={s.id}>
@@ -175,7 +179,7 @@ function SwapCard({
       {matchText && (
         <p
           className={cn(
-            "flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold",
+            "flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs max-md:text-[11px] font-bold",
             s.match === "perfect"
               ? "bg-primary text-primary-foreground"
               : "bg-primary/10 text-primary",
@@ -187,20 +191,20 @@ function SwapCard({
       {!s.is_mine && <PersonLine person={s.person} sub={s.locality} />}
       <div className="grid grid-cols-2 gap-2">
         <div className="rounded-xl bg-elevated p-3">
-          <p className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-primary">
+          <p className="flex items-center gap-1 text-[11px] max-md:text-[10px] font-bold uppercase tracking-wide text-primary">
             <GraduationCap className="h-3.5 w-3.5" /> Teaches
           </p>
           <p className="mt-0.5 break-words font-semibold">{s.teach}</p>
         </div>
         <div className="rounded-xl bg-elevated p-3">
-          <p className="text-[11px] font-bold uppercase tracking-wide text-primary">
+          <p className="text-[11px] max-md:text-[10px] font-bold uppercase tracking-wide text-primary">
             Wants to learn
           </p>
           <p className="mt-0.5 break-words font-semibold">{s.want}</p>
         </div>
       </div>
-      {s.note && <p className="text-sm text-foreground/90">{s.note}</p>}
-      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+      {s.note && <p className="text-sm max-md:text-xs text-foreground/90">{s.note}</p>}
+      <div className="flex flex-wrap items-center gap-2 text-xs max-md:text-[11px] text-muted-foreground">
         <span className="rounded-full bg-muted px-2 py-1 font-medium">{swapModeLabel(s.mode)}</span>
         <span className="inline-flex items-center gap-1">
           <MapPin className="h-3 w-3" />
@@ -213,21 +217,21 @@ function SwapCard({
           <button
             type="button"
             onClick={() => onAct?.(s.active ? "pause" : "resume")}
-            className="min-h-10 rounded-full border border-border bg-card px-4 text-sm font-semibold active:scale-95"
+            className="min-h-10 max-md:min-h-9 rounded-full border border-border bg-card px-4 text-sm max-md:text-xs font-semibold active:scale-95"
           >
             {s.active ? "Pause" : "Show again"}
           </button>
           <button
             type="button"
             onClick={() => onAct?.("delete")}
-            className="ml-auto inline-flex min-h-10 items-center gap-1.5 rounded-full px-3 text-sm font-semibold text-destructive"
+            className="ml-auto inline-flex min-h-10 max-md:min-h-9 items-center gap-1.5 rounded-full px-3 text-sm max-md:text-xs font-semibold text-destructive"
           >
-            <Trash2 className="h-4 w-4" /> Delete
+            <Trash2 className="h-4 w-4 max-md:h-3.5 max-md:w-3.5" /> Delete
           </button>
         </div>
       ) : (
         <PrimaryButton onClick={() => void message()} busy={busy} className="w-full">
-          {!busy && <MessageCircle className="h-4 w-4" />} Say hi
+          {!busy && <MessageCircle className="h-4 w-4 max-md:h-3.5 max-md:w-3.5" />} Say hi
         </PrimaryButton>
       )}
     </article>
@@ -319,7 +323,7 @@ function SwapSheet({
       </Field>
       <Suggest onPick={setWant} />
       <div>
-        <p className="mb-1.5 text-sm font-semibold">How?</p>
+        <p className="mb-1.5 text-sm max-md:text-xs font-semibold">How?</p>
         <ChipRow>
           {SWAP_MODES.map((x) => (
             <Chip key={x.mode} active={mode === x.mode} onClick={() => setMode(x.mode)}>
@@ -346,7 +350,9 @@ function SwapSheet({
           placeholder="Weekends are best for me"
         />
       </Field>
-      {m.isPending && <Loader2 className="mx-auto h-5 w-5 animate-spin text-primary" />}
+      {m.isPending && (
+        <Loader2 className="mx-auto h-5 w-5 max-md:h-4 max-md:w-4 animate-spin text-primary" />
+      )}
     </FormSheet>
   );
 }

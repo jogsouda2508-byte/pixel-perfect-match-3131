@@ -166,6 +166,24 @@ export type CommunityEvent = {
 
 export type EventScope = "upcoming" | "going" | "hosting" | "past";
 
+export const EVENT_SCOPE_LABELS: Record<EventScope, string> = {
+  upcoming: "Upcoming",
+  going: "My plans",
+  hosting: "Hosting",
+  past: "Past",
+};
+
+/** How many Events filters differ from the default (Upcoming, all categories). Drives the Filter button's count. */
+export function activeEventFilterCount(scope: EventScope, category: string): number {
+  return (scope !== "upcoming" ? 1 : 0) + (scope === "upcoming" && category ? 1 : 0);
+}
+
+/** "Upcoming" / "Upcoming · Sports" / "My plans": what the phone's Events list is showing. */
+export function eventFilterSummary(scope: EventScope, category: string): string {
+  const label = EVENT_SCOPE_LABELS[scope];
+  return scope === "upcoming" && category ? `${label} · ${category}` : label;
+}
+
 const EVENT_DEFAULT_LENGTH_MS = 3 * 3600_000;
 export const eventEnd = (e: { starts_at: string; ends_at: string | null }) =>
   e.ends_at
