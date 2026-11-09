@@ -7,11 +7,15 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { Capacitor } from "@capacitor/core";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Profile } from "@/integrations/supabase/types";
 import { removePushOnLogout } from "@/lib/push";
 import { friendlyAuthError } from "@/lib/auth-errors";
+
+/** Where Google sends the person back to inside the Android app (see AndroidManifest.xml). */
+const NATIVE_AUTH_REDIRECT = "sabzone://auth-callback";
 
 type Result = { error: string | null };
 type LoginResult = Result & {
@@ -85,6 +89,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
       sub.subscription.unsubscribe();
+    };
+  }, []);
+
+  // Native app: Google sign-in finishes in the phone's browser, which then opens
+  // sabzone://auth-callback#access_token=... Catch that link, start the session, close the browser.
+  useEffect(() => {
+    if (typeof window === "undefined" || !Capacitor.isNativePlatform()) return;
+    let remove: (() => void) | undefined;
+    let cancelled = false;
+    (async () => {
+      const { App } = await import("@capacitor/app");
+      const handle = await App.addListener("appUrlOpen", async ({ url }) => {
+        if (!url.startsWith(NATIVE_AUTH_REDIRECT)) return;
+        const hash = url.includes("#") ? url.split("#")[1] : (url.split("?")[1] ?? "");
+        const params = new URLSearchParams(hash);
+        const access_token = params.get("access_token");
+        const refresh_token = params.get("refresh_token");
+        const code = new URLSearchParams(url.split("?")[1]?.split("#")[0] ?? "").get("code");
+        try {
+          if (access_token && refresh_token) {
+            await supabase.auth.setSession({ access_token, refresh_token });
+          } else if (code) {
+            await supabase.auth.exchangeCodeForSession(code);
+          }
+        } catch (e) {
+          console.error("Google sign-in callback failed", e);
+        }
+        try {
+          const { Browser } = await import("@capacitor/browser");
+          await Browser.close();
+        } catch {
+          /* the browser may already be closed */
+        }
+      });
+      if (cancelled) handle.remove();
+      else remove = () => handle.remove();
+    })();
+    return () => {
+      cancelled = true;
+      remove?.();
     };
   }, []);
 
@@ -190,9 +234,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signInWithGoogle = useCallback<AuthContextValue["signInWithGoogle"]>(async () => {
+    // Native app: window.location.origin is "http://localhost" inside the app, which is not a real
+    // page after Google finishes. Open Google in the phone browser and come back via sabzone://.
+    if (Capacitor.isNativePlatform()) {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: NATIVE_AUTH_REDIRECT, skipBrowserRedirect: true },
+      });
+      if (error || !data?.url) return { error: friendlyAuthError(error ?? new Error("No URL")) };
+      const { Browser } = await import("@capacitor/browser");
+      await Browser.open({ url: data.url });
+      return { error: null };
+    }
+    // Website: land on /onboarding. AuthGate sends people who already finished it on to /home.
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/home` },
+      options: { redirectTo: `${window.location.origin}/onboarding` },
     });
     return { error: error ? friendlyAuthError(error) : null };
   }, []);

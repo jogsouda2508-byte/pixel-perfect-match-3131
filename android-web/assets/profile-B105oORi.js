@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-Dk72oS4N.js";import{i as t}from"./loader-circle-B10RV4yY.js";import{t as n}from"./profile-view-CUfCtA3a.js";var r=e();function i(){let{profile:e}=t();return e?(0,r.jsx)(n,{profile:e,isMe:!0}):null}export{i as component};
