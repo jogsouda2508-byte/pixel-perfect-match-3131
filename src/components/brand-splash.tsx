@@ -1,29 +1,44 @@
 import logoUrl from "@/assets/logo.png";
 
+const SPARKS: [number, number][] = [
+  [12, 18], [80, 12], [20, 70], [85, 62], [50, 8],
+  [8, 44], [90, 38], [35, 88], [70, 90], [60, 30],
+];
+
 /**
- * Premium first screen: 3D floating gradient logo + cursive gradient "SabZone" wordmark.
- * Pure CSS animation (styles live in styles.css under .sz-*), so it is light on Android.
+ * First screen: purple gradient, glossy 3D logo card and a cursive "SabZone" whose
+ * letters drop in one by one. Pure CSS animation (styles: .sz-* in styles.css).
  */
 export function BrandSplash() {
   return (
-    <main className="sz-stage" aria-label="Loading SabZone">
-      <div className="sz-center">
-        <div className="sz-logo-scene" aria-hidden="true">
-          <div className="sz-logo-3d">
-            {/* back layers give the logo real 3D depth */}
-            <span className="sz-logo-layer sz-depth-3" style={{ ["--m" as string]: `url(${logoUrl})` }} />
-            <span className="sz-logo-layer sz-depth-2" style={{ ["--m" as string]: `url(${logoUrl})` }} />
-            <span className="sz-logo-layer sz-depth-1" style={{ ["--m" as string]: `url(${logoUrl})` }} />
-            <span className="sz-logo-layer sz-front" style={{ ["--m" as string]: `url(${logoUrl})` }} />
-            <span className="sz-shine" style={{ ["--m" as string]: `url(${logoUrl})` }} />
+    <main
+      className="sz-stage"
+      aria-label="Loading SabZone"
+      style={{ ["--m" as string]: `url(${logoUrl})` }}
+    >
+      <div className="sz-mesh" aria-hidden="true" />
+      {SPARKS.map(([x, y], i) => (
+        <i
+          key={i}
+          className="sz-spark"
+          aria-hidden="true"
+          style={{ left: `${x}%`, top: `${y}%`, animationDelay: `${i * 0.35}s` }}
+        />
+      ))}
+      <div className="sz-c">
+        <div className="sz-card" aria-hidden="true">
+          <div className="sz-glass">
+            <div className="sz-logo" />
           </div>
         </div>
-
-        <h1 className="sz-name" translate="no">
-          <span className="sz-name-text" data-text="SabZone">
-            SabZone
-          </span>
+        <h1 className="sz-name" translate="no" aria-label="SabZone">
+          {"SabZone".split("").map((ch, i) => (
+            <span key={i} aria-hidden="true" style={{ ["--i" as string]: i }}>
+              {ch}
+            </span>
+          ))}
         </h1>
+        <div className="sz-line" aria-hidden="true" />
       </div>
     </main>
   );
