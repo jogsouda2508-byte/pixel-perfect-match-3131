@@ -1,0 +1,13 @@
+SabZone animated splash - HOW TO APPLY
+1. Unzip and copy everything into your project root (choose Replace). Paths match the project.
+2. Then rebuild the Android web bundle:
+     npm run build
+     (copy the build output to android-web/ the same way you did before)
+     npx cap sync android
+3. Rebuild the app in Android Studio and run.
+Changed files:
+  src/components/brand-splash.tsx   (NEW - 3D logo + cursive gradient SabZone)
+  src/routes/index.tsx             (first screen now uses it, stays ~2.6s)
+  src/styles.css                   (animations appended at the bottom)
+  android/app/src/main/res/values/styles.xml, colors.xml, drawable/splash_empty.xml
+     (native launch screen now plain deep-violet, so it flows into the animated screen)

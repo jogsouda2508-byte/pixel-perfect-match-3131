@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
-import { Logo } from "@/components/ediraa";
+import { useEffect, useRef } from "react";
+import { BrandSplash } from "@/components/brand-splash";
 import { resolveRedirect } from "@/components/auth-gate";
 import { useAuth } from "@/lib/auth";
 
@@ -20,15 +20,26 @@ export const Route = createFileRoute("/")({
       },
     ],
   }),
+  links: [
+    { rel: "preconnect", href: "https://fonts.googleapis.com" },
+    { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+    { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Pacifico&display=swap" },
+  ],
   component: Splash,
 });
+
+// How long the animated brand screen stays up, at minimum (ms).
+const SPLASH_MIN_MS = 2600;
 
 function Splash() {
   const { session, profile, loading } = useAuth();
   const navigate = useNavigate();
 
+  const startedAt = useRef(Date.now());
+
   useEffect(() => {
     if (loading) return;
+    const wait = Math.max(250, SPLASH_MIN_MS - (Date.now() - startedAt.current));
     const timer = window.setTimeout(() => {
       const target =
         resolveRedirect("/welcome", {
@@ -36,16 +47,9 @@ function Splash() {
           onboardingDone: !!profile?.onboarding_completed,
         }) ?? "/welcome";
       navigate({ to: target, replace: true });
-    }, 250);
+    }, wait);
     return () => window.clearTimeout(timer);
   }, [loading, navigate, profile?.onboarding_completed, session]);
 
-  return (
-    <main
-      className="grid min-h-screen place-items-center"
-      aria-label="Loading SabZone"
-    >
-      <Logo size={112} />
-    </main>
-  );
+  return <BrandSplash />;
 }
