@@ -31,6 +31,7 @@ import {
   type EventScope,
   type RsvpStatus,
 } from "@/lib/community";
+import { eventShareText } from "@/lib/community-share";
 import { cn } from "@/lib/utils";
 import {
   Chip,
@@ -45,6 +46,7 @@ import {
   SkeletonList,
   useNow,
 } from "./shared";
+import { communityLink, WhatsAppShare } from "./share-button";
 
 const SCOPES: { key: EventScope; label: string }[] = [
   { key: "upcoming", label: "Upcoming" },
@@ -340,6 +342,13 @@ function EventCard({
             <CalendarPlus className="h-4 w-4" />
           </button>
         </div>
+      )}
+
+      {!closed && (
+        <WhatsAppShare
+          className="w-full"
+          text={eventShareText(e, formatEventWhen(e.starts_at, now), communityLink("events"))}
+        />
       )}
 
       {e.is_mine && !past && (

@@ -48,6 +48,7 @@ const TABS: { key: TabKey; label: string; icon: ComponentType<{ className?: stri
   { key: "ask", label: "Ask", icon: MessageCircleQuestion },
 ];
 const TAB_KEY = "ediraa.community-tab";
+const isTab = (k: string | null): k is TabKey => !!k && TABS.some((t) => t.key === k);
 
 function CommunityPage() {
   const { user } = useAuth();
@@ -57,8 +58,11 @@ function CommunityPage() {
 
   useEffect(() => {
     try {
-      const saved = window.sessionStorage.getItem(TAB_KEY) as TabKey | null;
-      if (saved && TABS.some((t) => t.key === saved)) setTab(saved);
+      // A shared link (/community?tab=alerts) opens that tab; otherwise the one used last.
+      const linked = new URLSearchParams(window.location.search).get("tab");
+      const saved = window.sessionStorage.getItem(TAB_KEY);
+      const pick = isTab(linked) ? linked : saved;
+      if (isTab(pick)) setTab(pick);
     } catch {
       /* storage unavailable */
     }

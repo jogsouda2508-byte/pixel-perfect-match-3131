@@ -27,6 +27,7 @@ import {
   type CommunityQuestion,
   type QuestionFilter,
 } from "@/lib/community";
+import { questionShareText } from "@/lib/community-share";
 import { timeAgo } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import {
@@ -42,6 +43,7 @@ import {
   PrimaryButton,
   SkeletonList,
 } from "./shared";
+import { communityLink, WhatsAppShare } from "./share-button";
 
 const FILTERS: { key: QuestionFilter; label: string }[] = [
   { key: "new", label: "Newest" },
@@ -261,6 +263,7 @@ function QuestionView({ id, meId, onBack }: { id: string; meId: string; onBack: 
                 </button>
               )}
             </div>
+            <WhatsAppShare className="w-full" text={questionShareText(d, communityLink("ask"))} />
           </article>
 
           <h3 className="text-sm font-semibold text-muted-foreground">

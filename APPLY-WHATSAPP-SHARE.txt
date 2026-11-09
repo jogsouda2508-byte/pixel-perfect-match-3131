@@ -1,0 +1,20 @@
+WhatsApp sharing for Community (step 1 of the improvements list)
+
+1. Unzip into the ROOT of your project (same folder structure). Replace when asked.
+2. No SQL or new packages needed.
+3. Run `npm run test` if you like: new tests are in src/test/community-share.test.ts.
+
+New files:
+  src/lib/community-share.ts                  (builds the short WhatsApp messages)
+  src/components/community/share-button.tsx   (the "Share on WhatsApp" button + link helper)
+  src/test/community-share.test.ts
+
+Edited files:
+  src/components/community/events.tsx   share button on upcoming/live events
+  src/components/community/alerts.tsx   share button on alerts that are not fixed yet
+  src/components/community/polls.tsx    share button on open polls and quizzes
+  src/components/community/ask.tsx      share button on an opened question
+  src/routes/community.tsx              /community?tab=events|alerts|polls|ask opens that tab
+  src/components/auth-gate.tsx          /community added to the logged-in-only pages, so a
+                                        shared link sends logged-out people to Log in
+                                        instead of showing an empty page

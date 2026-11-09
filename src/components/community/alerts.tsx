@@ -28,6 +28,7 @@ import {
   type AlertKind,
   type CommunityAlert,
 } from "@/lib/community";
+import { alertShareText } from "@/lib/community-share";
 import { timeAgo } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import {
@@ -42,6 +43,7 @@ import {
   SkeletonList,
   useNow,
 } from "./shared";
+import { communityLink, WhatsAppShare } from "./share-button";
 
 const ICONS: Record<AlertKind, ComponentType<{ className?: string }>> = {
   power: Zap,
@@ -251,6 +253,12 @@ function AlertCard({
             <X className="h-4 w-4" /> Not true
           </button>
         </div>
+      )}
+      {!resolved && (
+        <WhatsAppShare
+          className="w-full"
+          text={alertShareText(a, alertStatusText(a), communityLink("alerts"))}
+        />
       )}
       {a.is_mine && (
         <div className="flex items-center gap-2 border-t border-border pt-3">

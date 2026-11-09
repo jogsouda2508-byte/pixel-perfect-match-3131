@@ -16,6 +16,7 @@ import {
   type PollForm,
   type PollScope,
 } from "@/lib/community";
+import { pollShareText } from "@/lib/community-share";
 import { cn } from "@/lib/utils";
 import {
   Chip,
@@ -31,6 +32,7 @@ import {
   SkeletonList,
   useNow,
 } from "./shared";
+import { communityLink, WhatsAppShare } from "./share-button";
 
 const DURATIONS = [
   { h: 6, label: "6 hours" },
@@ -309,6 +311,9 @@ function PollCard({
         >
           {gotIt ? "Correct! Nice one." : "Not quite. The right answer is highlighted."}
         </p>
+      )}
+      {!closed && (
+        <WhatsAppShare className="w-full" text={pollShareText(p, communityLink("polls"))} />
       )}
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span>

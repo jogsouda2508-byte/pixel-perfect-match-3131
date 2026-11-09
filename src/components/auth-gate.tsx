@@ -22,6 +22,7 @@ const PROTECTED = [
   "/business-edit",
   "/settings",
   "/help",
+  "/community",
 ];
 // Other people's profiles live at /u/<username>.
 const PROTECTED_PREFIXES = ["/u/", "/chat/"];
