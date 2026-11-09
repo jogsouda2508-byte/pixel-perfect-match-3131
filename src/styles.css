@@ -742,7 +742,7 @@ html {
 
 /* ===== SabZone premium splash (first screen) ===== */
 .sz-stage{position:relative;min-height:100vh;min-height:100dvh;overflow:hidden;color:#fff;
-background:linear-gradient(160deg,#a855f7 0%,#7c3aed 50%,#5b21b6 100%)}
+background:linear-gradient(160deg,#c4b5fd 0%,#a78bfa 50%,#8b5cf6 100%)}
 .sz-mesh{position:absolute;inset:-30%;background:
 radial-gradient(40% 35% at 25% 30%,rgba(255,150,255,.55),transparent 70%),
 radial-gradient(45% 40% at 78% 70%,rgba(120,90,255,.6),transparent 70%),

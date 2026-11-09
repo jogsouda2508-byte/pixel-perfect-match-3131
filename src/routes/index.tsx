@@ -20,8 +20,6 @@ export const Route = createFileRoute("/")({
       },
     ],
   }),
-  // Purple from the very first paint on this screen, so there is no white flash before the CSS loads.
-  styles: [{ children: "html,body{background:#7c3aed !important}" }],
   links: [
     { rel: "preconnect", href: "https://fonts.googleapis.com" },
     { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },

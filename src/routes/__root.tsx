@@ -97,8 +97,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@Lovable" },
     ],
-    // Purple from the first paint so the WebView is never white before the CSS loads.
-    styles: [{ children: "html,body{background:#7c3aed}" }],
     links: [
       {
         rel: "stylesheet",

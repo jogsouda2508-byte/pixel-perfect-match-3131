@@ -1,12 +1,10 @@
-SabZone splash flash fix - HOW TO APPLY
-1. Copy everything in this zip into your project root (Replace).
-2. Run:  npm i @capacitor/splash-screen
-3. npm run build -> copy output to android-web/ -> npx cap sync android
-4. UNINSTALL the old app, then run again from Android Studio.
+SabZone splash fix v2 - HOW TO APPLY
+1. Copy everything into your project root (Replace).
+2. npm run build -> copy output to android-web/ -> npx cap sync android
+3. UNINSTALL the old app, run again.
 
-Changed files:
-  android/app/src/main/res/values/colors.xml   (restored colorPrimary/Dark/Accent that were missing)
-  android/app/src/main/res/values/styles.xml   (window background purple after splash, no white)
-  capacitor.config.ts                          (purple WebView bg, native splash waits)
-  src/components/brand-splash.tsx              (hides native splash once animated one is mounted)
-  src/routes/__root.tsx                        (purple html/body before CSS loads)
+What changed vs v1:
+  - Purple status bar / nav bar / home header REMOVED (styles.xml, capacitor.config.ts,
+    src/routes/__root.tsx and src/routes/index.tsx back to normal - no global purple).
+  - Splash background is now LIGHT purple (#A78BFA) in colors.xml, capacitor.config.ts, styles.css.
+  - Logo, floating animation and SabZone name are unchanged.
