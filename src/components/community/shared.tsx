@@ -40,7 +40,7 @@ export function Chip({
       disabled={disabled}
       aria-pressed={active}
       className={cn(
-        "inline-flex min-h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-sm font-medium transition active:scale-95 disabled:opacity-50",
+        "inline-flex min-h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-3 text-xs font-medium transition active:scale-95 disabled:opacity-50 sm:min-h-9 sm:gap-1.5 sm:px-3.5 sm:text-sm",
         active
           ? "border-primary bg-primary text-primary-foreground shadow-sm"
           : "border-border bg-card text-muted-foreground hover:text-foreground",
@@ -53,9 +53,14 @@ export function Chip({
 }
 
 /** A row of chips that scrolls sideways on small screens. */
-export function ChipRow({ children }: { children: ReactNode }) {
+export function ChipRow({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div
+      className={cn(
+        "-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:gap-2 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        className,
+      )}
+    >
       {children}
     </div>
   );
@@ -165,7 +170,7 @@ export function PrimaryButton({
       onClick={onClick}
       disabled={busy || disabled}
       className={cn(
-        "inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm transition active:scale-95 disabled:opacity-60",
+        "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-xs font-semibold sm:min-h-11 sm:gap-2 sm:px-5 sm:text-sm text-primary-foreground shadow-sm transition active:scale-95 disabled:opacity-60",
         className,
       )}
     >
@@ -320,17 +325,17 @@ export function LocalityBar({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="glass-card flex w-full items-center gap-3 p-3 text-left transition active:scale-[0.99]"
+        className="glass-card flex w-full items-center gap-2.5 p-2.5 text-left transition active:scale-[0.99] sm:gap-3 sm:p-3"
         aria-label="Change area"
       >
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-elevated text-primary">
-          {locality ? <MapPin className="h-5 w-5" /> : <Globe2 className="h-5 w-5" />}
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-elevated text-primary sm:h-10 sm:w-10">
+          {locality ? <MapPin className="h-4 w-4 sm:h-5 sm:w-5" /> : <Globe2 className="h-4 w-4 sm:h-5 sm:w-5" />}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-xs text-muted-foreground">Showing</span>
-          <span className="block truncate font-semibold">{locality ?? "Everywhere"}</span>
+          <span className="block text-[11px] text-muted-foreground sm:text-xs">Showing</span>
+          <span className="block truncate text-sm font-semibold sm:text-base">{locality ?? "Everywhere"}</span>
         </span>
-        <span className="rounded-full bg-elevated px-3 py-1.5 text-xs font-semibold text-primary">
+        <span className="rounded-full bg-elevated px-2.5 py-1 text-[11px] font-semibold text-primary sm:px-3 sm:py-1.5 sm:text-xs">
           Change
         </span>
       </button>

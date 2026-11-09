@@ -74,51 +74,61 @@ function CommunityPage() {
 
   return (
     <PageShell>
-      <PageHeader title="Community" back="/home" smartBack />
-      <LocalityBar locality={locality} profileLocation={profileLocation} onChange={setLocality} />
-      <TodayStrip locality={locality} onGo={go} />
-
-      <nav
-        aria-label="Community sections"
-        className="sticky top-0 z-20 -mx-4 border-b border-border bg-background/90 px-4 backdrop-blur sm:mx-0 sm:rounded-2xl sm:border"
-      >
-        <div
-          role="tablist"
-          className="flex gap-1 overflow-x-auto py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        >
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              role="tab"
-              type="button"
-              aria-selected={tab === t.key}
-              onClick={() => go(t.key)}
-              className={cn(
-                "inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-sm font-semibold transition active:scale-95",
-                tab === t.key
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:bg-card",
-              )}
-            >
-              <t.icon className="h-4 w-4" /> {t.label}
-            </button>
-          ))}
+      {/* Phones: a small 8px gap at the left and right (the page itself has 16px, so pull in by 8px). */}
+      <div className="-mx-2 space-y-1.5 sm:mx-0 sm:space-y-4">
+        <PageHeader title="Community" back="/home" smartBack compact />
+        {/* Wrapped so the phone rule that stretches direct-child cards edge to edge does not apply: it pushed this card off-centre. */}
+        <div>
+          <LocalityBar
+            locality={locality}
+            profileLocation={profileLocation}
+            onChange={setLocality}
+          />
         </div>
-      </nav>
+        <TodayStrip locality={locality} onGo={go} />
 
-      {meId && (
-        <div
-          role="tabpanel"
-          key={tab}
-          className="animate-in fade-in slide-in-from-bottom-1 duration-200"
+        <nav
+          aria-label="Community sections"
+          className="sticky top-1 z-20 rounded-2xl border border-border bg-card/95 px-1.5 shadow-sm backdrop-blur"
         >
-          {tab === "events" && <EventsTab locality={locality} meId={meId} />}
-          {tab === "alerts" && <AlertsTab locality={locality} meId={meId} />}
-          {tab === "swap" && <SwapsTab locality={locality} meId={meId} />}
-          {tab === "polls" && <PollsTab locality={locality} />}
-          {tab === "ask" && <AskTab locality={locality} meId={meId} />}
-        </div>
-      )}
+          <div
+            role="tablist"
+            className="flex gap-1 overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {TABS.map((t) => (
+              <button
+                key={t.key}
+                role="tab"
+                type="button"
+                aria-selected={tab === t.key}
+                onClick={() => go(t.key)}
+                className={cn(
+                  "inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full px-3 text-xs font-semibold transition active:scale-95 sm:min-h-10 sm:gap-1.5 sm:px-3.5 sm:text-sm",
+                  tab === t.key
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-card",
+                )}
+              >
+                <t.icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> {t.label}
+              </button>
+            ))}
+          </div>
+        </nav>
+
+        {meId && (
+          <div
+            role="tabpanel"
+            key={tab}
+            className="animate-in fade-in slide-in-from-bottom-1 duration-200"
+          >
+            {tab === "events" && <EventsTab locality={locality} meId={meId} />}
+            {tab === "alerts" && <AlertsTab locality={locality} meId={meId} />}
+            {tab === "swap" && <SwapsTab locality={locality} meId={meId} />}
+            {tab === "polls" && <PollsTab locality={locality} />}
+            {tab === "ask" && <AskTab locality={locality} meId={meId} />}
+          </div>
+        )}
+      </div>
     </PageShell>
   );
 }
@@ -151,7 +161,7 @@ function TodayStrip({ locality, onGo }: { locality: string | null; onGo: (t: Tab
       <Tile
         wide
         onClick={() => onGo("events")}
-        icon={<CalendarDays className="h-4 w-4" />}
+        icon={<CalendarDays className="h-3.5 w-3.5" />}
         label="Next event"
         loading={events.isLoading}
         value={next ? next.title : "Nothing yet"}
@@ -159,7 +169,7 @@ function TodayStrip({ locality, onGo }: { locality: string | null; onGo: (t: Tab
       />
       <Tile
         onClick={() => onGo("alerts")}
-        icon={<BellRing className="h-4 w-4" />}
+        icon={<BellRing className="h-3.5 w-3.5" />}
         label="Alerts"
         loading={alerts.isLoading}
         value={live === 0 ? "All clear" : `${live} active`}
@@ -168,7 +178,7 @@ function TodayStrip({ locality, onGo }: { locality: string | null; onGo: (t: Tab
       />
       <Tile
         onClick={() => onGo("polls")}
-        icon={<Flame className="h-4 w-4" />}
+        icon={<Flame className="h-3.5 w-3.5" />}
         label="Streak"
         loading={streak.isLoading}
         value={days > 0 ? `${days} day${days === 1 ? "" : "s"}` : "Start today"}
@@ -204,13 +214,13 @@ function Tile({
       type="button"
       onClick={onClick}
       className={cn(
-        "glass-card min-w-0 p-3 text-left transition active:scale-95",
+        "glass-card min-w-0 p-2.5 text-left transition active:scale-95 sm:p-3",
         wide && "col-span-2 sm:col-span-1",
       )}
     >
       <span
         className={cn(
-          "mb-1.5 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide",
+          "mb-1 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide sm:mb-1.5 sm:text-[11px]",
           accent ? "text-primary" : "text-muted-foreground",
         )}
       >
@@ -220,8 +230,8 @@ function Tile({
         <span className="block h-4 w-3/4 animate-pulse rounded bg-muted" />
       ) : (
         <>
-          <span className="block truncate text-sm font-bold">{value}</span>
-          <span className="block truncate text-xs text-muted-foreground">{sub}</span>
+          <span className="block truncate text-[13px] font-bold sm:text-sm">{value}</span>
+          <span className="block truncate text-[11px] text-muted-foreground sm:text-xs">{sub}</span>
         </>
       )}
     </button>

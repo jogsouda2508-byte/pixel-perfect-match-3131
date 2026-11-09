@@ -26,17 +26,20 @@ export function PageHeader({
   title,
   back = "/more",
   smartBack = false,
+  compact = false,
 }: {
   title: string;
   back?: "/more" | "/home" | "/profile";
   /** Go back to wherever the person came from (e.g. Home or More); `back` is only the fallback. */
   smartBack?: boolean;
+  /** Smaller title on phones. */
+  compact?: boolean;
 }) {
   const router = useRouter();
   const canGoBack = useCanGoBack();
   const navigate = useNavigate();
   const cls =
-    "grid h-11 w-11 place-items-center rounded-full hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+    "grid h-10 w-10 place-items-center rounded-full hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
   return (
     <header className="flex items-center gap-3">
       {smartBack ? (
@@ -53,7 +56,7 @@ export function PageHeader({
           <ArrowLeft className="h-5 w-5" />
         </Link>
       )}
-      <h1 className="text-2xl font-bold">{title}</h1>
+      <h1 className={compact ? "text-xl font-bold sm:text-2xl" : "text-2xl font-bold"}>{title}</h1>
     </header>
   );
 }

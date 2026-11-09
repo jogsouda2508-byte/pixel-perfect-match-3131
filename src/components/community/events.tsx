@@ -125,15 +125,15 @@ export function EventsTab({ locality, meId }: { locality: string | null; meId: s
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <ChipRow>
+        <ChipRow className="mx-0 min-w-0 flex-1 px-0">
           {SCOPES.map((s) => (
             <Chip key={s.key} active={scope === s.key} onClick={() => setScope(s.key)}>
               {s.label}
             </Chip>
           ))}
         </ChipRow>
-        <PrimaryButton onClick={() => setSheet(true)} className="shrink-0 !px-4">
-          <Plus className="h-4 w-4" /> Host
+        <PrimaryButton onClick={() => setSheet(true)} className="w-9 shrink-0 !px-0 sm:w-auto sm:!px-4">
+          <Plus className="h-4 w-4" /> <span className="sr-only sm:not-sr-only">Host</span>
         </PrimaryButton>
       </div>
 
