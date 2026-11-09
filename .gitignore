@@ -32,7 +32,6 @@ dist-ssr
 *.sw?
 
 .env
-.env.example
 
 # android-web
 # android
