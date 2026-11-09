@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+import { SplashScreen } from "@capacitor/splash-screen";
 import logoUrl from "@/assets/logo.png";
 
 const SPARKS: [number, number][] = [
@@ -10,6 +12,11 @@ const SPARKS: [number, number][] = [
  * letters drop in one by one. Pure CSS animation (styles: .sz-* in styles.css).
  */
 export function BrandSplash() {
+  // Hide the native purple launch screen only now, so only the animated one is ever seen.
+  useEffect(() => {
+    SplashScreen.hide({ fadeOutDuration: 150 }).catch(() => {});
+  }, []);
+
   return (
     <main
       className="sz-stage"
