@@ -11,3 +11,8 @@ Changed files:
   src/styles.css                   (animations appended at the bottom)
   android/app/src/main/res/values/styles.xml, colors.xml, drawable/splash_empty.xml
      (native launch screen now plain purple, so it flows into the animated screen)
+
+ALSO CHANGED (fixes purple -> white -> purple flash):
+  capacitor.config.ts   (WebView background is now the same purple)
+After copying files you MUST rebuild and re-sync, otherwise the phone still shows the OLD screen:
+  npm run build  -> copy output to android-web/  -> npx cap sync android -> rebuild/uninstall+install the app
