@@ -7,13 +7,8 @@ import logoUrl from "@/assets/logo.png";
 export function BrandSplash() {
   return (
     <main className="sz-stage" aria-label="Loading SabZone">
-      <div className="sz-orb sz-orb-a" aria-hidden="true" />
-      <div className="sz-orb sz-orb-b" aria-hidden="true" />
-
       <div className="sz-center">
         <div className="sz-logo-scene" aria-hidden="true">
-          <div className="sz-ring sz-ring-1" />
-          <div className="sz-ring sz-ring-2" />
           <div className="sz-logo-3d">
             {/* back layers give the logo real 3D depth */}
             <span className="sz-logo-layer sz-depth-3" style={{ ["--m" as string]: `url(${logoUrl})` }} />
@@ -29,7 +24,6 @@ export function BrandSplash() {
             SabZone
           </span>
         </h1>
-        <p className="sz-tagline">Connect • Share • Grow</p>
       </div>
     </main>
   );

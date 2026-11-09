@@ -1,0 +1,1 @@
+var e=`/assets/logo-C4X-5VGx.png`;export{e as t};
