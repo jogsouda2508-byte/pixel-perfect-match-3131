@@ -34,8 +34,8 @@ dist-ssr
 .env
 .env.example
 
-android-web
-android
-capacitor.config.ts
+# android-web
+# android
+# capacitor.config.ts
 
-PUSH-ANDROID-SETUP.md
+# PUSH-ANDROID-SETUP.md

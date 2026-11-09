@@ -1,0 +1,1 @@
+function e(e){if(!Number.isFinite(e)||e<=0)return``;let t=Math.floor(e);if(t<1e4)return t.toLocaleString(`en-US`);for(let[e,n]of[[1e9,`B`],[1e6,`M`],[1e3,`K`]])if(t>=e)return`${(Math.floor(t/e*10)/10).toFixed(1).replace(/\.0$/,``)}${n}`;return String(t)}export{e as t};

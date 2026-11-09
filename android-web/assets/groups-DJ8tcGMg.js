@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-Dk72oS4N.js";import{n as t,t as n}from"./page-shell-sCuMxIz4.js";import{t as r}from"./groups-panel-D3lKF8DV.js";var i=e();function a(){return(0,i.jsxs)(t,{children:[(0,i.jsx)(n,{title:`Groups`}),(0,i.jsx)(r,{})]})}export{a as component};

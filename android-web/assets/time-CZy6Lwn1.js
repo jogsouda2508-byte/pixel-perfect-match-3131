@@ -1,0 +1,1 @@
+function e(e,t=Date.now()){let n=Math.max(0,Math.floor((t-new Date(e).getTime())/1e3));if(n<60)return`Just now`;let r=Math.floor(n/60);if(r<60)return`${r}m ago`;let i=Math.floor(r/60);if(i<24)return`${i}h ago`;let a=Math.floor(i/24);return a<7?`${a}d ago`:new Date(e).toLocaleDateString(void 0,{day:`numeric`,month:`short`,year:`numeric`})}export{e as t};

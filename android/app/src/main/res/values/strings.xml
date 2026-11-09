@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SabZone</string>
+    <string name="title_activity_main">SabZone</string>
+    <string name="package_name">com.yasminSusheel.guccichat</string>
+    <string name="custom_url_scheme">com.yasminSusheel.guccichat</string>
+</resources>

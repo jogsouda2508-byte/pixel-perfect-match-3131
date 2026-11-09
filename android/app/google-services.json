@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1079362468880",
+    "project_id": "ediraa-ed3b8",
+    "storage_bucket": "ediraa-ed3b8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1079362468880:android:f7b37139b2a6de94041e95",
+        "android_client_info": {
+          "package_name": "com.yasminSusheel.guccichat"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBgM2ip5SE0oYHzi6Q-dWV0Xw6ZJ-E76oQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

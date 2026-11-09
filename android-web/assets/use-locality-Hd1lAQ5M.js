@@ -1,0 +1,1 @@
+import{i as e,n as t}from"./jsx-runtime-Dk72oS4N.js";var n=e(t(),1),r=e=>`ediraa.local-locality.${e}`;function i(e){let[t,i]=(0,n.useState)(null);return(0,n.useEffect)(()=>{if(e)try{i(window.localStorage.getItem(r(e))||null)}catch{}},[e]),[t,t=>{let n=t?.trim()||null;i(n);try{n?window.localStorage.setItem(r(e),n):window.localStorage.removeItem(r(e))}catch{}}]}export{i as t};
