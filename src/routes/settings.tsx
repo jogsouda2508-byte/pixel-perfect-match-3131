@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Camera, ChevronRight, Loader2, Lock, MapPin } from "lucide-react";
 import { Avatar } from "@/components/ediraa";
+import { CommunityNotifyCard } from "@/components/community-notify-card";
 import { PushSettingsCard } from "@/components/push-prompt";
 import { PageHeader, PageShell } from "@/components/page-shell";
 import { Switch } from "@/components/ui/switch";
@@ -40,6 +41,7 @@ function SettingsPage() {
           <PrivacyCard profile={profile} />
           <AccountCard profile={profile} />
           <PushSettingsCard />
+          <CommunityNotifyCard />
           <PasswordCard />
           <LogoutButton />
         </>

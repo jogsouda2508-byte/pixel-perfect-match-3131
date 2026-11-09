@@ -1,0 +1,34 @@
+Community notifications (step 2 of the improvements list)
+
+Apply step 1 (WhatsApp sharing) first if you have not: tapping a notification opens
+/community?tab=alerts or ?tab=events, and that link handling comes from step 1.
+
+1. Unzip into the ROOT of your project (same folder structure). Replace when asked.
+2. Supabase > SQL Editor > paste and run:
+     supabase/migrations/20261105000000_community_notifications.sql
+   It needs the chat push migrations and the Community migration to be run already (it stops
+   with a clear message if one is missing). Safe to run twice.
+3. Nothing else to deploy: the send-push Edge Function is unchanged, and the chat push setup
+   (SETUP-PUSH.md, steps 4 and 5) already covers this. To pause ALL push, including these:
+     delete from private.push_config;
+
+What people get (only people who turned on notifications and have a location in their profile):
+  - a new alert in their area        "Power cut" + "Reported in Whitefield. Not confirmed yet."
+  - that alert reaching 2 confirms   once; replaces the first notification, never a second one
+  - a new event in their area        "Weekend cricket" + "Tomorrow, 7 PM . Ground 2"
+  - an event they joined is cancelled
+Each person can switch alerts and events off in Settings > Community notifications.
+"Near" = the location in their profile (the same rule as the "Local" badge on answers).
+
+Safety: a push problem never blocks a post, vote or cancel. A person's 4th alert or event within
+an hour is saved but nobody is notified (spam guard). Big areas are sent in groups of 400.
+
+Files:
+  supabase/migrations/20261105000000_community_notifications.sql   (new)
+  src/lib/community-notify.ts                                      (new)
+  src/components/community-notify-card.tsx                         (new)
+  src/routes/settings.tsx                                          (edited: adds the card)
+  src/test/community-notify.test.ts, supabase/tests/community_notifications.test.sql  (tests)
+
+Tested: all migrations + this one on a fresh Postgres (twice, no errors); 31 SQL checks pass;
+existing chat push SQL tests still pass; new frontend tests pass.
