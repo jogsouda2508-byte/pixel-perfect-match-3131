@@ -7,15 +7,12 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Capacitor } from "@capacitor/core";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Profile } from "@/integrations/supabase/types";
+import { authRedirect, isNativeApp, NATIVE_AUTH_REDIRECT, NATIVE_RESET_REDIRECT } from "@/lib/auth-redirect";
 import { removePushOnLogout } from "@/lib/push";
 import { friendlyAuthError } from "@/lib/auth-errors";
-
-/** Where Google sends the person back to inside the Android app (see AndroidManifest.xml). */
-const NATIVE_AUTH_REDIRECT = "sabzone://auth-callback";
 
 type Result = { error: string | null };
 type LoginResult = Result & {
@@ -95,13 +92,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Native app: Google sign-in finishes in the phone's browser, which then opens
   // sabzone://auth-callback#access_token=... Catch that link, start the session, close the browser.
   useEffect(() => {
-    if (typeof window === "undefined" || !Capacitor.isNativePlatform()) return;
+    if (!isNativeApp()) return;
     let remove: (() => void) | undefined;
     let cancelled = false;
     (async () => {
       const { App } = await import("@capacitor/app");
       const handle = await App.addListener("appUrlOpen", async ({ url }) => {
-        if (!url.startsWith(NATIVE_AUTH_REDIRECT)) return;
+        const isReset = url.startsWith(NATIVE_RESET_REDIRECT);
+        if (!isReset && !url.startsWith(NATIVE_AUTH_REDIRECT)) return;
         const hash = url.includes("#") ? url.split("#")[1] : (url.split("?")[1] ?? "");
         const params = new URLSearchParams(hash);
         const access_token = params.get("access_token");
@@ -115,6 +113,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         } catch (e) {
           console.error("Google sign-in callback failed", e);
+        }
+        if (isReset) {
+          // Password-reset email: open the app's reset screen (the session is already set).
+          window.history.pushState({}, "", "/reset-password");
+          window.dispatchEvent(new PopStateEvent("popstate"));
         }
         try {
           const { Browser } = await import("@capacitor/browser");
@@ -196,7 +199,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // the mailbox the person actually typed (used to enforce the 3-account limit)
             contact_email: realEmail,
           },
-          emailRedirectTo: `${window.location.origin}/home`,
+          emailRedirectTo: authRedirect("/home"),
         },
       });
       if (error) return { error: friendlyAuthError(error), needsVerification: false };
@@ -236,7 +239,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInWithGoogle = useCallback<AuthContextValue["signInWithGoogle"]>(async () => {
     // Native app: window.location.origin is "http://localhost" inside the app, which is not a real
     // page after Google finishes. Open Google in the phone browser and come back via sabzone://.
-    if (Capacitor.isNativePlatform()) {
+    if (isNativeApp()) {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: { redirectTo: NATIVE_AUTH_REDIRECT, skipBrowserRedirect: true },

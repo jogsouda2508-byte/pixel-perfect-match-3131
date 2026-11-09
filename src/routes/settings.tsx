@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { authRedirect, NATIVE_RESET_REDIRECT } from "@/lib/auth-redirect";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -334,7 +335,7 @@ function PasswordCard() {
     setSending(true);
     setError(undefined);
     const { error: err } = await supabase.auth.resetPasswordForEmail(user.email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: authRedirect("/reset-password", NATIVE_RESET_REDIRECT),
     });
     setSending(false);
     if (err) return setError(friendlyAuthError(err));

@@ -26,12 +26,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Google sign-in comes back to the app through sabzone://auth-callback -->
+            <!-- Google sign-in comes back to the app through sabzone://auth-callback and sabzone://reset-password -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="sabzone" android:host="auth-callback" />
+                <data android:scheme="sabzone" />
             </intent-filter>
 
         </activity>
