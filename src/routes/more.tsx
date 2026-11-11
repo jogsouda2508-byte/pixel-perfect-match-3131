@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import {
   Building2,
   ChevronRight,
-  HeartHandshake,
+  UsersRound,
   HelpCircle,
   Loader2,
   Settings,
@@ -29,7 +29,7 @@ export const Route = createFileRoute("/more")({
 
 const links = [
   { label: "My Profile", icon: User, to: "/profile" },
-  { label: "Community", icon: HeartHandshake, to: "/community" },
+  { label: "Community", icon: UsersRound, to: "/community" },
   { label: "Business Page", icon: Building2, to: "/business" },
   { label: "Saved Posts", icon: Star, to: "/saved" },
   { label: "Groups", icon: Users, to: "/groups" },

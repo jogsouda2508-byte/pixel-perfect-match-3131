@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { BellRing, CalendarDays, ChevronRight, HeartHandshake } from "lucide-react";
+import { BellRing, CalendarDays, ChevronRight, UsersRound } from "lucide-react";
 import {
   buildHomeStrip,
   communityBadgeCount,
@@ -32,7 +32,7 @@ export function CommunityHomeStrip() {
   if (!home) return null;
   const strip = buildHomeStrip(home, near);
   const Icon =
-    strip.kind === "alert" ? BellRing : strip.kind === "event" ? CalendarDays : HeartHandshake;
+    strip.kind === "alert" ? BellRing : strip.kind === "event" ? CalendarDays : UsersRound;
   return (
     <Link
       to="/community"

@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { Bell, HeartHandshake, Loader2 } from "lucide-react";
+import { Bell, UsersRound, Loader2 } from "lucide-react";
 import {
   Avatar,
   BottomNav,
@@ -125,7 +125,7 @@ function HomePage() {
               className="group relative rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
             >
               <span className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-[#F3EFFF] to-[#E2DAFF] text-[#4F36D6] shadow-[0_4px_14px_-6px_rgba(79,54,214,0.5)] ring-1 ring-[#CFC3FF]/80 transition active:scale-95 dark:from-[#2E2460] dark:to-[#1C1740] dark:text-[#C9B8FF] dark:ring-white/10">
-                <HeartHandshake className="h-5 w-5" />
+                <UsersRound className="h-5 w-5" />
               </span>
               <CommunityBadge className="absolute -right-1 -top-1" />
             </Link>

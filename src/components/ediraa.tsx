@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import logoUrl from "@/assets/logo.png";
-import { Home, Search, MessageSquare, User, BadgeCheck, HeartHandshake } from "lucide-react";
+import { Home, Search, MessageSquare, User, BadgeCheck, UsersRound } from "lucide-react";
 import { useId, type ComponentType, type ReactNode } from "react";
 import { ComposerLauncher } from "@/components/composer";
 import { ReelsIcon } from "@/components/icons";
@@ -434,7 +434,7 @@ export function SideNav() {
             "flex items-center gap-3 rounded-xl px-3 py-2.5 text-muted-foreground hover:bg-card",
         }}
       >
-        <HeartHandshake className="h-5 w-5" />
+        <UsersRound className="h-5 w-5" />
         Community
         <CommunityBadge className="ml-auto" />
       </Link>
