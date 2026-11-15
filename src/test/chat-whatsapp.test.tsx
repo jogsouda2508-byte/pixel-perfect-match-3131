@@ -199,7 +199,9 @@ describe("bubble gestures", () => {
   it("a very long swipe slides the bubble only so far", () => {
     const { bubble } = setup();
     fireEvent.pointerDown(bubble, { clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(bubble, { clientX: 40, clientY: 11 }); // starts the swipe
     fireEvent.pointerMove(bubble, { clientX: 400, clientY: 12 });
+    act(() => void vi.advanceTimersByTime(50)); // the bubble is painted once per animation frame
     expect(bubble.style.transform).toContain("120px");
   });
 

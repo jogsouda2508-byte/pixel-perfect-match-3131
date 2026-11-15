@@ -43,7 +43,13 @@ vi.mock("@/lib/social", async (importOriginal) => {
 });
 vi.mock("@/lib/story-video", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/story-video")>();
-  return { ...actual, inspectStoryVideo: h.inspect, createVideoStory: h.createVideoStory };
+  return {
+    ...actual,
+    inspectStoryVideo: h.inspect,
+    createVideoStory: h.createVideoStory,
+    // the row warms the first clip before opening; in tests there is no network, so resolve now
+    preloadStoryVideo: () => Promise.resolve(),
+  };
 });
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
 
@@ -124,7 +130,7 @@ describe("story row", () => {
     const label = await screen.findByText("a_really_long_username_that_would_wrap");
     expect(label.className).toContain("truncate");
     for (const li of screen.getAllByRole("listitem")) {
-      expect(li.className).toContain("w-[72px]");
+      expect((li as HTMLElement).style.width).toBe("72px");
       expect(li.className).toContain("shrink-0");
     }
   });
@@ -418,7 +424,7 @@ describe("viewing a video story", () => {
     wrap(<Stories />);
     fireEvent.click(await screen.findByRole("button", { name: /View bob Name's story/ }));
 
-    const dialog = screen.getByRole("dialog");
+    const dialog = await screen.findByRole("dialog");
     const first = dialog.querySelector("video")!;
     expect(first.getAttribute("src")).toMatch(/f\.mp4#t=0$/);
     expect(dialog.querySelectorAll('[aria-hidden="true"] > div')).toHaveLength(2); // one bar per part
@@ -445,7 +451,7 @@ describe("viewing a video story", () => {
     wrap(<Stories />);
     fireEvent.click(await screen.findByRole("button", { name: /View bob Name's story/ }));
 
-    const dialog = screen.getByRole("dialog");
+    const dialog = await screen.findByRole("dialog");
     expect(dialog.querySelector("video")?.getAttribute("src")).toMatch(/f\.mp4#t=0$/);
     expect(dialog.querySelectorAll('[aria-hidden="true"] > div')).toHaveLength(1); // one bar
     expect(screen.queryByRole("button", { name: "Next" })).toBeNull();
@@ -641,12 +647,13 @@ describe("loading a video story", () => {
     h.groups = [group("b", "bob", [seg("s1", 0, 0, 15), seg("s2", 1, 15, 22.5)])];
     wrap(<Stories />);
     fireEvent.click(await screen.findByRole("button", { name: /View bob Name's story/ }));
-    return screen.getByRole("dialog").querySelector("video") as HTMLVideoElement;
+    // the first clip is warmed up before the story opens, so the dialog appears a tick later
+    return (await screen.findByRole("dialog")).querySelector("video") as HTMLVideoElement;
   };
 
   it("shows the ring loader from the start, until the video is playing", async () => {
     const video = await open();
-    expect(ring()).toBeInTheDocument();
+    await waitFor(() => expect(ring()).toBeInTheDocument());
     expect(ring()).toHaveClass("pointer-events-none"); // never blocks taps / holds / swipes
     fireEvent.playing(video);
     expect(ring()).toBeNull();
