@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ChevronDown, Clock, MapPin, MessageCircle, Pencil, Phone } from "lucide-react";
+import { BookButton, BusinessOffers } from "@/components/business-bookings";
 import { BusinessReviews, Stars } from "@/components/business-reviews";
 import {
   computeOpenStatus,
@@ -144,6 +145,16 @@ export function BusinessInfoCard({ profile, isMe }: { profile: Profile; isMe: bo
             {formatIndianMobile(page.phone)}
           </p>
         )}
+
+        {!isMe && user && (
+          <BookButton
+            businessId={profile.id}
+            businessName={name}
+            services={page.services.map((s) => s.name)}
+          />
+        )}
+
+        <BusinessOffers businessId={profile.id} isMe={isMe} />
 
         {page.services.length > 0 && (
           <div>

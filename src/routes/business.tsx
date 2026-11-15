@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Building2, Check, ChevronRight, Loader2 } from "lucide-react";
+import { BookingsPanel } from "@/components/business-bookings";
 import { BusinessDirectory } from "@/components/business-directory";
 import { Stars } from "@/components/business-reviews";
 import { Avatar } from "@/components/ediraa";
@@ -157,6 +158,8 @@ function BusinessPage() {
           </button>
         </section>
       )}
+
+      <BookingsPanel isBusiness={isBusiness} />
 
       <BusinessDirectory showSearch />
     </PageShell>
