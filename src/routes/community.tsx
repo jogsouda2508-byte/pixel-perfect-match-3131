@@ -8,10 +8,12 @@ import {
   CalendarDays,
   Flame,
   MessageCircleQuestion,
+  ShoppingBag,
 } from "lucide-react";
 import { AlertsTab } from "@/components/community/alerts";
 import { AskTab } from "@/components/community/ask";
 import { EventsTab } from "@/components/community/events";
+import { MarketTab } from "@/components/community/market";
 import { PollsTab } from "@/components/community/polls";
 import { LocalityBar, useNow } from "@/components/community/shared";
 import { SwapsTab } from "@/components/community/swaps";
@@ -43,7 +45,7 @@ export const Route = createFileRoute("/community")({
   component: CommunityPage,
 });
 
-type TabKey = "events" | "alerts" | "swap" | "polls" | "ask";
+type TabKey = "events" | "alerts" | "market" | "swap" | "polls" | "ask";
 const TABS: {
   key: TabKey;
   label: string;
@@ -53,6 +55,7 @@ const TABS: {
 }[] = [
   { key: "events", label: "Events", short: "Events", icon: CalendarDays },
   { key: "alerts", label: "Alerts", short: "Alerts", icon: BellRing },
+  { key: "market", label: "Market", short: "Market", icon: ShoppingBag },
   { key: "swap", label: "Skill swap", short: "Swap", icon: ArrowLeftRight },
   { key: "polls", label: "Polls", short: "Polls", icon: BarChart3 },
   { key: "ask", label: "Ask", short: "Ask", icon: MessageCircleQuestion },
@@ -113,7 +116,7 @@ function CommunityPage() {
         >
           <div
             role="tablist"
-            className="grid grid-cols-5 gap-1 py-1 md:flex md:overflow-x-auto md:[scrollbar-width:none] md:[&::-webkit-scrollbar]:hidden"
+            className="grid grid-cols-6 gap-1 py-1 md:flex md:overflow-x-auto md:[scrollbar-width:none] md:[&::-webkit-scrollbar]:hidden"
           >
             {TABS.map((t) => (
               <button
@@ -149,6 +152,7 @@ function CommunityPage() {
           >
             {tab === "events" && <EventsTab locality={locality} meId={meId} />}
             {tab === "alerts" && <AlertsTab locality={locality} meId={meId} />}
+            {tab === "market" && <MarketTab locality={locality} meId={meId} />}
             {tab === "swap" && <SwapsTab locality={locality} meId={meId} />}
             {tab === "polls" && <PollsTab locality={locality} />}
             {tab === "ask" && <AskTab locality={locality} meId={meId} />}
