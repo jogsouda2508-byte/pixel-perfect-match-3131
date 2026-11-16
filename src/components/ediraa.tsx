@@ -71,6 +71,11 @@ const STORY_RING_STOPS: [string, string][] = [
   ["76%", "#6366f1"],
   ["100%", "#22d3ee"],
 ];
+/** The green ring of a Close Friends story. */
+const CLOSE_RING_STOPS: [string, string][] = [
+  ["0%", "#4ade80"],
+  ["100%", "#16a34a"],
+];
 const STORY_RING_CSS = `linear-gradient(45deg, ${STORY_RING_STOPS.map(([o, c]) => `${c} ${o}`).join(", ")})`;
 
 /**
@@ -82,6 +87,7 @@ function SegmentedRing({
   size,
   seen,
   loading = false,
+  tone = "default",
   children,
 }: {
   segments: number;
@@ -89,6 +95,8 @@ function SegmentedRing({
   /** one flag per story: true = already watched (grey arc) */
   seen?: boolean[] | undefined;
   loading?: boolean;
+  /** "close" = green ring for Close Friends stories */
+  tone?: "default" | "close";
   children: ReactNode;
 }) {
   const id = useId();
@@ -101,7 +109,7 @@ function SegmentedRing({
       <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden="true">
         <defs>
           <linearGradient id={id} gradientUnits="userSpaceOnUse" x1="0" y1="100" x2="100" y2="0">
-            {STORY_RING_STOPS.map(([offset, color]) => (
+            {(tone === "close" ? CLOSE_RING_STOPS : STORY_RING_STOPS).map(([offset, color]) => (
               <stop key={offset} offset={offset} stopColor={color} />
             ))}
           </linearGradient>
@@ -156,6 +164,7 @@ export function Avatar({
   name,
   seen,
   loading = false,
+  tone = "default",
 }: {
   src?: string | null | undefined;
   size?: number;
@@ -167,6 +176,8 @@ export function Avatar({
   seen?: boolean[] | undefined;
   /** With `ring`: show the smooth multi-colour loading animation on the ring. */
   loading?: boolean;
+  /** With `ring`: "close" draws the green Close Friends ring. */
+  tone?: "default" | "close";
 }) {
   const initials = (name ?? "")
     .split(/\s+/)
@@ -191,7 +202,7 @@ export function Avatar({
   // every ring (1 story or many) is drawn the same way, so all story circles look identical
   if (ring) {
     return (
-      <SegmentedRing segments={segments} size={size} seen={seen} loading={loading}>
+      <SegmentedRing segments={segments} size={size} seen={seen} loading={loading} tone={tone}>
         {photo}
       </SegmentedRing>
     );

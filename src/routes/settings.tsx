@@ -3,8 +3,10 @@ import { authRedirect, NATIVE_RESET_REDIRECT } from "@/lib/auth-redirect";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Camera, ChevronRight, Loader2, Lock, MapPin } from "lucide-react";
+import { Camera, ChevronRight, Loader2, Lock, MapPin, Star } from "lucide-react";
 import { Avatar } from "@/components/ediraa";
+import { CloseFriendsSheet } from "@/components/close-friends-sheet";
+import { useCloseFriendIds } from "@/lib/close-friends";
 import { CommunityNotifyCard } from "@/components/community-notify-card";
 import { PushSettingsCard } from "@/components/push-prompt";
 import { PageHeader, PageShell } from "@/components/page-shell";
@@ -41,6 +43,7 @@ function SettingsPage() {
           <EditProfileCard profile={profile} />
           <PrivacyCard profile={profile} />
           <AccountCard profile={profile} />
+          <CloseFriendsCard meId={profile.id} />
           <PushSettingsCard />
           <CommunityNotifyCard />
           <PasswordCard />
@@ -295,6 +298,34 @@ function AccountCard({ profile }: { profile: Profile }) {
         </div>
         <ChevronRight className="h-5 w-5 text-muted-foreground" />
       </Link>
+    </section>
+  );
+}
+
+/** Opens the Close Friends list: the people who see the stories you share with Close Friends. */
+function CloseFriendsCard({ meId }: { meId: string }) {
+  const [open, setOpen] = useState(false);
+  const ids = useCloseFriendIds(meId);
+  const count = ids.data?.length ?? 0;
+  return (
+    <section className="glass-card">
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex w-full items-center gap-3 px-4 py-3.5 text-left"
+      >
+        <Star className="h-5 w-5 shrink-0 text-success" aria-hidden="true" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium">Close Friends</span>
+          <span className="block text-xs text-muted-foreground">
+            {count > 0
+              ? `${count} ${count === 1 ? "person" : "people"} can see your Close Friends stories`
+              : "Share stories with just the people you pick"}
+          </span>
+        </span>
+        <ChevronRight className="h-5 w-5 text-muted-foreground" />
+      </button>
+      {open && <CloseFriendsSheet open onOpenChange={setOpen} meId={meId} />}
     </section>
   );
 }

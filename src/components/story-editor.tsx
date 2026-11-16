@@ -1,10 +1,37 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
-import { Check, ImagePlay, Loader2, Music2, Pencil, Send, Smile, Trash2, Type, Undo2, X } from "lucide-react";
+import {
+  Check,
+  ImagePlay,
+  Loader2,
+  Music2,
+  Pencil,
+  Send,
+  Smile,
+  Star,
+  Trash2,
+  Type,
+  Undo2,
+  X,
+} from "lucide-react";
 import { StoryGifPicker } from "@/components/story-gif-picker";
 import { StoryMusicPicker } from "@/components/story-music-picker";
-import { GIF_BASE_W, MAX_STORY_GIFS, gifUrl, type GifResult, type StoryGif } from "@/lib/story-gifs";
+import {
+  GIF_BASE_W,
+  MAX_STORY_GIFS,
+  gifUrl,
+  type GifResult,
+  type StoryGif,
+} from "@/lib/story-gifs";
 import { withMusicSeconds, type StoryMusic } from "@/lib/story-music";
 import {
   BRUSH_COLORS,
@@ -43,12 +70,30 @@ import {
 import { cn } from "@/lib/utils";
 
 const EMOJI_GROUPS: { label: string; items: string[] }[] = [
-  { label: "Smileys", items: "😀 😂 🥹 😍 🥰 😎 🤩 😘 😇 🤗 🤭 😴 🥳 😭 😡 🤯 🥺 😏 🙃 😜 🤔 😅 😬 🫠".split(" ") },
-  { label: "Love & hands", items: "❤️ 🧡 💛 💚 💙 💜 🖤 🤍 💕 💖 🔥 ✨ 👍 👏 🙌 🙏 💪 👀 🤝 ✌️ 🤞 👌 🫶 💯".split(" ") },
-  { label: "Party", items: "🎉 🎊 🎂 🎁 🎈 🥂 🍾 🎶 🎵 🎤 🎧 🎸 🪩 🏆 🥇 🎯 🎮 🎬 📸 💃 🕺 🪅 🎆 🎇".split(" ") },
-  { label: "Nature", items: "🌹 🌸 🌻 🌈 ☀️ 🌙 ⭐ ⚡ ❄️ 🌊 🌴 🍀 🦋 🐶 🐱 🦁 🐼 🦄 🐯 🐬 🌍 🌅 ☁️ 🪐".split(" ") },
-  { label: "Food", items: "🍕 🍔 🍟 🌮 🍿 🍩 🍦 🍫 🍓 🍉 🥭 ☕ 🧋 🍜 🍣 🍰 🍪 🥤 🍺 🍷 🥑 🍌 🍒 🌶️".split(" ") },
-  { label: "Travel", items: "✈️ 🚗 🏍️ 🚀 🏖️ 🏝️ ⛰️ 🏠 🗼 🌆 🎡 🧳 📍 🗺️ ⛵ 🚲 🛫 🚂 🏕️ 🌃 🧭 🏔️ 🚁 🛶".split(" ") },
+  {
+    label: "Smileys",
+    items: "😀 😂 🥹 😍 🥰 😎 🤩 😘 😇 🤗 🤭 😴 🥳 😭 😡 🤯 🥺 😏 🙃 😜 🤔 😅 😬 🫠".split(" "),
+  },
+  {
+    label: "Love & hands",
+    items: "❤️ 🧡 💛 💚 💙 💜 🖤 🤍 💕 💖 🔥 ✨ 👍 👏 🙌 🙏 💪 👀 🤝 ✌️ 🤞 👌 🫶 💯".split(" "),
+  },
+  {
+    label: "Party",
+    items: "🎉 🎊 🎂 🎁 🎈 🥂 🍾 🎶 🎵 🎤 🎧 🎸 🪩 🏆 🥇 🎯 🎮 🎬 📸 💃 🕺 🪅 🎆 🎇".split(" "),
+  },
+  {
+    label: "Nature",
+    items: "🌹 🌸 🌻 🌈 ☀️ 🌙 ⭐ ⚡ ❄️ 🌊 🌴 🍀 🦋 🐶 🐱 🦁 🐼 🦄 🐯 🐬 🌍 🌅 ☁️ 🪐".split(" "),
+  },
+  {
+    label: "Food",
+    items: "🍕 🍔 🍟 🌮 🍿 🍩 🍦 🍫 🍓 🍉 🥭 ☕ 🧋 🍜 🍣 🍰 🍪 🥤 🍺 🍷 🥑 🍌 🍒 🌶️".split(" "),
+  },
+  {
+    label: "Travel",
+    items: "✈️ 🚗 🏍️ 🚀 🏖️ 🏝️ ⛰️ 🏠 🗼 🌆 🎡 🧳 📍 🗺️ ⛵ 🚲 🛫 🚂 🏕️ 🌃 🧭 🏔️ 🚁 🛶".split(" "),
+  },
 ];
 
 type Tool = "none" | "draw";
@@ -89,11 +134,22 @@ export function StoryEditor({
   file,
   onClose,
   onShare,
+  onPickCloseFriends,
 }: {
   file: File;
   onClose: () => void;
+  /**
+   * When given, a "Close Friends" button appears next to Share. It is called first and returns
+   * false when the list is still empty (the parent then opens the list picker instead).
+   */
+  onPickCloseFriends?: () => Promise<boolean>;
   /** `gifs` is only passed when the story has GIFs on it */
-  onShare: (file: File, music: { title: string; url: string } | null, gifs?: StoryGif[]) => void;
+  onShare: (
+    file: File,
+    music: { title: string; url: string } | null,
+    gifs?: StoryGif[],
+    closeFriends?: boolean,
+  ) => void;
 }) {
   const [photoUrl, setPhotoUrl] = useState("");
   const [load, setLoad] = useState<"loading" | "ready" | "error">("loading");
@@ -173,7 +229,8 @@ export function StoryEditor({
 
   const [view, setView] = useState<PhotoView>({ zoom: 1, x: 0, y: 0 });
   const viewChanged = Math.abs(view.zoom - 1) > 0.001;
-  const hasEdits = items.length > 0 || strokes.length > 0 || caption.trim().length > 0 || viewChanged;
+  const hasEdits =
+    items.length > 0 || strokes.length > 0 || caption.trim().length > 0 || viewChanged;
   const music: StoryMusic | null = useMemo(
     () => items.find((i) => i.kind === "music")?.music ?? null,
     [items],
@@ -236,28 +293,40 @@ export function StoryEditor({
     setConfirmDiscard(true);
   }, [sharing]);
 
-  const commitText = useCallback(
-    (draft: TextDraft | null) => {
-      if (!draft) return;
-      const text = draft.text.trim();
-      setTextDraft(null);
-      if (!text) {
-        if (draft.id) setItems((list) => list.filter((i) => i.id !== draft.id));
-        return;
-      }
-      if (draft.id) {
-        setItems((list) =>
-          list.map((i) => (i.id === draft.id ? { ...i, text, color: draft.color, box: draft.box, font: draft.font } : i)),
-        );
-      } else {
-        setItems((list) => [
-          ...list,
-          { id: newId(), kind: "text", x: 0.5, y: 0.46, scale: 1, rot: 0, text, color: draft.color, box: draft.box, font: draft.font },
-        ]);
-      }
-    },
-    [],
-  );
+  const commitText = useCallback((draft: TextDraft | null) => {
+    if (!draft) return;
+    const text = draft.text.trim();
+    setTextDraft(null);
+    if (!text) {
+      if (draft.id) setItems((list) => list.filter((i) => i.id !== draft.id));
+      return;
+    }
+    if (draft.id) {
+      setItems((list) =>
+        list.map((i) =>
+          i.id === draft.id
+            ? { ...i, text, color: draft.color, box: draft.box, font: draft.font }
+            : i,
+        ),
+      );
+    } else {
+      setItems((list) => [
+        ...list,
+        {
+          id: newId(),
+          kind: "text",
+          x: 0.5,
+          y: 0.46,
+          scale: 1,
+          rot: 0,
+          text,
+          color: draft.color,
+          box: draft.box,
+          font: draft.font,
+        },
+      ]);
+    }
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -274,7 +343,8 @@ export function StoryEditor({
   }, [confirmDiscard, textDraft, sheet, tool, requestClose, commitText]);
 
   // ------------------------------------------------------- photo zoom + move
-  const zoomed = Math.abs(view.zoom - 1) > 0.001 || Math.abs(view.x) > 0.001 || Math.abs(view.y) > 0.001;
+  const zoomed =
+    Math.abs(view.zoom - 1) > 0.001 || Math.abs(view.x) > 0.001 || Math.abs(view.y) > 0.001;
   const viewGest = useRef<{
     pts: Map<number, { x: number; y: number }>;
     base: PhotoView;
@@ -297,7 +367,12 @@ export function StoryEditor({
       const n = nodes[i];
       if (!n) continue;
       const r = n.getBoundingClientRect();
-      if (pt.x >= r.left - pad && pt.x <= r.right + pad && pt.y >= r.top - pad && pt.y <= r.bottom + pad) {
+      if (
+        pt.x >= r.left - pad &&
+        pt.x <= r.right + pad &&
+        pt.y >= r.top - pad &&
+        pt.y <= r.bottom + pad
+      ) {
         return n.getAttribute("data-item-id");
       }
     }
@@ -329,7 +404,10 @@ export function StoryEditor({
         const pts = new Map(vg.pts);
         viewGest.current = null;
         setView(viewRef.current);
-        setItems((list) => [...list.filter((i) => i.id !== it.id), ...list.filter((i) => i.id === it.id)]);
+        setItems((list) => [
+          ...list.filter((i) => i.id !== it.id),
+          ...list.filter((i) => i.id === it.id),
+        ]);
         const sp = spanOf(pts);
         gestRef.current = {
           id: it.id,
@@ -392,7 +470,9 @@ export function StoryEditor({
     setView((v) => clampView({ ...v, zoom: v.zoom * Math.exp(-e.deltaY * 0.0025) }));
   };
   const onBgDoubleClick = () =>
-    setView((v) => (Math.abs(v.zoom - 1) > 0.001 ? { zoom: 1, x: 0, y: 0 } : clampView({ zoom: 2, x: 0, y: 0 })));
+    setView((v) =>
+      Math.abs(v.zoom - 1) > 0.001 ? { zoom: 1, x: 0, y: 0 } : clampView({ zoom: 2, x: 0, y: 0 }),
+    );
 
   // ---------------------------------------------------------- items + gestures
   const gestRef = useRef<Gesture | null>(null);
@@ -429,7 +509,10 @@ export function StoryEditor({
       return;
     }
     // pick it up: bring it to the front
-    setItems((list) => [...list.filter((i) => i.id !== it.id), ...list.filter((i) => i.id === it.id)]);
+    setItems((list) => [
+      ...list.filter((i) => i.id !== it.id),
+      ...list.filter((i) => i.id === it.id),
+    ]);
     g = {
       id: it.id,
       pts: new Map([[e.pointerId, { x: e.clientX, y: e.clientY }]]),
@@ -496,7 +579,13 @@ export function StoryEditor({
     }
     // a quick tap on text opens it for editing
     if (!g.moved && performance.now() - g.downAt < 350 && it.kind === "text") {
-      setTextDraft({ id: it.id, text: it.text ?? "", color: it.color ?? "#ffffff", box: !!it.box, font: it.font ?? DEFAULT_TEXT_FONT });
+      setTextDraft({
+        id: it.id,
+        text: it.text ?? "",
+        color: it.color ?? "#ffffff",
+        box: !!it.box,
+        font: it.font ?? DEFAULT_TEXT_FONT,
+      });
     }
   };
 
@@ -531,7 +620,10 @@ export function StoryEditor({
 
   const pointFrom = (e: React.PointerEvent) => {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    return { x: clamp((e.clientX - r.left) / r.width, 0, 1), y: clamp((e.clientY - r.top) / r.height, 0, 1) };
+    return {
+      x: clamp((e.clientX - r.left) / r.width, 0, 1),
+      y: clamp((e.clientY - r.top) / r.height, 0, 1),
+    };
   };
   const onDrawDown = (e: React.PointerEvent) => {
     if (tool !== "draw") return;
@@ -554,8 +646,10 @@ export function StoryEditor({
   };
 
   // -------------------------------------------------------------------- share
-  const share = async () => {
+  const share = async (closeFriends = false) => {
     if (sharing || load === "error") return;
+    // Close Friends: the list must have someone on it (otherwise the parent opens the list picker)
+    if (closeFriends && onPickCloseFriends && !(await onPickCloseFriends())) return;
     const chosen = music
       ? {
           title: music.title,
@@ -565,9 +659,17 @@ export function StoryEditor({
     const gifs: StoryGif[] = items
       .filter((i) => i.kind === "gif" && i.gif)
       .slice(0, MAX_STORY_GIFS)
-      .map((i) => ({ id: i.gif!.id, ratio: i.gif!.ratio, x: i.x, y: i.y, scale: i.scale, rot: i.rot }));
+      .map((i) => ({
+        id: i.gif!.id,
+        ratio: i.gif!.ratio,
+        x: i.x,
+        y: i.y,
+        scale: i.scale,
+        rot: i.rot,
+      }));
     if (!hasEdits) {
-      onShare(file, null);
+      if (closeFriends) onShare(file, null, undefined, true);
+      else onShare(file, null);
       return;
     }
     const photo = imgRef.current;
@@ -578,7 +680,8 @@ export function StoryEditor({
     setSharing(true);
     try {
       const out = await renderStoryFile({ photo, strokes, items, caption, view });
-      if (gifs.length > 0) onShare(out, chosen, gifs);
+      if (closeFriends) onShare(out, chosen, gifs.length > 0 ? gifs : undefined, true);
+      else if (gifs.length > 0) onShare(out, chosen, gifs);
       else onShare(out, chosen);
     } catch (err) {
       setSharing(false);
@@ -587,7 +690,10 @@ export function StoryEditor({
   };
 
   const addEmoji = (emoji: string) => {
-    setItems((list) => [...list, { id: newId(), kind: "emoji", x: 0.5, y: 0.52, scale: 1, rot: 0, emoji }]);
+    setItems((list) => [
+      ...list,
+      { id: newId(), kind: "emoji", x: 0.5, y: 0.52, scale: 1, rot: 0, emoji },
+    ]);
     setSheet("none");
   };
   const addGif = (g: GifResult) => {
@@ -714,12 +820,45 @@ export function StoryEditor({
     return null;
   };
 
-  const rail: { key: string; label: string; icon: ReactNode; onClick: () => void; active?: boolean }[] = [
-    { key: "text", label: "Add text", icon: <Type className="h-[18px] w-[18px] sm:h-5 sm:w-5" />, onClick: () => setTextDraft({ id: null, text: "", color: "#ffffff", box: false, font: DEFAULT_TEXT_FONT }) },
-    { key: "emoji", label: "Add sticker", icon: <Smile className="h-[18px] w-[18px] sm:h-5 sm:w-5" />, onClick: () => setSheet("emoji") },
-    { key: "gif", label: "Add GIF", icon: <ImagePlay className="h-[18px] w-[18px] sm:h-5 sm:w-5" />, onClick: () => setSheet("gif") },
-    { key: "music", label: "Add music", icon: <Music2 className="h-[18px] w-[18px] sm:h-5 sm:w-5" />, onClick: () => setSheet("music"), active: !!music },
-    { key: "draw", label: "Draw", icon: <Pencil className="h-[18px] w-[18px] sm:h-5 sm:w-5" />, onClick: () => setTool("draw") },
+  const rail: {
+    key: string;
+    label: string;
+    icon: ReactNode;
+    onClick: () => void;
+    active?: boolean;
+  }[] = [
+    {
+      key: "text",
+      label: "Add text",
+      icon: <Type className="h-[18px] w-[18px] sm:h-5 sm:w-5" />,
+      onClick: () =>
+        setTextDraft({ id: null, text: "", color: "#ffffff", box: false, font: DEFAULT_TEXT_FONT }),
+    },
+    {
+      key: "emoji",
+      label: "Add sticker",
+      icon: <Smile className="h-[18px] w-[18px] sm:h-5 sm:w-5" />,
+      onClick: () => setSheet("emoji"),
+    },
+    {
+      key: "gif",
+      label: "Add GIF",
+      icon: <ImagePlay className="h-[18px] w-[18px] sm:h-5 sm:w-5" />,
+      onClick: () => setSheet("gif"),
+    },
+    {
+      key: "music",
+      label: "Add music",
+      icon: <Music2 className="h-[18px] w-[18px] sm:h-5 sm:w-5" />,
+      onClick: () => setSheet("music"),
+      active: !!music,
+    },
+    {
+      key: "draw",
+      label: "Draw",
+      icon: <Pencil className="h-[18px] w-[18px] sm:h-5 sm:w-5" />,
+      onClick: () => setTool("draw"),
+    },
   ];
 
   const root = (
@@ -732,7 +871,10 @@ export function StoryEditor({
       style={{ height: baseH > 0 ? baseH : "100dvh" }}
     >
       {/* stage */}
-      <div ref={areaRef} className="relative min-h-0 flex-1 pt-[max(env(safe-area-inset-top),0.5rem)]">
+      <div
+        ref={areaRef}
+        className="relative min-h-0 flex-1 pt-[max(env(safe-area-inset-top),0.5rem)]"
+      >
         <div className="absolute inset-x-0 bottom-0 top-[max(env(safe-area-inset-top),0.5rem)] flex items-center justify-center">
           <div
             ref={stageRef}
@@ -801,7 +943,10 @@ export function StoryEditor({
             <div
               data-testid="photo-zoom-layer"
               aria-label="Photo: pinch to zoom in or out, drag to move"
-              className={cn("absolute inset-0", tool === "draw" || textDraft ? "pointer-events-none" : "")}
+              className={cn(
+                "absolute inset-0",
+                tool === "draw" || textDraft ? "pointer-events-none" : "",
+              )}
               style={{ touchAction: "none" }}
               onPointerDown={onBgDown}
               onPointerMove={onBgMove}
@@ -815,7 +960,10 @@ export function StoryEditor({
             <canvas
               ref={drawRef}
               aria-label="Drawing"
-              className={cn("absolute inset-0 h-full w-full", tool === "draw" ? "cursor-crosshair" : "pointer-events-none")}
+              className={cn(
+                "absolute inset-0 h-full w-full",
+                tool === "draw" ? "cursor-crosshair" : "pointer-events-none",
+              )}
               style={{ touchAction: "none" }}
               onPointerDown={onDrawDown}
               onPointerMove={onDrawMove}
@@ -941,7 +1089,9 @@ export function StoryEditor({
                 style={{ animationDelay: `${120 + i * 55}ms` }}
                 className={cn(
                   "grid h-9 w-9 animate-in place-items-center rounded-full ring-1 sm:h-11 sm:w-11 backdrop-blur-md transition fill-mode-backwards duration-300 fade-in slide-in-from-right-3 active:scale-90",
-                  b.active ? "bg-white text-black ring-white" : "bg-black/40 text-white ring-white/15 hover:bg-black/55",
+                  b.active
+                    ? "bg-white text-black ring-white"
+                    : "bg-black/40 text-white ring-white/15 hover:bg-black/55",
                 )}
               >
                 {b.icon}
@@ -974,7 +1124,10 @@ export function StoryEditor({
                       brushSize === s ? "bg-white/25" : "bg-transparent",
                     )}
                   >
-                    <span className="rounded-full bg-white" style={{ width: s + 4, height: s + 4 }} />
+                    <span
+                      className="rounded-full bg-white"
+                      style={{ width: s + 4, height: s + 4 }}
+                    />
                   </button>
                 ))}
               </div>
@@ -1004,7 +1157,9 @@ export function StoryEditor({
         <div
           className={cn(
             "relative z-20 flex animate-in items-center gap-2 bg-gradient-to-t from-black/70 to-transparent px-3 pt-2 transition-opacity duration-200 fade-in slide-in-from-bottom-4 sm:gap-2.5 sm:pt-3",
-            keyboard > 0 ? "pb-2" : "pb-[max(env(safe-area-inset-bottom),0.5rem)] sm:pb-[max(env(safe-area-inset-bottom),0.75rem)]",
+            keyboard > 0
+              ? "pb-2"
+              : "pb-[max(env(safe-area-inset-bottom),0.5rem)] sm:pb-[max(env(safe-area-inset-bottom),0.75rem)]",
             dragging && "opacity-0",
           )}
           style={keyboard > 0 ? { transform: `translateY(-${keyboard}px)` } : undefined}
@@ -1020,6 +1175,18 @@ export function StoryEditor({
             enterKeyHint="done"
             className="h-10 min-w-0 flex-1 rounded-full bg-white/10 px-4 text-[14px] text-white outline-none sm:h-12 sm:px-5 sm:text-[15px] ring-1 ring-white/10 transition placeholder:text-white/50 focus:bg-white/15 focus:ring-white/30"
           />
+          {onPickCloseFriends && (
+            <button
+              type="button"
+              onClick={() => void share(true)}
+              disabled={sharing || load === "error"}
+              aria-label="Share with Close Friends"
+              className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-emerald-500 px-3.5 text-[13px] font-bold text-white shadow-lg transition active:scale-95 disabled:opacity-60 sm:h-12 sm:px-4 sm:text-[15px]"
+            >
+              <Star className="h-[18px] w-[18px] fill-current sm:h-5 sm:w-5" />
+              <span className="max-sm:sr-only">Close Friends</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => void share()}
@@ -1028,7 +1195,11 @@ export function StoryEditor({
             className="flex h-10 shrink-0 items-center gap-1.5 rounded-full px-4 text-[13px] font-bold text-white shadow-lg sm:h-12 sm:gap-2 sm:px-5 sm:text-[15px] shadow-primary/30 transition active:scale-95 disabled:opacity-60"
             style={{ background: "var(--gradient-primary)" }}
           >
-            {sharing ? <Loader2 className="h-4 w-4 animate-spin sm:h-5 sm:w-5" /> : <Send className="h-[18px] w-[18px] sm:h-5 sm:w-5" />}
+            {sharing ? (
+              <Loader2 className="h-4 w-4 animate-spin sm:h-5 sm:w-5" />
+            ) : (
+              <Send className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
+            )}
             {sharing ? "Preparing…" : "Share"}
           </button>
         </div>
@@ -1055,7 +1226,9 @@ export function StoryEditor({
               aria-pressed={textDraft.box}
               className={cn(
                 "grid h-9 w-9 place-items-center rounded-full text-base font-extrabold ring-1 sm:h-11 sm:w-11 sm:text-lg transition active:scale-90",
-                textDraft.box ? "bg-white text-black ring-white" : "bg-white/10 text-white ring-white/20",
+                textDraft.box
+                  ? "bg-white text-black ring-white"
+                  : "bg-white/10 text-white ring-white/20",
               )}
             >
               A
@@ -1094,7 +1267,9 @@ export function StoryEditor({
               ref={textBoxRef}
               autoFocus
               value={textDraft.text}
-              onChange={(e) => setTextDraft((d) => (d ? { ...d, text: e.target.value.slice(0, 120) } : d))}
+              onChange={(e) =>
+                setTextDraft((d) => (d ? { ...d, text: e.target.value.slice(0, 120) } : d))
+              }
               placeholder="Type something"
               aria-label="Story text"
               rows={3}
@@ -1134,9 +1309,15 @@ export function StoryEditor({
                   }}
                   className={cn(
                     "shrink-0 rounded-xl px-3 py-1.5 text-[14px] leading-tight ring-1 sm:rounded-2xl sm:px-5 sm:py-2.5 sm:text-[18px] transition active:scale-95",
-                    active ? "bg-white text-black ring-white" : "bg-white/10 text-white ring-white/20 hover:bg-white/15",
+                    active
+                      ? "bg-white text-black ring-white"
+                      : "bg-white/10 text-white ring-white/20 hover:bg-white/15",
                   )}
-                  style={{ fontFamily: `${tf.family}, ${FONT_STACK}`, fontWeight: tf.weight, fontStyle: tf.style }}
+                  style={{
+                    fontFamily: `${tf.family}, ${FONT_STACK}`,
+                    fontWeight: tf.weight,
+                    fontStyle: tf.style,
+                  }}
                 >
                   {tf.label}
                 </button>
@@ -1171,7 +1352,9 @@ export function StoryEditor({
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(env(safe-area-inset-bottom),1rem)]">
               {EMOJI_GROUPS.map((g) => (
                 <section key={g.label} className="pb-3">
-                  <h3 className="py-1.5 text-[11px] font-semibold uppercase tracking-wider text-white/45 sm:py-2 sm:text-xs">{g.label}</h3>
+                  <h3 className="py-1.5 text-[11px] font-semibold uppercase tracking-wider text-white/45 sm:py-2 sm:text-xs">
+                    {g.label}
+                  </h3>
                   <div className="grid grid-cols-8 gap-0.5 sm:grid-cols-6 sm:gap-1">
                     {g.items.map((e) => (
                       <button
@@ -1210,8 +1393,12 @@ export function StoryEditor({
             aria-label="Discard story"
             className="relative w-full max-w-[15rem] animate-in rounded-2xl bg-zinc-900 p-4 text-center sm:max-w-xs sm:rounded-3xl sm:p-5 shadow-2xl ring-1 ring-white/10 duration-200 zoom-in-95 fade-in"
           >
-            <h2 className="text-[15px] font-bold leading-snug sm:text-lg">Do you want to discard this story?</h2>
-            <p className="mt-1 text-xs text-white/60 sm:text-sm">If you go back now, your edits will be lost.</p>
+            <h2 className="text-[15px] font-bold leading-snug sm:text-lg">
+              Do you want to discard this story?
+            </h2>
+            <p className="mt-1 text-xs text-white/60 sm:text-sm">
+              If you go back now, your edits will be lost.
+            </p>
             <div className="mt-4 grid gap-1.5 sm:mt-5 sm:gap-2">
               <button
                 type="button"

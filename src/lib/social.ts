@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomId } from "@/lib/uuid";
 import { supabase } from "@/integrations/supabase/client";
 import { removeStoryVideoFile } from "@/lib/story-video";
@@ -24,11 +25,7 @@ import type {
 } from "@/integrations/supabase/types";
 import type { PlaceSelection } from "@/lib/places";
 import { locationColumns, saveTags, withPostExtras } from "@/lib/post-extras";
-import {
-  isMissingColumnError,
-  isMissingFunctionError,
-  isMissingTableError,
-} from "@/lib/db-errors";
+import { isMissingColumnError, isMissingFunctionError, isMissingTableError } from "@/lib/db-errors";
 
 export type FeedTab = "for_you" | "following" | "local" | "business";
 export const FEED_PAGE_SIZE = 10;
@@ -45,9 +42,7 @@ const FRIENDLY_ERRORS: Record<string, string> = {
 
 function fail(action: string, error: { message: string }): never {
   console.error(`${action} failed`, error);
-  throw new Error(
-    FRIENDLY_ERRORS[error.message] ?? (error.message || `${action} failed`),
-  );
+  throw new Error(FRIENDLY_ERRORS[error.message] ?? (error.message || `${action} failed`));
 }
 
 // ---------------------------------------------------------------- media upload
@@ -55,8 +50,7 @@ const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
 export function validateImage(file: File): string | null {
-  if (!ALLOWED_TYPES.includes(file.type))
-    return "Please choose a JPG, PNG, WebP or GIF image.";
+  if (!ALLOWED_TYPES.includes(file.type)) return "Please choose a JPG, PNG, WebP or GIF image.";
   if (file.size > MAX_IMAGE_BYTES) return "That image is larger than 10 MB.";
   return null;
 }
@@ -119,9 +113,7 @@ export async function createPost(args: {
   /** Optional ids of the people tagged in this post. */
   taggedUserIds?: string[] | undefined;
 }): Promise<{ id: string; tagsFailed: boolean }> {
-  const image_url = args.image
-    ? await uploadImage(args.authorId, "posts", args.image)
-    : null;
+  const image_url = args.image ? await uploadImage(args.authorId, "posts", args.image) : null;
   const { data, error } = await supabase
     .from("posts")
     .insert({
@@ -174,11 +166,7 @@ export async function fetchTaggedPosts(userId: string): Promise<PostRow[]> {
 }
 
 // ---------------------------------------------------------------------- likes
-export async function setLike(
-  postId: string,
-  userId: string,
-  like: boolean,
-): Promise<void> {
+export async function setLike(postId: string, userId: string, like: boolean): Promise<void> {
   const { error } = like
     ? await supabase
         .from("post_likes")
@@ -186,11 +174,7 @@ export async function setLike(
           { post_id: postId, user_id: userId },
           { onConflict: "post_id,user_id", ignoreDuplicates: true },
         )
-    : await supabase
-        .from("post_likes")
-        .delete()
-        .eq("post_id", postId)
-        .eq("user_id", userId);
+    : await supabase.from("post_likes").delete().eq("post_id", postId).eq("user_id", userId);
   if (error) fail("Updating the like", error);
 }
 
@@ -214,11 +198,7 @@ export async function fetchComments(postId: string): Promise<CommentView[]> {
   return (data ?? []) as unknown as CommentView[];
 }
 
-export async function addComment(
-  postId: string,
-  authorId: string,
-  content: string,
-): Promise<void> {
+export async function addComment(postId: string, authorId: string, content: string): Promise<void> {
   const { error } = await supabase
     .from("post_comments")
     .insert({ post_id: postId, author_id: authorId, content: content.trim() });
@@ -226,10 +206,7 @@ export async function addComment(
 }
 
 export async function deleteComment(commentId: string): Promise<void> {
-  const { error } = await supabase
-    .from("post_comments")
-    .delete()
-    .eq("id", commentId);
+  const { error } = await supabase.from("post_comments").delete().eq("id", commentId);
   if (error) fail("Deleting the comment", error);
 }
 
@@ -254,9 +231,7 @@ export async function fetchPeople(args: {
 export type FollowResult = "following" | "requested";
 
 /** Follow a public account, or ask to follow a private one. The database decides which. */
-export async function sendFollowRequest(
-  targetId: string,
-): Promise<FollowResult> {
+export async function sendFollowRequest(targetId: string): Promise<FollowResult> {
   const { data, error } = await supabase.rpc("send_follow_request", {
     p_target: targetId,
   });
@@ -284,17 +259,14 @@ export async function respondFollowRequest(
     p_accept: accept,
   });
   if (error) {
-    if (error.message.includes("request_not_found"))
-      return accept ? "accepted" : "declined";
+    if (error.message.includes("request_not_found")) return accept ? "accepted" : "declined";
     fail(accept ? "Accepting the request" : "Declining the request", error);
   }
   return data === "accepted" ? "accepted" : "declined";
 }
 
 /** Ids of the private accounts I have asked to follow and am still waiting on. */
-export async function fetchMyPendingRequestIds(
-  meId: string,
-): Promise<string[]> {
+export async function fetchMyPendingRequestIds(meId: string): Promise<string[]> {
   const { data, error } = await supabase
     .from("follow_requests")
     .select("target_id")
@@ -308,11 +280,7 @@ export async function fetchMyPendingRequestIds(
   return (data ?? []).map((row) => row.target_id);
 }
 
-export async function setFollow(
-  meId: string,
-  targetId: string,
-  follow: boolean,
-): Promise<void> {
+export async function setFollow(meId: string, targetId: string, follow: boolean): Promise<void> {
   const { error } = follow
     ? await supabase
         .from("follows")
@@ -320,11 +288,7 @@ export async function setFollow(
           { follower_id: meId, following_id: targetId },
           { onConflict: "follower_id,following_id", ignoreDuplicates: true },
         )
-    : await supabase
-        .from("follows")
-        .delete()
-        .eq("follower_id", meId)
-        .eq("following_id", targetId);
+    : await supabase.from("follows").delete().eq("follower_id", meId).eq("following_id", targetId);
   if (error) fail("Updating follow", error);
 }
 
@@ -332,18 +296,9 @@ export async function fetchFollowCounts(
   userId: string,
 ): Promise<{ followers: number; following: number; posts: number }> {
   const [followers, following, posts] = await Promise.all([
-    supabase
-      .from("follows")
-      .select("*", { count: "exact", head: true })
-      .eq("following_id", userId),
-    supabase
-      .from("follows")
-      .select("*", { count: "exact", head: true })
-      .eq("follower_id", userId),
-    supabase
-      .from("posts")
-      .select("*", { count: "exact", head: true })
-      .eq("author_id", userId),
+    supabase.from("follows").select("*", { count: "exact", head: true }).eq("following_id", userId),
+    supabase.from("follows").select("*", { count: "exact", head: true }).eq("follower_id", userId),
+    supabase.from("posts").select("*", { count: "exact", head: true }).eq("author_id", userId),
   ]);
   const err = followers.error ?? following.error ?? posts.error;
   if (err) fail("Loading profile stats", err);
@@ -408,6 +363,8 @@ export type StoryItem = {
   music_url?: string | null;
   /** GIFs placed on a photo story (saved inside the picture address; none on older stories) */
   gifs?: StoryGif[];
+  /** true = shared with Close Friends only (a green ring, and only people on the list see it) */
+  close_friends_only?: boolean;
   /** optional local flag used by withStoryLiked(); the app reads likes from StoryEngagement */
   liked_by_me?: boolean;
 };
@@ -515,6 +472,7 @@ export async function fetchStories(meId: string): Promise<StoryGroup[]> {
 
   const storyRows = (rows ?? []) as Omit<StoryWithAuthor, "author">[];
   const songs = await loadStoryMusic(storyRows);
+  const closeOnly = await loadCloseFriendsFlags(storyRows.map((r) => r.id));
   const authors = new Map<string, StoryAuthor>();
   const authorIds = [...new Set(storyRows.map((r) => r.author_id))];
   if (authorIds.length > 0) {
@@ -523,8 +481,7 @@ export async function fetchStories(meId: string): Promise<StoryGroup[]> {
       .select("id, full_name, username, avatar_url")
       .in("id", authorIds);
     if (peopleError) fail("Loading story authors", peopleError);
-    for (const p of (people ?? []) as (StoryAuthor & { id: string })[])
-      authors.set(p.id, p);
+    for (const p of (people ?? []) as (StoryAuthor & { id: string })[]) authors.set(p.id, p);
   }
 
   const groups = new Map<string, StoryGroup>();
@@ -559,18 +516,39 @@ export async function fetchStories(meId: string): Promise<StoryGroup[]> {
       music_title: songs.get(s.id)?.music_title ?? embedded.music_title,
       music_url: songs.get(s.id)?.music_url ?? embedded.music_url,
       ...(withGifs.gifs.length > 0 ? { gifs: withGifs.gifs } : {}),
+      ...(closeOnly.has(s.id) ? { close_friends_only: true } : {}),
     });
     g.latest = s.created_at;
     groups.set(s.author_id, g);
   }
   // Your own story first, then the newest from the people you follow.
   return [...groups.values()].sort((a, b) =>
-    a.authorId === meId
-      ? -1
-      : b.authorId === meId
-        ? 1
-        : b.latest.localeCompare(a.latest),
+    a.authorId === meId ? -1 : b.authorId === meId ? 1 : b.latest.localeCompare(a.latest),
   );
+}
+
+// Which of these stories are for Close Friends only (20261110000000_close_friends.sql). Read in a
+// separate small query so a database without that column never affects loading the stories:
+// any problem here just means "everyone's story".
+let closeColumnMissing = false;
+async function loadCloseFriendsFlags(ids: string[]): Promise<Set<string>> {
+  const out = new Set<string>();
+  if (closeColumnMissing || ids.length === 0) return out;
+  try {
+    const { data, error } = await (supabase as unknown as SupabaseClient)
+      .from("stories")
+      .select("id")
+      .in("id", ids)
+      .eq("close_friends_only", true);
+    if (error) {
+      if (isMissingColumnError(error)) closeColumnMissing = true;
+      return out;
+    }
+    for (const r of (data ?? []) as unknown as { id: string }[]) out.add(r.id);
+  } catch {
+    /* no Close Friends info: show them as ordinary stories */
+  }
+  return out;
 }
 
 export async function createStory(
@@ -580,29 +558,51 @@ export async function createStory(
   music?: { title: string; url: string } | null,
   /** optional GIFs: saved with the story and played on top of the picture while it is watched */
   gifs?: StoryGif[] | null,
+  /** true = only the people on my Close Friends list can see it */
+  closeFriends = false,
 ): Promise<void> {
   const uploaded = await uploadImage(authorId, "stories", file);
+  // untyped: the generated types do not know the close_friends_only column
+  const stories = () => (supabase as unknown as SupabaseClient).from("stories");
+  // A Close Friends story must never fall back to being public: if the column is missing the
+  // save fails with a clear message instead.
+  const failStory = (error: { message?: string | null; code?: string | null }): never => {
+    if (closeFriends && (error.message ?? "").includes("close_friends_only"))
+      throw new Error(
+        "Close Friends needs a one-time database update. In Supabase open SQL Editor, run supabase/migrations/20261110000000_close_friends.sql, then try again.",
+      );
+    return fail("Creating the story", { message: error.message ?? "" });
+  };
   // GIFs ride at the end of the picture address (no new database column needed)
   const withGifs = (url: string) => (gifs && gifs.length > 0 ? embedGifs(url, gifs) : url);
   const image_url = withGifs(uploaded);
-  const row = { author_id: authorId, image_url };
+  const row = {
+    author_id: authorId,
+    image_url,
+    ...(closeFriends ? { close_friends_only: true } : {}),
+  };
   if (music) {
-    const withMusic = await supabase
-      .from("stories")
-      .insert({ ...row, music_title: music.title, music_url: music.url });
+    const withMusic = await stories().insert({
+      ...row,
+      music_title: music.title,
+      music_url: music.url,
+    });
     if (!withMusic.error) return;
     // The music columns don't exist yet (SQL not run, or the API hasn't picked them up): keep the
     // song with the picture instead, so it still plays.
-    if (!isMissingColumnError(withMusic.error)) fail("Creating the story", withMusic.error);
-    console.warn("Story music columns are missing; run 20261101000000_story_music.sql in Supabase.");
-    const { error } = await supabase
-      .from("stories")
-      .insert({ ...row, image_url: withGifs(embedMusic(uploaded, music)) });
-    if (error) fail("Creating the story", error);
+    if (!isMissingColumnError(withMusic.error)) failStory(withMusic.error);
+    console.warn(
+      "Story music columns are missing; run 20261101000000_story_music.sql in Supabase.",
+    );
+    const { error } = await stories().insert({
+      ...row,
+      image_url: withGifs(embedMusic(uploaded, music)),
+    });
+    if (error) failStory(error);
     return;
   }
-  const { error } = await supabase.from("stories").insert(row);
-  if (error) fail("Creating the story", error);
+  const { error } = await stories().insert(row);
+  if (error) failStory(error);
 }
 
 /**
@@ -624,10 +624,7 @@ export async function deleteStory(
 
 // ------------------------------------------------- story viewers + likes
 /** The story views/likes SQL (20261020000000_story_single_video_views_likes.sql) hasn't been run. */
-function storyViewsMissing(error: {
-  code?: string | null;
-  message?: string | null;
-}): boolean {
+function storyViewsMissing(error: { code?: string | null; message?: string | null }): boolean {
   return isMissingFunctionError(error) || isMissingTableError(error);
 }
 
@@ -675,10 +672,7 @@ export async function recordStoryView(storyId: string): Promise<void> {
  * the owner twice). Throws when the story can't be liked (expired, hidden, deleted, or mine),
  * so the caller can put the heart back.
  */
-export async function setStoryLike(
-  storyId: string,
-  liked: boolean,
-): Promise<void> {
+export async function setStoryLike(storyId: string, liked: boolean): Promise<void> {
   const { data, error } = await supabase.rpc("set_story_like", {
     p_story_id: storyId,
     p_liked: liked,
@@ -697,9 +691,7 @@ export async function setStoryLike(
  * update hasn't been run yet, so the app simply hides the views / like buttons
  * instead of showing an error.
  */
-export async function fetchStoryEngagement(
-  storyId: string,
-): Promise<StoryEngagement | null> {
+export async function fetchStoryEngagement(storyId: string): Promise<StoryEngagement | null> {
   const { data, error } = await supabase.rpc("get_story_engagement", {
     p_story_ids: [storyId],
   });
@@ -716,9 +708,7 @@ export async function fetchStoryEngagement(
 }
 
 /** Who viewed my story, newest first, and who liked it. Only works for my own stories. */
-export async function fetchStoryViewers(
-  storyId: string,
-): Promise<StoryViewerPerson[]> {
+export async function fetchStoryViewers(storyId: string): Promise<StoryViewerPerson[]> {
   const { data, error } = await supabase.rpc("get_story_viewers", {
     p_story_id: storyId,
   });
@@ -739,9 +729,7 @@ export async function fetchStoryViewers(
 
 // ------------------------------------------------------------- other profiles
 /** Looks a profile up by @username (case-insensitive). Resolves to null when nobody has it. */
-export async function fetchProfileByUsername(
-  username: string,
-): Promise<Profile | null> {
+export async function fetchProfileByUsername(username: string): Promise<Profile | null> {
   const { data, error } = await supabase
     .from("profiles")
     .select("*")
@@ -751,10 +739,7 @@ export async function fetchProfileByUsername(
   return data ?? null;
 }
 
-export async function fetchIsFollowing(
-  meId: string,
-  targetId: string,
-): Promise<boolean> {
+export async function fetchIsFollowing(meId: string, targetId: string): Promise<boolean> {
   const { count, error } = await supabase
     .from("follows")
     .select("*", { count: "exact", head: true })
@@ -786,10 +771,7 @@ export async function fetchFollowList(
 ): Promise<FollowListPerson[]> {
   // followers: rows where following_id = user, show the follower; following: the reverse.
   const filterCol = kind === "followers" ? "following_id" : "follower_id";
-  const personFk =
-    kind === "followers"
-      ? "follows_follower_id_fkey"
-      : "follows_following_id_fkey";
+  const personFk = kind === "followers" ? "follows_follower_id_fkey" : "follows_following_id_fkey";
   const { data, error } = await supabase
     .from("follows")
     .select(
@@ -798,11 +780,7 @@ export async function fetchFollowList(
     .eq(filterCol, userId)
     .order("created_at", { ascending: false })
     .limit(200);
-  if (error)
-    fail(
-      kind === "followers" ? "Loading followers" : "Loading following",
-      error,
-    );
+  if (error) fail(kind === "followers" ? "Loading followers" : "Loading following", error);
   return ((data ?? []) as unknown as { person: FollowListPerson | null }[])
     .map((r) => r.person)
     .filter((p): p is FollowListPerson => !!p);
@@ -834,14 +812,10 @@ export async function fetchPostLikers(postId: string): Promise<PostLiker[]> {
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 
 /** Uploads to the public `avatars` bucket (<uid>/avatar.<ext>) and returns a cache-busted URL. */
-export async function uploadAvatar(
-  userId: string,
-  file: File,
-): Promise<string> {
+export async function uploadAvatar(userId: string, file: File): Promise<string> {
   if (!ALLOWED_TYPES.includes(file.type))
     throw new Error("Please choose a JPG, PNG, WebP or GIF image.");
-  if (file.size > MAX_AVATAR_BYTES)
-    throw new Error("Image must be 5 MB or smaller.");
+  if (file.size > MAX_AVATAR_BYTES) throw new Error("Image must be 5 MB or smaller.");
   const ext = file.type === "image/jpeg" ? "jpg" : file.type.split("/")[1];
   const path = `${userId}/avatar.${ext}`; // folder name must equal the user's id (storage policy)
   const { error } = await supabase.storage
@@ -852,10 +826,7 @@ export async function uploadAvatar(
   return `${data.publicUrl}?v=${Date.now()}`;
 }
 
-export async function updateMyProfile(
-  userId: string,
-  patch: ProfileUpdate,
-): Promise<void> {
+export async function updateMyProfile(userId: string, patch: ProfileUpdate): Promise<void> {
   const { data, error } = await supabase
     .from("profiles")
     .update(patch)
@@ -863,10 +834,7 @@ export async function updateMyProfile(
     .select("id")
     .maybeSingle();
   if (error) fail("Saving your profile", error);
-  if (!data)
-    throw new Error(
-      "Your profile could not be found. Please log out and sign in again.",
-    );
+  if (!data) throw new Error("Your profile could not be found. Please log out and sign in again.");
 }
 
 // ---------------------------------------------------------------- saved posts
@@ -880,11 +848,7 @@ export async function fetchSavedIds(userId: string): Promise<string[]> {
   return (data ?? []).map((r) => r.post_id);
 }
 
-export async function setSaved(
-  userId: string,
-  postId: string,
-  save: boolean,
-): Promise<void> {
+export async function setSaved(userId: string, postId: string, save: boolean): Promise<void> {
   const { error } = save
     ? await supabase
         .from("saved_posts")
@@ -892,17 +856,11 @@ export async function setSaved(
           { user_id: userId, post_id: postId },
           { onConflict: "user_id,post_id", ignoreDuplicates: true },
         )
-    : await supabase
-        .from("saved_posts")
-        .delete()
-        .eq("user_id", userId)
-        .eq("post_id", postId);
+    : await supabase.from("saved_posts").delete().eq("user_id", userId).eq("post_id", postId);
   if (error) fail(save ? "Saving the post" : "Removing the saved post", error);
 }
 
-export async function fetchSavedPosts(
-  before?: string | null,
-): Promise<SavedFeedRow[]> {
+export async function fetchSavedPosts(before?: string | null): Promise<SavedFeedRow[]> {
   const { data, error } = await supabase.rpc("get_saved_posts", {
     p_limit: FEED_PAGE_SIZE,
     p_before: before ?? null,
@@ -927,9 +885,7 @@ export async function fetchGroups(args: {
 }
 
 /** One group as visible to me (null if it doesn't exist or is private and I'm not involved). */
-export async function fetchGroup(
-  groupId: string,
-): Promise<GroupListRow | null> {
+export async function fetchGroup(groupId: string): Promise<GroupListRow | null> {
   const { data, error } = await supabase.rpc("get_groups", {
     p_query: null,
     p_mine_only: false,
@@ -969,10 +925,7 @@ export async function setGroupMembership(
   if (error) fail(join ? "Joining the group" : "Leaving the group", error);
 }
 
-export async function inviteToGroup(
-  groupId: string,
-  userIds: string[],
-): Promise<number> {
+export async function inviteToGroup(groupId: string, userIds: string[]): Promise<number> {
   const { data, error } = await supabase.rpc("invite_to_group", {
     p_group: groupId,
     p_users: userIds,
@@ -981,25 +934,15 @@ export async function inviteToGroup(
   return Number(data ?? 0);
 }
 
-export async function respondToGroupInvite(
-  groupId: string,
-  accept: boolean,
-): Promise<void> {
+export async function respondToGroupInvite(groupId: string, accept: boolean): Promise<void> {
   const { error } = await supabase.rpc("respond_group_invite", {
     p_group: groupId,
     p_accept: accept,
   });
-  if (error)
-    fail(
-      accept ? "Accepting the invitation" : "Declining the invitation",
-      error,
-    );
+  if (error) fail(accept ? "Accepting the invitation" : "Declining the invitation", error);
 }
 
-export async function removeGroupMember(
-  groupId: string,
-  userId: string,
-): Promise<void> {
+export async function removeGroupMember(groupId: string, userId: string): Promise<void> {
   const { error } = await supabase.rpc("remove_group_member", {
     p_group: groupId,
     p_user: userId,
@@ -1013,9 +956,7 @@ export async function fetchMyGroupInvites(): Promise<GroupInviteRow[]> {
   return data ?? [];
 }
 
-export async function fetchGroupMembers(
-  groupId: string,
-): Promise<GroupMemberRow[]> {
+export async function fetchGroupMembers(groupId: string): Promise<GroupMemberRow[]> {
   const { data, error } = await supabase.rpc("get_group_members", {
     p_group: groupId,
   });
@@ -1030,10 +971,7 @@ export async function deleteGroup(groupId: string): Promise<void> {
 
 // ------------------------------------------------------------ single post
 /** One post (image, text or video) with counts, as the viewer's RLS allows. Null if gone/hidden. */
-export async function fetchPostById(
-  postId: string,
-  userId: string,
-): Promise<FeedRow | null> {
+export async function fetchPostById(postId: string, userId: string): Promise<FeedRow | null> {
   const { data: post, error } = await supabase
     .from("posts")
     .select("*")
@@ -1048,10 +986,7 @@ export async function fetchPostById(
       .select("full_name, username, avatar_url, account_type")
       .eq("id", post.author_id)
       .maybeSingle(),
-    supabase
-      .from("post_likes")
-      .select("*", { count: "exact", head: true })
-      .eq("post_id", post.id),
+    supabase.from("post_likes").select("*", { count: "exact", head: true }).eq("post_id", post.id),
     supabase
       .from("post_comments")
       .select("*", { count: "exact", head: true })

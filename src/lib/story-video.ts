@@ -145,6 +145,8 @@ export async function createVideoStory(args: {
   limitSeconds: number;
   signal: AbortSignal;
   onProgress: (percent: number) => void;
+  /** true = only the people on my Close Friends list can see it */
+  closeFriends?: boolean;
 }): Promise<number> {
   const fileProblem = validateVideoFile(args.file);
   if (fileProblem) throw new Error(fileProblem);
@@ -168,16 +170,19 @@ export async function createVideoStory(args: {
         segment_start: s.start,
         segment_end: s.end,
         duration_seconds: s.duration,
+        ...(args.closeFriends ? { close_friends_only: true } : {}),
       })),
     );
     if (error) {
       console.error("Saving the story failed", error);
       throw new Error(
-        isMissingColumnError(error)
-          ? STORY_VIDEO_MIGRATION_HINT
-          : isStoryLengthConstraintError(error)
-            ? STORY_LENGTH_MIGRATION_HINT
-            : "Couldn't save your story. Please try again.",
+        args.closeFriends && (error.message ?? "").includes("close_friends_only")
+          ? "Close Friends needs a one-time database update. In Supabase open SQL Editor, run supabase/migrations/20261110000000_close_friends.sql, then try again."
+          : isMissingColumnError(error)
+            ? STORY_VIDEO_MIGRATION_HINT
+            : isStoryLengthConstraintError(error)
+              ? STORY_LENGTH_MIGRATION_HINT
+              : "Couldn't save your story. Please try again.",
       );
     }
     args.onProgress(100);

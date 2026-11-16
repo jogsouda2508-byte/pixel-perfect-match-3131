@@ -11,12 +11,15 @@ import {
   Loader2,
   MapPin,
   Plus,
+  Star,
   Trash2,
   Volume2,
   VolumeX,
   X,
 } from "lucide-react";
 import { Avatar } from "@/components/ediraa";
+import { CloseFriendsSheet } from "@/components/close-friends-sheet";
+import { fetchCloseFriendIds } from "@/lib/close-friends";
 import { PollCard, PollSheet } from "@/components/poll-card";
 import { StoryEditor } from "@/components/story-editor";
 import { StoryMusicPlayer } from "@/components/story-music-player";
@@ -60,9 +63,7 @@ const VIDEO_EXTENSIONS = ["mp4", "webm", "mov"];
 
 function isVideoFile(file: File): boolean {
   if (file.type) return file.type.startsWith("video/");
-  return VIDEO_EXTENSIONS.includes(
-    file.name.split(".").pop()?.toLowerCase() ?? "",
-  );
+  return VIDEO_EXTENSIONS.includes(file.name.split(".").pop()?.toLowerCase() ?? "");
 }
 
 export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
@@ -80,6 +81,8 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
   const [checking, setChecking] = useState(false);
   // A single photo opens the story editor (text, stickers, music, drawing, caption) first.
   const [editing, setEditing] = useState<File | null>(null);
+  // The Close Friends list picker (opened from the editor, the video dialog or when the list is empty).
+  const [friendsSheet, setFriendsSheet] = useState(false);
 
   const meId = user?.id ?? "";
   // Stories I already watched (their ring part turns grey) and who is loading right now.
@@ -132,9 +135,7 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
   // Same order as the row: my story first, then everyone else. Swiping sideways inside a
   // story moves along this list.
   const viewList = myGroup ? [myGroup, ...others] : others;
-  const viewIdx = viewing
-    ? viewList.findIndex((g) => g.authorId === viewing.authorId)
-    : -1;
+  const viewIdx = viewing ? viewList.findIndex((g) => g.authorId === viewing.authorId) : -1;
   const swipeToPerson = (dir: 1 | -1) => {
     const next = viewList[viewIdx + dir];
     if (viewIdx >= 0 && next) setViewing(next);
@@ -146,34 +147,38 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
       files,
       music,
       gifs,
+      closeFriends,
     }: {
       files: File[];
       music?: { title: string; url: string } | null;
       gifs?: StoryGif[];
+      closeFriends?: boolean;
     }) => {
       let done = 0;
       try {
         for (const file of files) {
-          if (gifs && gifs.length > 0) await createStory(meId, file, music ?? null, gifs);
+          if (closeFriends) await createStory(meId, file, music ?? null, gifs ?? null, true);
+          else if (gifs && gifs.length > 0) await createStory(meId, file, music ?? null, gifs);
           else if (music) await createStory(meId, file, music);
           else await createStory(meId, file);
           done += 1;
         }
       } catch (e) {
-        const reason =
-          e instanceof Error && e.message
-            ? e.message
-            : "Couldn't add your story.";
+        const reason = e instanceof Error && e.message ? e.message : "Couldn't add your story.";
         throw new Error(
-          files.length > 1
-            ? `Added ${done} of ${files.length} stories. ${reason}`
-            : reason,
+          files.length > 1 ? `Added ${done} of ${files.length} stories. ${reason}` : reason,
         );
       }
       return done;
     },
-    onSuccess: (count: number) => {
-      toast.success(count > 1 ? `${count} stories added` : "Story added");
+    onSuccess: (count: number, vars) => {
+      toast.success(
+        vars.closeFriends
+          ? "Shared with Close Friends"
+          : count > 1
+            ? `${count} stories added`
+            : "Story added",
+      );
     },
     onError: (e: Error) => toast.error(e.message || "Couldn't add your story."),
     // Returned (not fire-and-forget) so the upload stays "busy" until your new stories are in
@@ -191,9 +196,7 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
     }
     const videos = picked.filter(isVideoFile);
     if (picked.length > 1 && videos.length > 0) {
-      toast.error(
-        "Add videos one at a time. You can pick several photos together.",
-      );
+      toast.error("Add videos one at a time. You can pick several photos together.");
       return;
     }
     const [first] = picked;
@@ -243,8 +246,7 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
     if (busy || syncing) return;
     if (isError) {
       toast.error("Couldn't load your stories.", {
-        description:
-          loadError instanceof Error ? loadError.message : "Please try again.",
+        description: loadError instanceof Error ? loadError.message : "Please try again.",
       });
       void refetch();
       return;
@@ -284,7 +286,10 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
               ring={!!myGroup}
               segments={myGroup?.items.length ?? 1}
               seen={myGroup ? seenFlags(myGroup) : undefined}
-              loading={!!myGroup && (loadingAuthor === myGroup.authorId || preparing === myGroup.authorId)}
+              loading={
+                !!myGroup && (loadingAuthor === myGroup.authorId || preparing === myGroup.authorId)
+              }
+              tone={myGroup?.items.some((s) => s.close_friends_only) ? "close" : "default"}
             />
           </StoryButton>
           {/* The "+" only exists while I have NO story. Once I have one, the bubble opens it;
@@ -313,7 +318,8 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
           <div
             role="listitem"
             key={g.authorId}
-            className="shrink-0 snap-start" style={{ width: COLUMN }}
+            className="shrink-0 snap-start"
+            style={{ width: COLUMN }}
           >
             <StoryButton
               label={g.username || g.name.split(" ")[0] || "Story"}
@@ -328,6 +334,7 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
                 segments={g.items.length}
                 seen={seenFlags(g)}
                 loading={loadingAuthor === g.authorId || preparing === g.authorId}
+                tone={g.items.some((s) => s.close_friends_only) ? "close" : "default"}
               />
             </StoryButton>
           </div>
@@ -336,17 +343,16 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
         {/* Optional shortcut to the Local feed tab; only shown when the page passes onLocalHub. */}
         {onLocalHub && (
           <div role="listitem" className="shrink-0 snap-start" style={{ width: COLUMN }}>
-            <StoryButton
-              label="Local Hub"
-              ariaLabel="Open the Local feed"
-              onClick={onLocalHub}
-            >
+            <StoryButton label="Local Hub" ariaLabel="Open the Local feed" onClick={onLocalHub}>
               <div className="rounded-full bg-gradient-brand p-[2px]">
                 <div
                   className="grid place-items-center rounded-full bg-background"
                   style={{ height: AVATAR - 4, width: AVATAR - 4 }}
                 >
-                  <MapPin className="text-success" style={{ height: AVATAR * 0.43, width: AVATAR * 0.43 }} />
+                  <MapPin
+                    className="text-success"
+                    style={{ height: AVATAR * 0.43, width: AVATAR * 0.43 }}
+                  />
                 </div>
               </div>
             </StoryButton>
@@ -358,9 +364,27 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
         <StoryEditor
           file={editing}
           onClose={() => setEditing(null)}
-          onShare={(edited, music, gifs) => {
+          onShare={(edited, music, gifs, closeFriends) => {
             setEditing(null);
-            upload.mutate({ files: [edited], music, ...(gifs ? { gifs } : {}) });
+            upload.mutate({
+              files: [edited],
+              music,
+              ...(gifs ? { gifs } : {}),
+              ...(closeFriends ? { closeFriends: true } : {}),
+            });
+          }}
+          onPickCloseFriends={async () => {
+            try {
+              if ((await fetchCloseFriendIds(meId)).length > 0) return true;
+              toast("Pick who is on your Close Friends list first.");
+            } catch (e) {
+              toast.error(
+                e instanceof Error ? e.message : "Couldn't load your Close Friends list.",
+              );
+              return false;
+            }
+            setFriendsSheet(true);
+            return false;
           }}
         />
       )}
@@ -371,7 +395,11 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
           durationSeconds={video.durationSeconds}
           authorId={meId}
           onClose={() => setVideo(null)}
+          onEditCloseFriends={() => setFriendsSheet(true)}
         />
+      )}
+      {friendsSheet && (
+        <CloseFriendsSheet open onOpenChange={setFriendsSheet} meId={meId} z={120} />
       )}
       {viewing && (
         <StoryViewer
@@ -409,9 +437,7 @@ function StoryButton({
       className="flex w-full flex-col items-center gap-1.5 rounded-xl py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       {children}
-      <span className="block w-full truncate px-0.5 text-center text-xs leading-4">
-        {label}
-      </span>
+      <span className="block w-full truncate px-0.5 text-center text-xs leading-4">{label}</span>
     </button>
   );
 }
@@ -495,8 +521,7 @@ function StoryViewer({
 
   // Photo stories run on a timer (like Instagram): fill the bar over 5s, then go to the next one.
   // The elapsed time is kept in a ref so pausing (viewers list open) resumes where it stopped.
-  const itemIsPhoto =
-    !!item && !(item.media_type === "video" && !!item.video_url);
+  const itemIsPhoto = !!item && !(item.media_type === "video" && !!item.video_url);
   const itemId = item?.id;
   // a song picked with a length ("15s") also sets how long the photo stays on screen
   const song = item?.music_url ? readMusicSeconds(item.music_url) : null;
@@ -674,11 +699,7 @@ function StoryViewer({
       return;
     }
     const prev = lastTapRef.current;
-    if (
-      prev &&
-      now - prev.t < 300 &&
-      Math.hypot(e.clientX - prev.x, e.clientY - prev.y) < 48
-    ) {
+    if (prev && now - prev.t < 300 && Math.hypot(e.clientX - prev.x, e.clientY - prev.y) < 48) {
       lastTapRef.current = null;
       setBurst((n) => n + 1);
       if (!stats.likedByMe) requestLike(true);
@@ -695,10 +716,7 @@ function StoryViewer({
     >
       <div className="flex gap-1 px-3 pt-3" aria-hidden="true">
         {group.items.map((s, idx) => (
-          <div
-            key={s.id}
-            className="h-1 flex-1 overflow-hidden rounded-full bg-white/25"
-          >
+          <div key={s.id} className="h-1 flex-1 overflow-hidden rounded-full bg-white/25">
             <div
               className="h-full rounded-full bg-white"
               style={{
@@ -723,31 +741,33 @@ function StoryViewer({
             aria-label={`Open ${group.name || group.username}'s profile`}
             className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           >
-            <Avatar
-              src={group.avatar}
-              name={group.name}
-              size={36}
-              loading={videoLoading}
-            />
+            <Avatar src={group.avatar} name={group.name} size={36} loading={videoLoading} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold">{group.name}</p>
-              <p className="text-xs text-white/70">
+              <p className="flex items-center gap-1.5 text-xs text-white/70">
                 {timeAgo(item.created_at)}
+                {item.close_friends_only && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/90 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                    <Star className="h-2.5 w-2.5 fill-current" aria-hidden="true" />
+                    Close Friends
+                  </span>
+                )}
               </p>
             </div>
           </button>
         ) : (
           <>
-            <Avatar
-              src={group.avatar}
-              name={group.name}
-              size={36}
-              loading={videoLoading}
-            />
+            <Avatar src={group.avatar} name={group.name} size={36} loading={videoLoading} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold">{group.name}</p>
-              <p className="text-xs text-white/70">
+              <p className="flex items-center gap-1.5 text-xs text-white/70">
                 {timeAgo(item.created_at)}
+                {item.close_friends_only && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/90 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                    <Star className="h-2.5 w-2.5 fill-current" aria-hidden="true" />
+                    Close Friends
+                  </span>
+                )}
               </p>
             </div>
           </>
@@ -786,21 +806,13 @@ function StoryViewer({
           <button
             onClick={() => del.mutate(item)}
             disabled={del.isPending}
-            aria-label={
-              partOfMany
-                ? "Delete this video story (all parts)"
-                : "Delete story"
-            }
+            aria-label={partOfMany ? "Delete this video story (all parts)" : "Delete story"}
             className="rounded-full p-2 hover:bg-white/10"
           >
             <Trash2 className="h-5 w-5" />
           </button>
         )}
-        <button
-          onClick={onClose}
-          aria-label="Close"
-          className="rounded-full p-2 hover:bg-white/10"
-        >
+        <button onClick={onClose} aria-label="Close" className="rounded-full p-2 hover:bg-white/10">
           <X className="h-6 w-6" />
         </button>
       </div>
@@ -876,9 +888,7 @@ function StoryViewer({
             <ChevronRight className="h-6 w-6" />
           </button>
         )}
-        {burst > 0 && (
-          <StoryHeartBurst key={burst} onDone={() => setBurst(0)} />
-        )}
+        {burst > 0 && <StoryHeartBurst key={burst} onDone={() => setBurst(0)} />}
         {poll.query.data && (
           // taps on the poll are for voting, never for pausing or double-tap liking
           <div
@@ -946,10 +956,7 @@ function StoryViewer({
       )}
 
       {isMine && viewersOpen && (
-        <StoryViewersSheet
-          storyId={item.id}
-          onClose={() => setViewersOpen(false)}
-        />
+        <StoryViewersSheet storyId={item.id} onClose={() => setViewersOpen(false)} />
       )}
     </div>
   );
@@ -981,13 +988,7 @@ function StoryHeartBurst({ onDone }: { onDone: () => void }) {
 }
 
 /** My own story: everyone who viewed it, newest first, with a heart on the ones who liked it. */
-function StoryViewersSheet({
-  storyId,
-  onClose,
-}: {
-  storyId: string;
-  onClose: () => void;
-}) {
+function StoryViewersSheet({ storyId, onClose }: { storyId: string; onClose: () => void }) {
   const {
     data: viewers = [],
     isLoading,
@@ -1035,10 +1036,7 @@ function StoryViewersSheet({
         ) : (
           <ul>
             {viewers.map((v) => (
-              <li
-                key={v.userId}
-                className="flex items-center gap-3 px-4 py-2.5"
-              >
+              <li key={v.userId} className="flex items-center gap-3 px-4 py-2.5">
                 <Avatar src={v.avatar} name={v.name} size={40} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold">{v.name}</p>
@@ -1047,15 +1045,8 @@ function StoryViewersSheet({
                   </p>
                 </div>
                 {v.liked && (
-                  <span
-                    role="img"
-                    aria-label="Liked your story"
-                    className="shrink-0"
-                  >
-                    <Heart
-                      className="h-5 w-5 fill-red-500 text-red-500"
-                      aria-hidden="true"
-                    />
+                  <span role="img" aria-label="Liked your story" className="shrink-0">
+                    <Heart className="h-5 w-5 fill-red-500 text-red-500" aria-hidden="true" />
                   </span>
                 )}
               </li>
@@ -1117,10 +1108,7 @@ function StoryVideo({
       const v = ref.current;
       if (v && !doneRef.current) {
         const span = Number.isFinite(end) ? end - start : v.duration - start;
-        const f =
-          span > 0
-            ? Math.min(1, Math.max(0, (v.currentTime - start) / span))
-            : 0;
+        const f = span > 0 ? Math.min(1, Math.max(0, (v.currentTime - start) / span)) : 0;
         if (Math.abs(f - lastFraction) >= 0.01) {
           lastFraction = f;
           onProgress(f);

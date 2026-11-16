@@ -34,7 +34,12 @@ beforeEach(() => {
   h.search.mockReset();
   h.gifs.mockReset();
   h.gifs.mockResolvedValue([
-    { id: "abc123XYZ", title: "wave", ratio: 1.5, preview: "https://media.giphy.com/media/abc123XYZ/200w.gif" },
+    {
+      id: "abc123XYZ",
+      title: "wave",
+      ratio: 1.5,
+      preview: "https://media.giphy.com/media/abc123XYZ/200w.gif",
+    },
   ]);
   h.search.mockResolvedValue([
     {
@@ -61,6 +66,33 @@ describe("story editor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Share story" }));
     expect(onShare).toHaveBeenCalledWith(photo, null);
     expect(h.render).not.toHaveBeenCalled();
+  });
+
+  it("has no Close Friends button unless the page offers the list", () => {
+    setup();
+    expect(screen.queryByRole("button", { name: "Share with Close Friends" })).toBeNull();
+  });
+
+  it("shares to Close Friends when the list has people on it", async () => {
+    const onShare = vi.fn();
+    const onPick = vi.fn().mockResolvedValue(true);
+    render(
+      <StoryEditor file={photo} onClose={vi.fn()} onShare={onShare} onPickCloseFriends={onPick} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Share with Close Friends" }));
+    await waitFor(() => expect(onShare).toHaveBeenCalledWith(photo, null, undefined, true));
+    expect(onPick).toHaveBeenCalled();
+  });
+
+  it("does not share when the Close Friends list is still empty", async () => {
+    const onShare = vi.fn();
+    const onPick = vi.fn().mockResolvedValue(false);
+    render(
+      <StoryEditor file={photo} onClose={vi.fn()} onShare={onShare} onPickCloseFriends={onPick} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Share with Close Friends" }));
+    await waitFor(() => expect(onPick).toHaveBeenCalled());
+    expect(onShare).not.toHaveBeenCalled();
   });
 
   it("asks before closing even when there are no edits", () => {
@@ -133,7 +165,10 @@ describe("story editor", () => {
     fireEvent.load(img);
     fireEvent.click(screen.getByRole("button", { name: "Share story" }));
     await waitFor(() =>
-      expect(onShare).toHaveBeenCalledWith(flattened, { title: "Kesariya - Arijit Singh", url: "https://p/1.m4a#len=10" }),
+      expect(onShare).toHaveBeenCalledWith(flattened, {
+        title: "Kesariya - Arijit Singh",
+        url: "https://p/1.m4a#len=10",
+      }),
     );
   });
 
@@ -161,9 +196,15 @@ describe("story editor text fonts", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add text" }));
     const row = screen.getByTestId("text-font-row");
     expect(row).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "Modern font" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: "Modern font" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
     fireEvent.click(screen.getByRole("radio", { name: "Signature font" }));
-    expect(screen.getByRole("radio", { name: "Signature font" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: "Signature font" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
     fireEvent.change(screen.getByLabelText("Story text"), { target: { value: "Hello" } });
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(screen.getByText("Hello")).toBeInTheDocument();
@@ -212,13 +253,24 @@ describe("story editor pinch to resize", () => {
       }
     }
     Object.defineProperty(window, "PointerEvent", { value: TestPointerEvent, configurable: true });
-    Object.defineProperty(HTMLElement.prototype, "setPointerCapture", { value: () => {}, configurable: true });
+    Object.defineProperty(HTMLElement.prototype, "setPointerCapture", {
+      value: () => {},
+      configurable: true,
+    });
   });
   it("two fingers near a sticker make it bigger (and the photo stays unzoomed)", () => {
     // the test browser has no layout, so give every box a size
-    const rect = vi
-      .spyOn(Element.prototype, "getBoundingClientRect")
-      .mockReturnValue({ x: 0, y: 0, left: 0, top: 0, right: 360, bottom: 640, width: 360, height: 640, toJSON: () => ({}) });
+    const rect = vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 360,
+      bottom: 640,
+      width: 360,
+      height: 640,
+      toJSON: () => ({}),
+    });
     setup();
     fireEvent.click(screen.getByRole("button", { name: "Add sticker" }));
     fireEvent.click(screen.getByRole("button", { name: "Add 🔥" }));

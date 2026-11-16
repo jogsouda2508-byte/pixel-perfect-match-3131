@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Star } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +11,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
+import { Switch } from "@/components/ui/switch";
+import { fetchCloseFriendIds } from "@/lib/close-friends";
 import {
   STORY_DURATION_OPTIONS,
   createVideoStory,
@@ -30,17 +32,21 @@ export function StoryVideoDialog({
   durationSeconds,
   authorId,
   onClose,
+  onEditCloseFriends,
 }: {
   file: File;
   durationSeconds: number;
   authorId: string;
   onClose: () => void;
+  /** When given, the dialog offers a "Close Friends only" switch and a way to edit the list. */
+  onEditCloseFriends?: () => void;
 }) {
   const qc = useQueryClient();
   const [limit, setLimit] = useState<number>(suggestedLimit(durationSeconds) ?? 60);
   const [progress, setProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [closeFriends, setCloseFriends] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   const previewUrl = useMemo(() => URL.createObjectURL(file), [file]);
@@ -58,6 +64,15 @@ export function StoryVideoDialog({
     const controller = new AbortController();
     abortRef.current = controller;
     try {
+      if (closeFriends) {
+        // never publish to everyone by accident: the list must have someone on it
+        const friends = await fetchCloseFriendIds(authorId);
+        if (friends.length === 0) {
+          setError("Your Close Friends list is empty. Add some people first, then try again.");
+          setUploading(false);
+          return;
+        }
+      }
       await createVideoStory({
         authorId,
         file,
@@ -65,8 +80,9 @@ export function StoryVideoDialog({
         limitSeconds: limit,
         signal: controller.signal,
         onProgress: setProgress,
+        ...(closeFriends ? { closeFriends: true } : {}),
       });
-      toast.success("Story added");
+      toast.success(closeFriends ? "Shared with Close Friends" : "Story added");
       // wait for the refreshed list so my new story is already there when the dialog closes
       await qc.invalidateQueries({ queryKey: ["stories"] });
       onClose();
@@ -135,6 +151,31 @@ export function StoryVideoDialog({
             {plan.ok ? "Posted as 1 story." : plan.error}
           </p>
         </div>
+
+        {onEditCloseFriends && (
+          <div className="flex items-center gap-3 rounded-xl border border-border p-3">
+            <Star className="h-5 w-5 shrink-0 text-success" aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+              <p id="story-close-label" className="text-sm font-medium">
+                Close Friends only
+              </p>
+              <button
+                type="button"
+                onClick={onEditCloseFriends}
+                className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+              >
+                Edit list
+              </button>
+            </div>
+            <Switch
+              checked={closeFriends}
+              onCheckedChange={setCloseFriends}
+              disabled={uploading}
+              aria-labelledby="story-close-label"
+              className="data-[state=checked]:bg-success"
+            />
+          </div>
+        )}
 
         {uploading && (
           <div className="space-y-1" aria-live="polite">
