@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   lazy,
   Suspense,
@@ -11,7 +11,17 @@ import {
   type KeyboardEvent,
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Camera, Loader2, Paperclip, Play, Send, Smile } from "lucide-react";
+import {
+  ArrowLeft,
+  Camera,
+  Loader2,
+  MoreVertical,
+  Paperclip,
+  Play,
+  Send,
+  Smile,
+} from "lucide-react";
+import { UserSafetyMenu } from "@/components/user-safety-menu";
 import { toast } from "sonner";
 import { Avatar } from "@/components/ediraa";
 import { GroupAvatar, memberLabel } from "@/components/group-ui";
@@ -96,6 +106,7 @@ function ConversationPage() {
 }
 
 function ConversationDetail({ id }: { id: string }) {
+  const navigate = useNavigate();
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
@@ -743,6 +754,19 @@ function ConversationDetail({ id }: { id: string }) {
             </Link>
           ) : (
             <h1 className="truncate text-[15px] font-semibold sm:text-base">{name}</h1>
+          )}
+          {contact.data && !contact.data.group && contact.data.username && (
+            <span className="ml-auto shrink-0">
+              <UserSafetyMenu
+                userId={contact.data.id}
+                username={contact.data.username}
+                onDone={(a) => {
+                  if (a === "blocked") void navigate({ to: "/chat" });
+                }}
+                trigger={<MoreVertical className="h-5 w-5" aria-hidden="true" />}
+                triggerClassName="grid h-11 w-11 place-items-center rounded-full hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-white/10"
+              />
+            </span>
           )}
         </header>
 

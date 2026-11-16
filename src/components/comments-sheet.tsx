@@ -1,10 +1,11 @@
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Trash2 } from "lucide-react";
+import { Flag, Loader2, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Drawer as DrawerPrimitive } from "vaul";
 import { Avatar } from "@/components/ediraa";
+import { ReportButton } from "@/components/report-sheet";
 import { useAuth } from "@/lib/auth";
 import {
   addComment,
@@ -238,6 +239,17 @@ function SheetComment({
         >
           <Trash2 className="h-4 w-4" />
         </button>
+      )}
+      {!mine && (
+        <ReportButton
+          targetType="comment"
+          targetId={comment.id}
+          targetUserId={comment.author_id}
+          label="Report comment"
+          className="mt-1 text-muted-foreground active:text-destructive"
+        >
+          <Flag className="h-4 w-4" aria-hidden="true" />
+        </ReportButton>
       )}
     </li>
   );

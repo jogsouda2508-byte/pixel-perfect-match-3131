@@ -3,9 +3,10 @@ import { authRedirect, NATIVE_RESET_REDIRECT } from "@/lib/auth-redirect";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Camera, ChevronRight, Loader2, Lock, MapPin, Star } from "lucide-react";
+import { Ban, Camera, ChevronRight, Loader2, Lock, MapPin, Star } from "lucide-react";
 import { Avatar } from "@/components/ediraa";
 import { CloseFriendsSheet } from "@/components/close-friends-sheet";
+import { SafetyListsSheet } from "@/components/safety-lists-sheet";
 import { useCloseFriendIds } from "@/lib/close-friends";
 import { CommunityNotifyCard } from "@/components/community-notify-card";
 import { PushSettingsCard } from "@/components/push-prompt";
@@ -44,6 +45,7 @@ function SettingsPage() {
           <PrivacyCard profile={profile} />
           <AccountCard profile={profile} />
           <CloseFriendsCard meId={profile.id} />
+          <BlockedMutedCard />
           <PushSettingsCard />
           <CommunityNotifyCard />
           <PasswordCard />
@@ -326,6 +328,30 @@ function CloseFriendsCard({ meId }: { meId: string }) {
         <ChevronRight className="h-5 w-5 text-muted-foreground" />
       </button>
       {open && <CloseFriendsSheet open onOpenChange={setOpen} meId={meId} />}
+    </section>
+  );
+}
+
+/** Opens the list of people you have blocked or muted, where each can be undone. */
+function BlockedMutedCard() {
+  const [open, setOpen] = useState(false);
+  return (
+    <section className="glass-card">
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex w-full items-center gap-3 px-4 py-3.5 text-left"
+      >
+        <Ban className="h-5 w-5 shrink-0 text-destructive" aria-hidden="true" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium">Blocked and muted</span>
+          <span className="block text-xs text-muted-foreground">
+            See, unblock or unmute people you have hidden
+          </span>
+        </span>
+        <ChevronRight className="h-5 w-5 text-muted-foreground" />
+      </button>
+      {open && <SafetyListsSheet open onOpenChange={setOpen} />}
     </section>
   );
 }

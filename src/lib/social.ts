@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchMutedIds } from "@/lib/safety";
 import { randomId } from "@/lib/uuid";
 import { supabase } from "@/integrations/supabase/client";
 import { removeStoryVideoFile } from "@/lib/story-video";
@@ -521,6 +522,9 @@ export async function fetchStories(meId: string): Promise<StoryGroup[]> {
     g.latest = s.created_at;
     groups.set(s.author_id, g);
   }
+  // Muted people's stories are hidden from the row (my own never are).
+  const mutedIds = await fetchMutedIds();
+  for (const id of mutedIds) if (id !== meId) groups.delete(id);
   // Your own story first, then the newest from the people you follow.
   return [...groups.values()].sort((a, b) =>
     a.authorId === meId ? -1 : b.authorId === meId ? 1 : b.latest.localeCompare(a.latest),

@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
+  Flag,
   Loader2,
   MoreHorizontal,
   Send,
@@ -11,6 +12,8 @@ import {
 } from "lucide-react";
 import { Avatar } from "@/components/ediraa";
 import { CommentsSheet } from "@/components/comments-sheet";
+import { UserSafetyMenu } from "@/components/user-safety-menu";
+import { ReportButton } from "@/components/report-sheet";
 import { Gallery } from "@/components/gallery";
 import { CommentIcon, HeartIcon, ShareIcon } from "@/components/icons";
 import { EmojiButton } from "@/components/emoji-button";
@@ -213,7 +216,20 @@ export function PostCard({
   const longCaption = captionText.length > CAPTION_PREVIEW_CHARS || captionLines.length > 2;
   const captionPreview = captionLines.slice(0, 2).join("\n").slice(0, CAPTION_PREVIEW_CHARS).trimEnd();
 
-  const optionsMenu = mine && (
+  // Someone else's post: report it, or mute / block its author.
+  const otherMenu = !mine && !!post.author_id && !!post.author_username && (
+    <UserSafetyMenu
+      userId={post.author_id}
+      username={post.author_username}
+      report={{ type: "post", id: post.id, label: isVideo ? "Report video" : "Report post" }}
+      trigger={<MoreHorizontal className="h-5 w-5" aria-hidden="true" />}
+      triggerClassName={`pointer-events-auto rounded-full p-1 outline-none ${
+        isVideo ? "text-white hover:bg-white/15" : "text-muted-foreground hover:bg-elevated"
+      }`}
+    />
+  );
+
+  const optionsMenu = mine ? (
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="Post options"
@@ -233,6 +249,8 @@ export function PostCard({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  ) : (
+    otherMenu
   );
 
   const authorLink = (
@@ -706,6 +724,17 @@ function Comments({
             >
               <Trash2 className="h-4 w-4" />
             </button>
+          )}
+          {!!user && c.author_id !== user.id && (
+            <ReportButton
+              targetType="comment"
+              targetId={c.id}
+              targetUserId={c.author_id}
+              label="Report comment"
+              className="mt-2 text-muted-foreground hover:text-destructive"
+            >
+              <Flag className="h-4 w-4" aria-hidden="true" />
+            </ReportButton>
           )}
         </div>
       ))}

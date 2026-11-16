@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { nextFollowAction } from "@/lib/follow-state";
+import { blockedMessage } from "@/lib/safety";
 import {
   cancelFollowRequest,
   fetchMyPendingRequestIds,
@@ -75,11 +76,11 @@ export function useFollow() {
         void qc.invalidateQueries({ queryKey: ["user-posts"] });
         void qc.invalidateQueries({ queryKey: ["user-tagged"] });
         void qc.invalidateQueries({ queryKey: ["user-videos"] });
-      } catch {
+      } catch (error) {
         // Put the button back the way it was.
         setLocal((s) => ({ ...s, [id]: current }));
         setLocalRequested((s) => ({ ...s, [id]: requested }));
-        toast.error("Couldn't update follow. Please try again.");
+        toast.error(blockedMessage(error, "Couldn't update follow. Please try again."));
       } finally {
         setPending((s) => ({ ...s, [id]: false }));
       }

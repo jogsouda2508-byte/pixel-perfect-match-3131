@@ -3,6 +3,7 @@ import { useState } from "react";
 import { CirclePhotoViewer } from "@/components/circle-photo-viewer";
 import { useQuery } from "@tanstack/react-query";
 import {
+  Ban,
   Building2,
   CalendarDays,
   Eye,
@@ -11,6 +12,7 @@ import {
   Lock,
   MapPin,
   MessageSquare,
+  MoreHorizontal,
   Play,
   Plus,
   Settings,
@@ -49,6 +51,8 @@ import {
 import { followLabel, isProfileLocked } from "@/lib/follow-state";
 import { useFollow } from "@/lib/use-follow";
 import { startConversation } from "@/lib/chat";
+import { UserSafetyMenu, useRefreshAfterSafetyChange } from "@/components/user-safety-menu";
+import { blockedMessage, fetchBlockState, unblockUser } from "@/lib/safety";
 import { fetchUserVideos, fetchVideoViewCounts } from "@/lib/videos";
 import type { Profile } from "@/integrations/supabase/types";
 import emptyPostsUrl from "@/assets/empty-posts.jpg";
@@ -86,11 +90,26 @@ export function ProfileView({
   });
   const following = follow.isFollowing(profile.id, followState.data ?? false);
   const requested = follow.isRequested(profile.id);
+  // Did I block them, or did they block me? Either way the posts are hidden (the database also
+  // refuses them), and only the person who blocked gets an Unblock button.
+  const blockState = useQuery({
+    queryKey: ["block-state", profile.id],
+    queryFn: () => fetchBlockState(profile.id),
+    enabled: !isMe && !!user,
+  });
+  const iBlocked = blockState.data === "mine";
+  const blockedMe = blockState.data === "theirs";
+  const blockedView = iBlocked || blockedMe;
   // Private accounts keep their posts, videos and tags hidden until the viewer is an accepted follower.
-  const lockKnown = isMe || !profile.is_private || !followState.isLoading;
+  const lockKnown =
+    isMe || (!blockState.isLoading && (!profile.is_private || !followState.isLoading));
   const locked =
     lockKnown &&
+    !blockedView &&
     isProfileLocked({ isPrivate: !!profile.is_private, isMe, following });
+  const hidden = lockKnown && blockedView;
+  // Nothing of theirs is shown: a private account I don't follow, or a block either way.
+  const covered = locked || hidden;
 
   const counts = useQuery({
     queryKey: ["follow-counts", profile.id],
@@ -99,18 +118,18 @@ export function ProfileView({
   const posts = useQuery({
     queryKey: ["user-posts", profile.id],
     queryFn: () => fetchUserPosts(profile.id),
-    enabled: lockKnown && !locked,
+    enabled: lockKnown && !locked && !hidden,
   });
   // Posts this person is tagged in (only the ones the viewer is allowed to see).
   const tagged = useQuery({
     queryKey: ["user-tagged", profile.id],
     queryFn: () => fetchTaggedPosts(profile.id),
-    enabled: tab === "Tagged" && lockKnown && !locked,
+    enabled: tab === "Tagged" && lockKnown && !locked && !hidden,
   });
   const videos = useQuery({
     queryKey: ["user-videos", profile.id],
     queryFn: () => fetchUserVideos(profile.id),
-    enabled: tab === "Reels" && lockKnown && !locked,
+    enabled: tab === "Reels" && lockKnown && !locked && !hidden,
   });
 
   // View counts shown under each video in the Reels tab (null = not available yet).
@@ -157,9 +176,10 @@ export function ProfileView({
       navigate({ to: "/chat/$id", params: { id } });
     } catch (error) {
       toast.error(
-        error instanceof Error
-          ? error.message
-          : "Couldn't start a conversation.",
+        blockedMessage(
+          error,
+          error instanceof Error ? error.message : "Couldn't start a conversation.",
+        ),
       );
     } finally {
       setStartingMessage(false);
@@ -307,12 +327,12 @@ export function ProfileView({
                   <Stat
                     n={String(counts.data?.followers ?? 0)}
                     l="Followers"
-                    {...(locked ? {} : { onClick: () => setList("followers") })}
+                    {...(covered ? {} : { onClick: () => setList("followers") })}
                   />
                   <Stat
                     n={String(counts.data?.following ?? 0)}
                     l="Following"
-                    {...(locked ? {} : { onClick: () => setList("following") })}
+                    {...(covered ? {} : { onClick: () => setList("following") })}
                   />
                 </div>
               </div>
@@ -375,6 +395,23 @@ export function ProfileView({
                   <UserPlus className="h-5 w-5" aria-hidden="true" />
                 </Link>
               </div>
+            ) : blockedView ? (
+              <div className="mt-4 flex gap-2">
+                {iBlocked ? (
+                  <UnblockButton userId={profile.id} username={profile.username} />
+                ) : (
+                  <p className="flex-1 rounded-xl bg-elevated px-3 py-2.5 text-center text-sm text-muted-foreground">
+                    You can't follow or message this account.
+                  </p>
+                )}
+                <UserSafetyMenu
+                  userId={profile.id}
+                  username={profile.username}
+                  blocked={iBlocked}
+                  trigger={<MoreHorizontal className="h-5 w-5" aria-hidden="true" />}
+                  triggerClassName="grid min-h-10 w-12 shrink-0 place-items-center rounded-xl bg-elevated hover:bg-elevated/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+              </div>
             ) : (
               <div className="mt-4 flex gap-2">
                 <button
@@ -405,14 +442,20 @@ export function ProfileView({
                 >
                   <ShareIcon className="h-5 w-5" aria-hidden="true" />
                 </button>
+                <UserSafetyMenu
+                  userId={profile.id}
+                  username={profile.username}
+                  trigger={<MoreHorizontal className="h-5 w-5" aria-hidden="true" />}
+                  triggerClassName="grid min-h-10 w-12 shrink-0 place-items-center rounded-xl bg-elevated hover:bg-elevated/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
               </div>
             )}
 
             {/* Business accounts: category, open/closed, rating, prices and Call / WhatsApp buttons */}
-            {!locked && <BusinessInfoCard profile={profile} isMe={isMe} />}
+            {!covered && <BusinessInfoCard profile={profile} isMe={isMe} />}
 
             {/* Story highlights, right under the buttons */}
-            {!locked && (
+            {!covered && (
               <ProfileHighlights
                 profileId={profile.id}
                 name={name}
@@ -426,7 +469,7 @@ export function ProfileView({
           <div
             role="tablist"
             aria-label="Profile sections"
-            className={`grid grid-cols-3 border-t border-border ${locked ? "hidden" : ""}`}
+            className={`grid grid-cols-3 border-t border-border ${covered ? "hidden" : ""}`}
           >
             {tabs.map((t) => {
               const TabIcon = tabIcons[t];
@@ -450,6 +493,21 @@ export function ProfileView({
           <div className="grid place-items-center py-10">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
+        ) : hidden ? (
+          <section
+            aria-label={iBlocked ? "Blocked account" : "Nothing to show"}
+            className="glass-card mt-3 flex flex-col items-center gap-2 p-8 text-center"
+          >
+            <span className="grid h-14 w-14 place-items-center rounded-full bg-elevated text-muted-foreground">
+              <Ban className="h-6 w-6" aria-hidden="true" />
+            </span>
+            <h2 className="font-semibold">{iBlocked ? `You blocked ${name}` : "No posts to show"}</h2>
+            <p className="max-w-xs text-sm text-muted-foreground">
+              {iBlocked
+                ? "You can't see their posts or stories, and they can't see yours. Unblock them to see their posts again."
+                : "There's nothing to show here right now."}
+            </p>
+          </section>
         ) : locked ? (
           <section
             aria-label="Private account"
@@ -726,5 +784,35 @@ function FollowListDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+
+/** The big "Unblock" button shown on the profile of someone I blocked. */
+function UnblockButton({ userId, username }: { userId: string; username: string }) {
+  const { user } = useAuth();
+  const refresh = useRefreshAfterSafetyChange();
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={async () => {
+        if (!user || busy) return;
+        setBusy(true);
+        try {
+          await unblockUser(user.id, userId);
+          toast.success(`Unblocked @${username}`);
+          refresh();
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : "Couldn't unblock them. Please try again.");
+        } finally {
+          setBusy(false);
+        }
+      }}
+      className="min-h-10 flex-1 rounded-xl bg-gradient-brand px-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+    >
+      {busy ? "Unblocking…" : "Unblock"}
+    </button>
   );
 }

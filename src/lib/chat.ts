@@ -1,3 +1,4 @@
+import { isBlockedError } from "@/lib/safety";
 import { supabase } from "@/integrations/supabase/client";
 import type {
   ConversationParticipantRow,
@@ -41,6 +42,10 @@ export function isUnread(lastMessageAt: string | null, lastReadAt: string): bool
 
 function fail(action: string, error: unknown): never {
   console.error(`${action} failed`, error);
+  // A block between the two people ("blocked" from the database): say so instead of "try again".
+  if (isBlockedError(error as { message?: string | null })) {
+    throw new Error("You can't message this person.");
+  }
   throw new Error(`Couldn't ${action}. Please try again.`);
 }
 

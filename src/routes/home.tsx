@@ -17,6 +17,7 @@ import { PostCard } from "@/components/post-card";
 import { Stories } from "@/components/stories";
 import { useAuth } from "@/lib/auth";
 import { useLocality } from "@/lib/use-locality";
+import { dropMuted, useMutedIds } from "@/lib/safety";
 import {
   FEED_PAGE_SIZE,
   fetchFeed,
@@ -79,7 +80,10 @@ function HomePage() {
       last.length === FEED_PAGE_SIZE ? (last[last.length - 1]?.created_at ?? null) : undefined,
     enabled: !!meId && !localNeedsSetup,
   });
-  const posts = feed.data?.pages.flat() ?? [];
+  // People I muted stay out of my feed. This is done here, not in the fetch, so a page with some
+  // muted posts still counts as a full page and "load more" keeps working.
+  const mutedIds = useMutedIds();
+  const posts = dropMuted(feed.data?.pages.flat() ?? [], new Set(mutedIds.data ?? []));
 
   const people = useQuery({
     queryKey: ["people", "suggested", meId],

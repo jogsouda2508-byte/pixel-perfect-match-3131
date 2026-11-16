@@ -1,3 +1,4 @@
+import { UserSafetyMenu } from "@/components/user-safety-menu";
 import { useRouter } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,6 +11,7 @@ import {
   Heart,
   Loader2,
   MapPin,
+  MoreHorizontal,
   Plus,
   Star,
   Trash2,
@@ -475,7 +477,9 @@ function StoryViewer({
   const [pollSheetOpen, setPollSheetOpen] = useState(false);
   const sheetOpenRef = useRef(false);
   sheetOpenRef.current = pollSheetOpen;
-  const paused = viewersOpen || held || replying || pollSheetOpen;
+  // Pauses while the report / block menu is open (see UserSafetyMenu below).
+  const [safetyOpen, setSafetyOpen] = useState(false);
+  const paused = viewersOpen || held || replying || pollSheetOpen || safetyOpen;
   // The song of a photo story: the speaker button in the header mutes it for this viewing.
   const [musicMuted, setMusicMuted] = useState(false);
   // The browser may refuse to start sound on its own: then the speaker button starts it.
@@ -801,6 +805,20 @@ function StoryViewer({
           >
             <Plus className="h-5 w-5" />
           </button>
+        )}
+        {!isMine && !!group.username && (
+          <UserSafetyMenu
+            userId={group.authorId}
+            username={group.username}
+            report={{ type: "story", id: item.id, label: "Report story" }}
+            trigger={<MoreHorizontal className="h-5 w-5" aria-hidden="true" />}
+            triggerClassName="rounded-full p-2 hover:bg-white/10"
+            z={120}
+            onOpenChange={setSafetyOpen}
+            onDone={(a) => {
+              if (a === "blocked") onClose();
+            }}
+          />
         )}
         {isMine && (
           <button
