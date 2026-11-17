@@ -19,6 +19,7 @@ import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as GroupsRouteImport } from './routes/groups'
 import { Route as HelpRouteImport } from './routes/help'
 import { Route as HomeRouteImport } from './routes/home'
+import { Route as InviteRouteImport } from './routes/invite'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MoreRouteImport } from './routes/more'
 import { Route as NotificationsRouteImport } from './routes/notifications'
@@ -85,6 +86,11 @@ const HelpRoute = HelpRouteImport.update({
 const HomeRoute = HomeRouteImport.update({
   id: '/home',
   path: '/home',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InviteRoute = InviteRouteImport.update({
+  id: '/invite',
+  path: '/invite',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -184,6 +190,7 @@ export interface FileRoutesByFullPath {
   '/groups': typeof GroupsRoute
   '/help': typeof HelpRoute
   '/home': typeof HomeRoute
+  '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
   '/more': typeof MoreRoute
   '/notifications': typeof NotificationsRoute
@@ -213,6 +220,7 @@ export interface FileRoutesByTo {
   '/groups': typeof GroupsRoute
   '/help': typeof HelpRoute
   '/home': typeof HomeRoute
+  '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
   '/more': typeof MoreRoute
   '/notifications': typeof NotificationsRoute
@@ -243,6 +251,7 @@ export interface FileRoutesById {
   '/groups': typeof GroupsRoute
   '/help': typeof HelpRoute
   '/home': typeof HomeRoute
+  '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
   '/more': typeof MoreRoute
   '/notifications': typeof NotificationsRoute
@@ -274,6 +283,7 @@ export interface FileRouteTypes {
     | '/groups'
     | '/help'
     | '/home'
+    | '/invite'
     | '/login'
     | '/more'
     | '/notifications'
@@ -303,6 +313,7 @@ export interface FileRouteTypes {
     | '/groups'
     | '/help'
     | '/home'
+    | '/invite'
     | '/login'
     | '/more'
     | '/notifications'
@@ -332,6 +343,7 @@ export interface FileRouteTypes {
     | '/groups'
     | '/help'
     | '/home'
+    | '/invite'
     | '/login'
     | '/more'
     | '/notifications'
@@ -362,6 +374,7 @@ export interface RootRouteChildren {
   GroupsRoute: typeof GroupsRoute
   HelpRoute: typeof HelpRoute
   HomeRoute: typeof HomeRoute
+  InviteRoute: typeof InviteRoute
   LoginRoute: typeof LoginRoute
   MoreRoute: typeof MoreRoute
   NotificationsRoute: typeof NotificationsRoute
@@ -451,6 +464,13 @@ declare module '@tanstack/react-router' {
       path: '/home'
       fullPath: '/home'
       preLoaderRoute: typeof HomeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invite': {
+      id: '/invite'
+      path: '/invite'
+      fullPath: '/invite'
+      preLoaderRoute: typeof InviteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -586,6 +606,7 @@ const rootRouteChildren: RootRouteChildren = {
   GroupsRoute: GroupsRoute,
   HelpRoute: HelpRoute,
   HomeRoute: HomeRoute,
+  InviteRoute: InviteRoute,
   LoginRoute: LoginRoute,
   MoreRoute: MoreRoute,
   NotificationsRoute: NotificationsRoute,

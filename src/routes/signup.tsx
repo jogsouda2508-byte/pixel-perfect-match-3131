@@ -21,6 +21,7 @@ import {
   TextField,
 } from "@/components/auth-ui";
 import { PhoneAuth } from "@/components/phone-auth";
+import { InvitedByBanner } from "@/components/referral-parts";
 
 export const Route = createFileRoute("/signup")({
   head: () => ({
@@ -156,6 +157,7 @@ function SignUpForm() {
         </>
       }
     >
+      <InvitedByBanner />
       <form onSubmit={submit} className="space-y-4" noValidate>
         <TextField
           label="Full name"

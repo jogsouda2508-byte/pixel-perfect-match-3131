@@ -14,6 +14,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { AuthProvider } from "../lib/auth";
 import { AuthGate } from "../components/auth-gate";
+import { ReferralClaimer } from "../components/referral-parts";
 import { PullToRefresh } from "../components/pull-to-refresh";
 import { NativeBackButton } from "../components/native-back-button";
 import { PushPrompt } from "../components/push-prompt";
@@ -140,6 +141,7 @@ function RootComponent() {
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
           <Outlet />
           <PushPrompt />
+          <ReferralClaimer />
           <NativeBackButton />
           <PullToRefresh />
         </AuthGate>
