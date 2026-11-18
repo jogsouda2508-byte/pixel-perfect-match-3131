@@ -826,6 +826,18 @@ export async function uploadAvatar(userId: string, file: File): Promise<string> 
     .from("avatars")
     .upload(path, file, { upsert: true, contentType: file.type });
   if (error) fail("Photo upload", error);
+  // Earlier photos were stored as avatar.png / .webp / .gif, uncropped, and stayed public after a
+  // change. Remove those leftovers (best effort: a failure here must never fail the upload).
+  const leftovers = ["jpg", "png", "webp", "gif"]
+    .filter((e) => e !== ext)
+    .map((e) => `${userId}/avatar.${e}`);
+  void supabase.storage
+    .from("avatars")
+    .remove(leftovers)
+    .then(
+      () => undefined,
+      () => undefined,
+    );
   const { data } = supabase.storage.from("avatars").getPublicUrl(path);
   return `${data.publicUrl}?v=${Date.now()}`;
 }

@@ -6,6 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Profile } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
 import { Avatar } from "@/components/ediraa";
+import { AvatarCropper } from "@/components/avatar-cropper";
+import { uploadAvatar as uploadAvatarFile } from "@/lib/social";
 import { AuthShell, PrimaryButton, inputClass } from "@/components/auth-ui";
 
 export const Route = createFileRoute("/onboarding")({
@@ -26,7 +28,8 @@ const INTERESTS = [
   "Education",
 ];
 const STEPS = ["Your profile", "Your interests", "People to follow"] as const;
-const MAX_FILE = 5 * 1024 * 1024;
+// The photo is cropped and shrunk to a small JPEG before upload, so a big camera photo is fine.
+const MAX_FILE = 15 * 1024 * 1024;
 const BIO_MAX = 160;
 
 function OnboardingPage() {
@@ -41,6 +44,7 @@ function OnboardingPage() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(profile?.avatar_url ?? null);
   const [preview, setPreview] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [cropping, setCropping] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string>();
   // Account privacy. Public is the default; this is saved even if step 1 is skipped.
   const [isPrivate, setIsPrivate] = useState(profile?.is_private ?? false);
@@ -101,22 +105,20 @@ function OnboardingPage() {
     if (!f) return;
     if (!/^image\/(jpeg|png|webp|gif)$/.test(f.type))
       return setFileError("Please choose a JPG, PNG, WebP or GIF image.");
-    if (f.size > MAX_FILE) return setFileError("Image must be 5 MB or smaller.");
+    if (f.size > MAX_FILE) return setFileError("Image must be 15 MB or smaller.");
     setFileError(undefined);
-    setFile(f);
-    setPreview(URL.createObjectURL(f));
+    setCropping(f); // move and zoom first; the cropped photo becomes `file`
+  };
+
+  const useCropped = (cropped: File) => {
+    setFile(cropped);
+    setPreview(URL.createObjectURL(cropped));
+    setCropping(null);
   };
 
   const uploadAvatar = async (): Promise<string | null> => {
     if (!file) return avatarUrl;
-    const ext = file.type.split("/")[1] === "jpeg" ? "jpg" : file.type.split("/")[1];
-    const path = `${user.id}/avatar.${ext}`; // folder name must equal the user's id (storage policy)
-    const { error } = await supabase.storage
-      .from("avatars")
-      .upload(path, file, { upsert: true, contentType: file.type });
-    if (error) throw error;
-    const { data } = supabase.storage.from("avatars").getPublicUrl(path);
-    return `${data.publicUrl}?v=${Date.now()}`; // cache-bust when the photo is replaced
+    return uploadAvatarFile(user.id, file);
   };
 
   const toggleFollow = async (id: string) => {
@@ -215,6 +217,9 @@ function OnboardingPage() {
 
   return (
     <AuthShell title={STEPS[step]!} subtitle={`Step ${step + 1} of 3`}>
+      {cropping && (
+        <AvatarCropper file={cropping} onCancel={() => setCropping(null)} onDone={useCropped} />
+      )}
       <div
         className="mb-5 h-1.5 overflow-hidden rounded-full bg-elevated"
         role="progressbar"
@@ -237,7 +242,7 @@ function OnboardingPage() {
               className="relative"
               aria-label="Upload profile photo"
             >
-              <Avatar src={shownAvatar} name={profile?.full_name ?? ""} size={96} ring />
+              <Avatar src={shownAvatar} name={profile?.full_name ?? ""} size={96} />
               <span className="absolute bottom-0 right-0 grid h-8 w-8 place-items-center rounded-full bg-primary text-primary-foreground">
                 <Camera className="h-4 w-4" />
               </span>
@@ -249,7 +254,7 @@ function OnboardingPage() {
               hidden
               onChange={(e) => pickFile(e.target.files?.[0])}
             />
-            <p className="text-xs text-muted-foreground">Tap to add a profile photo (max 5 MB)</p>
+            <p className="text-xs text-muted-foreground">Tap to add a profile photo</p>
             {fileError && (
               <p role="alert" className="text-xs text-destructive">
                 {fileError}

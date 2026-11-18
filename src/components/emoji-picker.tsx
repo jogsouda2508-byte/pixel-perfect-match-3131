@@ -4,7 +4,7 @@ import Picker from "@emoji-mart/react";
 export type PickedEmoji = { native: string };
 
 /**
- * Emoji Mart picker styled to match Ediraa (purple accent, rounded, light/dark aware).
+ * Emoji Mart picker styled to match SabZone (purple accent, rounded, light/dark aware).
  * Free and open source: the emoji data ships with the app, so there is no API key or
  * network call. Loaded lazily by the chat screen, so it only costs bytes when opened.
  */

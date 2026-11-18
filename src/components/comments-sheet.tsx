@@ -205,7 +205,7 @@ function SheetComment({
   onNavigate: () => void;
 }) {
   const author = comment.author;
-  const name = author?.full_name || author?.username || "Ediraa user";
+  const name = author?.full_name || author?.username || "SabZone user";
   const avatar = <Avatar src={author?.avatar_url} name={name} size={36} />;
   return (
     <li className="flex items-start gap-3">

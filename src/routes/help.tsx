@@ -1,4 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { SUPPORT_EMAIL } from "@/lib/legal";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Mail } from "lucide-react";
 import { PageHeader, PageShell } from "@/components/page-shell";
 import {
@@ -7,9 +8,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-
-// TODO: replace with your real support address.
-const SUPPORT_EMAIL = "support@example.com";
 
 export const Route = createFileRoute("/help")({
   head: () => ({
@@ -79,6 +77,23 @@ function HelpPage() {
           Contact support
         </a>
       </section>
+      <nav
+        aria-label="Legal"
+        className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground"
+      >
+        <Link className="hover:underline" to="/terms">
+          Terms
+        </Link>
+        <Link className="hover:underline" to="/privacy">
+          Privacy
+        </Link>
+        <Link className="hover:underline" to="/guidelines">
+          Community Guidelines
+        </Link>
+        <Link className="hover:underline" to="/delete-account">
+          Delete account
+        </Link>
+      </nav>
     </PageShell>
   );
 }

@@ -504,6 +504,7 @@ export type Database = {
           duration_seconds?: number | null;
           music_title?: string | null;
           music_url?: string | null;
+          close_friends_only?: boolean;
         };
         Update: { image_url?: string | null };
         Relationships: [

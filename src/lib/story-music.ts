@@ -71,7 +71,7 @@ export async function searchMusic(term: string, signal?: AbortSignal): Promise<M
   const q = term.trim();
   if (!q) return [];
   const url = `https://itunes.apple.com/search?media=music&entity=song&limit=25&term=${encodeURIComponent(q)}`;
-  const res = await fetch(url, { signal });
+  const res = await fetch(url, signal ? { signal } : {});
   if (!res.ok) throw new Error("Couldn't load songs. Check your connection and try again.");
   const json = (await res.json()) as { results?: ItunesTrack[] };
   const out: MusicResult[] = [];

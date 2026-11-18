@@ -14,9 +14,11 @@ import { Route as BusinessRouteImport } from './routes/business'
 import { Route as BusinessEditRouteImport } from './routes/business-edit'
 import { Route as CommunityRouteImport } from './routes/community'
 import { Route as CreateRouteImport } from './routes/create'
+import { Route as DeleteAccountRouteImport } from './routes/delete-account'
 import { Route as DiscoverRouteImport } from './routes/discover'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as GroupsRouteImport } from './routes/groups'
+import { Route as GuidelinesRouteImport } from './routes/guidelines'
 import { Route as HelpRouteImport } from './routes/help'
 import { Route as HomeRouteImport } from './routes/home'
 import { Route as InviteRouteImport } from './routes/invite'
@@ -24,11 +26,13 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as MoreRouteImport } from './routes/more'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SavedRouteImport } from './routes/saved'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as VerifyRouteImport } from './routes/verify'
 import { Route as VideosRouteImport } from './routes/videos'
 import { Route as WelcomeRouteImport } from './routes/welcome'
@@ -63,6 +67,11 @@ const CreateRoute = CreateRouteImport.update({
   path: '/create',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DeleteAccountRoute = DeleteAccountRouteImport.update({
+  id: '/delete-account',
+  path: '/delete-account',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DiscoverRoute = DiscoverRouteImport.update({
   id: '/discover',
   path: '/discover',
@@ -76,6 +85,11 @@ const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
 const GroupsRoute = GroupsRouteImport.update({
   id: '/groups',
   path: '/groups',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuidelinesRoute = GuidelinesRouteImport.update({
+  id: '/guidelines',
+  path: '/guidelines',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HelpRoute = HelpRouteImport.update({
@@ -113,6 +127,11 @@ const OnboardingRoute = OnboardingRouteImport.update({
   path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
@@ -136,6 +155,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
 const VerifyRoute = VerifyRouteImport.update({
@@ -185,9 +209,11 @@ export interface FileRoutesByFullPath {
   '/business-edit': typeof BusinessEditRoute
   '/community': typeof CommunityRoute
   '/create': typeof CreateRoute
+  '/delete-account': typeof DeleteAccountRoute
   '/discover': typeof DiscoverRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/groups': typeof GroupsRoute
+  '/guidelines': typeof GuidelinesRoute
   '/help': typeof HelpRoute
   '/home': typeof HomeRoute
   '/invite': typeof InviteRoute
@@ -195,11 +221,13 @@ export interface FileRoutesByFullPath {
   '/more': typeof MoreRoute
   '/notifications': typeof NotificationsRoute
   '/onboarding': typeof OnboardingRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/reset-password': typeof ResetPasswordRoute
   '/saved': typeof SavedRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
+  '/terms': typeof TermsRoute
   '/verify': typeof VerifyRoute
   '/videos': typeof VideosRoute
   '/welcome': typeof WelcomeRoute
@@ -215,9 +243,11 @@ export interface FileRoutesByTo {
   '/business-edit': typeof BusinessEditRoute
   '/community': typeof CommunityRoute
   '/create': typeof CreateRoute
+  '/delete-account': typeof DeleteAccountRoute
   '/discover': typeof DiscoverRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/groups': typeof GroupsRoute
+  '/guidelines': typeof GuidelinesRoute
   '/help': typeof HelpRoute
   '/home': typeof HomeRoute
   '/invite': typeof InviteRoute
@@ -225,11 +255,13 @@ export interface FileRoutesByTo {
   '/more': typeof MoreRoute
   '/notifications': typeof NotificationsRoute
   '/onboarding': typeof OnboardingRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/reset-password': typeof ResetPasswordRoute
   '/saved': typeof SavedRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
+  '/terms': typeof TermsRoute
   '/verify': typeof VerifyRoute
   '/videos': typeof VideosRoute
   '/welcome': typeof WelcomeRoute
@@ -246,9 +278,11 @@ export interface FileRoutesById {
   '/business-edit': typeof BusinessEditRoute
   '/community': typeof CommunityRoute
   '/create': typeof CreateRoute
+  '/delete-account': typeof DeleteAccountRoute
   '/discover': typeof DiscoverRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/groups': typeof GroupsRoute
+  '/guidelines': typeof GuidelinesRoute
   '/help': typeof HelpRoute
   '/home': typeof HomeRoute
   '/invite': typeof InviteRoute
@@ -256,11 +290,13 @@ export interface FileRoutesById {
   '/more': typeof MoreRoute
   '/notifications': typeof NotificationsRoute
   '/onboarding': typeof OnboardingRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/reset-password': typeof ResetPasswordRoute
   '/saved': typeof SavedRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
+  '/terms': typeof TermsRoute
   '/verify': typeof VerifyRoute
   '/videos': typeof VideosRoute
   '/welcome': typeof WelcomeRoute
@@ -278,9 +314,11 @@ export interface FileRouteTypes {
     | '/business-edit'
     | '/community'
     | '/create'
+    | '/delete-account'
     | '/discover'
     | '/forgot-password'
     | '/groups'
+    | '/guidelines'
     | '/help'
     | '/home'
     | '/invite'
@@ -288,11 +326,13 @@ export interface FileRouteTypes {
     | '/more'
     | '/notifications'
     | '/onboarding'
+    | '/privacy'
     | '/profile'
     | '/reset-password'
     | '/saved'
     | '/settings'
     | '/signup'
+    | '/terms'
     | '/verify'
     | '/videos'
     | '/welcome'
@@ -308,9 +348,11 @@ export interface FileRouteTypes {
     | '/business-edit'
     | '/community'
     | '/create'
+    | '/delete-account'
     | '/discover'
     | '/forgot-password'
     | '/groups'
+    | '/guidelines'
     | '/help'
     | '/home'
     | '/invite'
@@ -318,11 +360,13 @@ export interface FileRouteTypes {
     | '/more'
     | '/notifications'
     | '/onboarding'
+    | '/privacy'
     | '/profile'
     | '/reset-password'
     | '/saved'
     | '/settings'
     | '/signup'
+    | '/terms'
     | '/verify'
     | '/videos'
     | '/welcome'
@@ -338,9 +382,11 @@ export interface FileRouteTypes {
     | '/business-edit'
     | '/community'
     | '/create'
+    | '/delete-account'
     | '/discover'
     | '/forgot-password'
     | '/groups'
+    | '/guidelines'
     | '/help'
     | '/home'
     | '/invite'
@@ -348,11 +394,13 @@ export interface FileRouteTypes {
     | '/more'
     | '/notifications'
     | '/onboarding'
+    | '/privacy'
     | '/profile'
     | '/reset-password'
     | '/saved'
     | '/settings'
     | '/signup'
+    | '/terms'
     | '/verify'
     | '/videos'
     | '/welcome'
@@ -369,9 +417,11 @@ export interface RootRouteChildren {
   BusinessEditRoute: typeof BusinessEditRoute
   CommunityRoute: typeof CommunityRoute
   CreateRoute: typeof CreateRoute
+  DeleteAccountRoute: typeof DeleteAccountRoute
   DiscoverRoute: typeof DiscoverRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   GroupsRoute: typeof GroupsRoute
+  GuidelinesRoute: typeof GuidelinesRoute
   HelpRoute: typeof HelpRoute
   HomeRoute: typeof HomeRoute
   InviteRoute: typeof InviteRoute
@@ -379,11 +429,13 @@ export interface RootRouteChildren {
   MoreRoute: typeof MoreRoute
   NotificationsRoute: typeof NotificationsRoute
   OnboardingRoute: typeof OnboardingRoute
+  PrivacyRoute: typeof PrivacyRoute
   ProfileRoute: typeof ProfileRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SavedRoute: typeof SavedRoute
   SettingsRoute: typeof SettingsRoute
   SignupRoute: typeof SignupRoute
+  TermsRoute: typeof TermsRoute
   VerifyRoute: typeof VerifyRoute
   VideosRoute: typeof VideosRoute
   WelcomeRoute: typeof WelcomeRoute
@@ -431,6 +483,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CreateRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/delete-account': {
+      id: '/delete-account'
+      path: '/delete-account'
+      fullPath: '/delete-account'
+      preLoaderRoute: typeof DeleteAccountRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/discover': {
       id: '/discover'
       path: '/discover'
@@ -450,6 +509,13 @@ declare module '@tanstack/react-router' {
       path: '/groups'
       fullPath: '/groups'
       preLoaderRoute: typeof GroupsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guidelines': {
+      id: '/guidelines'
+      path: '/guidelines'
+      fullPath: '/guidelines'
+      preLoaderRoute: typeof GuidelinesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/help': {
@@ -501,6 +567,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/profile': {
       id: '/profile'
       path: '/profile'
@@ -534,6 +607,13 @@ declare module '@tanstack/react-router' {
       path: '/signup'
       fullPath: '/signup'
       preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/verify': {
@@ -601,9 +681,11 @@ const rootRouteChildren: RootRouteChildren = {
   BusinessEditRoute: BusinessEditRoute,
   CommunityRoute: CommunityRoute,
   CreateRoute: CreateRoute,
+  DeleteAccountRoute: DeleteAccountRoute,
   DiscoverRoute: DiscoverRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   GroupsRoute: GroupsRoute,
+  GuidelinesRoute: GuidelinesRoute,
   HelpRoute: HelpRoute,
   HomeRoute: HomeRoute,
   InviteRoute: InviteRoute,
@@ -611,11 +693,13 @@ const rootRouteChildren: RootRouteChildren = {
   MoreRoute: MoreRoute,
   NotificationsRoute: NotificationsRoute,
   OnboardingRoute: OnboardingRoute,
+  PrivacyRoute: PrivacyRoute,
   ProfileRoute: ProfileRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SavedRoute: SavedRoute,
   SettingsRoute: SettingsRoute,
   SignupRoute: SignupRoute,
+  TermsRoute: TermsRoute,
   VerifyRoute: VerifyRoute,
   VideosRoute: VideosRoute,
   WelcomeRoute: WelcomeRoute,

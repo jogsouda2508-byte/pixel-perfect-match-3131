@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Ban, Camera, ChevronRight, Loader2, Lock, MapPin, Star } from "lucide-react";
 import { Avatar } from "@/components/ediraa";
 import { CloseFriendsSheet } from "@/components/close-friends-sheet";
+import { AvatarCropper } from "@/components/avatar-cropper";
 import { SafetyListsSheet } from "@/components/safety-lists-sheet";
 import { useCloseFriendIds } from "@/lib/close-friends";
 import { CommunityNotifyCard } from "@/components/community-notify-card";
@@ -30,7 +31,8 @@ export const Route = createFileRoute("/settings")({
 });
 
 const BIO_MAX = 160;
-const MAX_FILE = 5 * 1024 * 1024;
+// The photo is cropped and shrunk to a small JPEG before upload, so a big camera photo is fine.
+const MAX_FILE = 15 * 1024 * 1024;
 const field =
   "w-full rounded-[14px] border border-border bg-elevated/40 px-4 py-3 text-sm outline-none transition placeholder:text-muted-foreground focus:border-primary";
 
@@ -141,13 +143,15 @@ function EditProfileCard({ profile }: { profile: Profile }) {
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
+  const [cropping, setCropping] = useState<File | null>(null);
+
   const pickFile = (f: File | undefined) => {
     if (!f) return;
     if (!/^image\/(jpeg|png|webp|gif)$/.test(f.type))
       return setError("Please choose a JPG, PNG, WebP or GIF image.");
-    if (f.size > MAX_FILE) return setError("Image must be 5 MB or smaller.");
+    if (f.size > MAX_FILE) return setError("Image must be 15 MB or smaller.");
     setError(undefined);
-    setFile(f);
+    setCropping(f); // move and zoom first; the cropped photo becomes `file`
   };
 
   const changed =
@@ -186,6 +190,16 @@ function EditProfileCard({ profile }: { profile: Profile }) {
 
   return (
     <section className="glass-card space-y-4 p-4">
+      {cropping && (
+        <AvatarCropper
+          file={cropping}
+          onCancel={() => setCropping(null)}
+          onDone={(cropped) => {
+            setFile(cropped);
+            setCropping(null);
+          }}
+        />
+      )}
       <h2 className="font-semibold">Edit profile</h2>
       <div className="flex flex-col items-center gap-2">
         <button
@@ -198,7 +212,6 @@ function EditProfileCard({ profile }: { profile: Profile }) {
             src={preview ?? profile.avatar_url}
             name={fullName || profile.username}
             size={88}
-            ring
           />
           <span className="absolute bottom-0 right-0 grid h-8 w-8 place-items-center rounded-full bg-primary text-primary-foreground">
             <Camera className="h-4 w-4" />
@@ -214,7 +227,7 @@ function EditProfileCard({ profile }: { profile: Profile }) {
             e.target.value = "";
           }}
         />
-        <p className="text-xs text-muted-foreground">Tap to change your photo (max 5 MB)</p>
+        <p className="text-xs text-muted-foreground">Tap to change your photo</p>
       </div>
       {error && (
         <p role="alert" className="text-center text-xs text-destructive">

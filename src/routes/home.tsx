@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { Bell, UsersRound, Loader2 } from "lucide-react";
+import { Bell, Loader2, Search as SearchIcon, UsersRound } from "lucide-react";
 import {
   Avatar,
   BottomNav,
@@ -12,6 +12,7 @@ import {
   Verified,
 } from "@/components/ediraa";
 import { CommunityBadge, CommunityHomeStrip } from "@/components/community-home";
+import { LocalTiles } from "@/components/local-tiles";
 import { LocalityPicker } from "@/components/locality-picker";
 import { PostCard } from "@/components/post-card";
 import { Stories } from "@/components/stories";
@@ -122,16 +123,14 @@ function HomePage() {
             ))}
           </div>
           <div className="order-2 flex shrink-0 items-center gap-2 md:order-2 md:gap-4">
-            {/* Community: phones only (desktop has it in the side menu). */}
             <Link
-              to="/community"
-              aria-label="Community"
-              className="group relative rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
+              to="/discover"
+              aria-label="Search"
+              className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
             >
-              <span className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-[#F3EFFF] to-[#E2DAFF] text-[#4F36D6] shadow-[0_4px_14px_-6px_rgba(79,54,214,0.5)] ring-1 ring-[#CFC3FF]/80 transition active:scale-95 dark:from-[#2E2460] dark:to-[#1C1740] dark:text-[#C9B8FF] dark:ring-white/10">
-                <UsersRound className="h-5 w-5" />
+              <span className="grid h-11 w-11 place-items-center rounded-full hover:bg-muted">
+                <SearchIcon className="h-6 w-6" />
               </span>
-              <CommunityBadge className="absolute -right-1 -top-1" />
             </Link>
             <Link
               to="/notifications"
@@ -150,6 +149,7 @@ function HomePage() {
             </Link>
           </div>
         </header>
+        <LocalTiles area={activeLocality} />
         <Stories onLocalHub={() => setTab("local")} />
         <section className="glass-card p-3">
           <Link

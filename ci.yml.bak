@@ -1,0 +1,25 @@
+name: Checks
+
+# Runs on every push and pull request, so broken code is caught before it reaches main.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+        env:
+          # Public values only. Add VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in
+          # GitHub -> Settings -> Secrets and variables -> Actions if the build needs them.
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}

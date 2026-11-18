@@ -63,7 +63,7 @@ function BusinessPage() {
       {isBusiness ? (
         <section className="glass-card space-y-4 p-4">
           <div className="flex items-center gap-3">
-            <Avatar src={profile?.avatar_url} name={name} size={56} ring />
+            <Avatar src={profile?.avatar_url} name={name} size={56} />
             <div className="min-w-0 flex-1">
               <p className="flex items-center gap-1.5 truncate font-semibold">
                 {name}

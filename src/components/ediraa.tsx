@@ -193,7 +193,7 @@ export function Avatar({
     />
   ) : (
     <div
-      className="grid h-full w-full place-items-center rounded-full border-2 border-background bg-gradient-brand font-semibold text-primary-foreground"
+      className="grid h-full w-full place-items-center rounded-full bg-primary/15 font-semibold text-primary"
       style={{ fontSize: Math.max(10, size * 0.38) }}
     >
       {initials || "?"}

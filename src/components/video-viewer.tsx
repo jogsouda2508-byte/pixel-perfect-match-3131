@@ -1021,7 +1021,7 @@ function VideoComments({
 
 function CommentItem({ comment }: { comment: CommentView }) {
   const author = comment.author;
-  const displayName = author?.full_name || author?.username || "Ediraa user";
+  const displayName = author?.full_name || author?.username || "SabZone user";
   return (
     <div className="flex items-start gap-3">
       {author?.username ? (

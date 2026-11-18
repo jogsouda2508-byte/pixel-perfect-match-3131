@@ -216,8 +216,22 @@ function SignUpForm() {
               className="mt-0.5 h-4 w-4 accent-[var(--primary)]"
             />
             <span>
-              I agree to the <span className="text-primary">Terms of Service</span> and{" "}
-              <span className="text-primary">Privacy Policy</span>
+              I agree to the{" "}
+              <Link
+                to="/terms"
+                target="_blank"
+                className="text-primary underline-offset-2 hover:underline"
+              >
+                Terms of Service
+              </Link>{" "}
+              and{" "}
+              <Link
+                to="/privacy"
+                target="_blank"
+                className="text-primary underline-offset-2 hover:underline"
+              >
+                Privacy Policy
+              </Link>
             </span>
           </label>
           {errors.terms && (
@@ -391,8 +405,22 @@ function GoogleCompleteSignup() {
               className="mt-0.5 h-4 w-4 accent-[var(--primary)]"
             />
             <span>
-              I agree to the <span className="text-primary">Terms of Service</span> and{" "}
-              <span className="text-primary">Privacy Policy</span>
+              I agree to the{" "}
+              <Link
+                to="/terms"
+                target="_blank"
+                className="text-primary underline-offset-2 hover:underline"
+              >
+                Terms of Service
+              </Link>{" "}
+              and{" "}
+              <Link
+                to="/privacy"
+                target="_blank"
+                className="text-primary underline-offset-2 hover:underline"
+              >
+                Privacy Policy
+              </Link>
             </span>
           </label>
           {errors.terms && (

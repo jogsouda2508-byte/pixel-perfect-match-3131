@@ -39,7 +39,7 @@ function toTagged(person: PersonRow): TaggedPerson {
 }
 
 /**
- * Search real Ediraa accounts and pick the people to tag. The list comes from the same backend
+ * Search real SabZone accounts and pick the people to tag. The list comes from the same backend
  * call as the rest of the app (`get_people`), which never returns you, unfinished sign-ups or
  * deleted accounts. The database re-checks every tag again when the post is published.
  */
@@ -114,7 +114,7 @@ export function TagPeoplePickerModal({
       open={open}
       onOpenChange={onOpenChange}
       title="Tag people"
-      description="Search Ediraa members to tag in this post."
+      description="Search SabZone members to tag in this post."
       footer={
         <>
           <Button

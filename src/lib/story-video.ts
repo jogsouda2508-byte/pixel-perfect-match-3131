@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomId } from "@/lib/uuid";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -159,7 +160,8 @@ export async function createVideoStory(args: {
   try {
     if (args.signal.aborted) throw new DOMException("Upload cancelled", "AbortError");
     const uploadId = randomId();
-    const { error } = await supabase.from("stories").insert(
+    // The generated types don't know close_friends_only yet, so this insert goes untyped.
+    const { error } = await (supabase as unknown as SupabaseClient).from("stories").insert(
       plan.segments.map((s) => ({
         author_id: args.authorId,
         media_type: "video" as const,

@@ -25,6 +25,8 @@ const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1
 export function safeAppPath(url: unknown): string {
   if (typeof url !== "string") return "/";
   const u = url.trim();
+  // Control characters are rejected on purpose: they enable header/redirect injection in push URLs.
+  // eslint-disable-next-line no-control-regex
   if (!u.startsWith("/") || u.startsWith("//") || u.includes("\\") || /[\u0000-\u001f]/.test(u)) {
     return "/";
   }
