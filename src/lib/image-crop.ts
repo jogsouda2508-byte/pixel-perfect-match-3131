@@ -8,7 +8,15 @@
 
 export const CROP_OUTPUT = 512; // pixels on each side of the saved photo
 export const MIN_ZOOM = 1;
-export const MAX_ZOOM = 4;
+/** Hard ceiling on zoom. A profile photo is a face, not a pore: past this it just looks cropped. */
+export const MAX_ZOOM = 3;
+/**
+ * Smallest piece of the original (in its own pixels) the user may zoom in to. Below this the saved
+ * 512 px photo would be a heavily stretched, blurry enlargement.
+ */
+export const MIN_SOURCE_PX = 160;
+/** How far up a portrait photo starts: faces sit in the upper part, so centring cuts off heads. */
+export const PORTRAIT_FOCUS = 0.3;
 export const CROP_QUALITY = 0.9;
 
 export type CropState = { zoom: number; x: number; y: number };
@@ -19,10 +27,35 @@ export function coverScale(imgW: number, imgH: number, view: number): number {
   return Math.max(view / imgW, view / imgH);
 }
 
+/**
+ * The most this picture can be zoomed: never above MAX_ZOOM, and never so far that the saved photo
+ * would be built from fewer than MIN_SOURCE_PX source pixels. Small pictures may not zoom at all.
+ */
+export function maxZoomFor(imgW: number, imgH: number): number {
+  const shortSide = Math.min(imgW, imgH);
+  if (!(shortSide > 0)) return MIN_ZOOM;
+  return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, shortSide / MIN_SOURCE_PX));
+}
+
+/**
+ * Where a freshly opened picture starts: zoom 1, centred sideways. Portrait photos are nudged
+ * towards the top so the face is not cut off; landscape and square ones stay centred.
+ */
+export function initialCrop(imgW: number, imgH: number, view: number): CropState {
+  const scale = coverScale(imgW, imgH, view);
+  const slackY = Math.max(0, (imgH * scale - view) / 2);
+  return clampCrop(
+    { zoom: 1, x: 0, y: imgH > imgW ? slackY * PORTRAIT_FOCUS : 0 },
+    imgW,
+    imgH,
+    view,
+  );
+}
+
 /** Keeps the zoom in range and the picture covering the whole window (no empty edges). */
 export function clampCrop(state: CropState, imgW: number, imgH: number, view: number): CropState {
   const zoom = Math.min(
-    MAX_ZOOM,
+    maxZoomFor(imgW, imgH),
     Math.max(MIN_ZOOM, Number.isFinite(state.zoom) ? state.zoom : MIN_ZOOM),
   );
   const scale = coverScale(imgW, imgH, view) * zoom;
@@ -48,7 +81,7 @@ export function zoomAround(
   imgH: number,
   view: number,
 ): CropState {
-  const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, nextZoom));
+  const clamped = Math.min(maxZoomFor(imgW, imgH), Math.max(MIN_ZOOM, nextZoom));
   const ratio = clamped / state.zoom;
   return clampCrop(
     { zoom: clamped, x: fx - (fx - state.x) * ratio, y: fy - (fy - state.y) * ratio },

@@ -3,7 +3,10 @@ import {
   clampCrop,
   coverScale,
   cropRegion,
+  initialCrop,
   MAX_ZOOM,
+  maxZoomFor,
+  MIN_SOURCE_PX,
   pointDistance,
   zoomAround,
 } from "@/lib/image-crop";
@@ -108,5 +111,40 @@ describe("cropRegion", () => {
 describe("pointDistance", () => {
   it("measures the gap between two fingers", () => {
     expect(pointDistance({ x: 0, y: 0 }, { x: 3, y: 4 })).toBe(5);
+  });
+});
+
+describe("maxZoomFor (no excessive zoom)", () => {
+  it("never exceeds MAX_ZOOM for big pictures", () => {
+    expect(maxZoomFor(4000, 3000)).toBe(MAX_ZOOM);
+  });
+  it("limits small pictures so the saved photo isn't a blurry enlargement", () => {
+    expect(maxZoomFor(240, 240)).toBeCloseTo(240 / MIN_SOURCE_PX);
+    expect(maxZoomFor(100, 100)).toBe(1); // too small to zoom at all
+    // the clamp honours it, and the region never drops below MIN_SOURCE_PX source pixels
+    const c = clampCrop({ zoom: 99, x: 0, y: 0 }, 240, 240, VIEW);
+    expect(c.zoom).toBeCloseTo(240 / MIN_SOURCE_PX);
+    expect(cropRegion(c, 240, 240, VIEW).size).toBeGreaterThanOrEqual(MIN_SOURCE_PX - 0.001);
+  });
+  it("survives bad sizes", () => {
+    expect(maxZoomFor(0, 0)).toBe(1);
+    expect(maxZoomFor(NaN, 500)).toBe(1);
+  });
+});
+
+describe("initialCrop (balanced start)", () => {
+  it("keeps landscape and square pictures centred", () => {
+    expect(initialCrop(1000, 500, VIEW)).toEqual({ zoom: 1, x: 0, y: 0 });
+    expect(initialCrop(800, 800, VIEW)).toEqual({ zoom: 1, x: 0, y: 0 });
+  });
+  it("starts portrait pictures above centre, still covering the window", () => {
+    const s = initialCrop(600, 1200, VIEW); // 300x600 at zoom 1: 150px of slack each way
+    expect(s.zoom).toBe(1);
+    expect(s.y).toBeGreaterThan(0); // picture shifted down = window looks higher up
+    expect(s.y).toBeLessThanOrEqual(150);
+    const r = cropRegion(s, 600, 1200, VIEW);
+    expect(r.sy).toBeGreaterThanOrEqual(0);
+    expect(r.sy).toBeLessThan((1200 - r.size) / 2); // higher than the centred crop
+    expect(r.size).toBeCloseTo(600); // full width used: face not squeezed or zoomed
   });
 });

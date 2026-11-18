@@ -112,6 +112,7 @@ function OnboardingPage() {
 
   const useCropped = (cropped: File) => {
     setFile(cropped);
+    if (preview) URL.revokeObjectURL(preview); // don't leak the previous crop's blob
     setPreview(URL.createObjectURL(cropped));
     setCropping(null);
   };

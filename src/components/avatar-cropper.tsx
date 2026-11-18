@@ -4,7 +4,8 @@ import {
   clampCrop,
   cropRegion,
   coverScale,
-  MAX_ZOOM,
+  initialCrop,
+  maxZoomFor,
   MIN_ZOOM,
   pointDistance,
   renderCrop,
@@ -164,6 +165,10 @@ export function AvatarCropper({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apply, onCancel, state.zoom, natural, view]);
 
+  // Zoom limit for this picture (small pictures can't be zoomed far without turning blurry).
+  const maxZoom = natural ? maxZoomFor(natural.w, natural.h) : MIN_ZOOM;
+  const canZoom = !!natural && maxZoom > MIN_ZOOM + 0.001;
+
   // ---- layout of the picture inside the window --------------------------------------------
   const layout = useMemo(() => {
     if (!natural) return null;
@@ -213,9 +218,11 @@ export function AvatarCropper({
             draggable={false}
             onLoad={(e) => {
               const i = e.currentTarget;
-              if (i.naturalWidth > 0 && i.naturalHeight > 0)
+              if (i.naturalWidth > 0 && i.naturalHeight > 0) {
                 setNatural({ w: i.naturalWidth, h: i.naturalHeight });
-              else setLoadError(true);
+                // start balanced (portraits favour the face) instead of dead-centre
+                setState(initialCrop(i.naturalWidth, i.naturalHeight, view));
+              } else setLoadError(true);
             }}
             onError={() => setLoadError(true)}
             className="pointer-events-none absolute max-w-none"
@@ -254,7 +261,7 @@ export function AvatarCropper({
           type="button"
           aria-label="Zoom out"
           onClick={() => setZoom(state.zoom / 1.15)}
-          disabled={!natural}
+          disabled={!canZoom}
           className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/10 disabled:opacity-40"
         >
           <Minus className="h-4 w-4" aria-hidden="true" />
@@ -263,10 +270,10 @@ export function AvatarCropper({
           type="range"
           aria-label="Zoom"
           min={MIN_ZOOM}
-          max={MAX_ZOOM}
+          max={maxZoom}
           step={0.01}
           value={state.zoom}
-          disabled={!natural}
+          disabled={!canZoom}
           onChange={(e) => setZoom(Number(e.target.value))}
           className="h-2 w-full flex-1 accent-[var(--primary)]"
         />
@@ -274,12 +281,14 @@ export function AvatarCropper({
           type="button"
           aria-label="Zoom in"
           onClick={() => setZoom(state.zoom * 1.15)}
-          disabled={!natural}
+          disabled={!canZoom}
           className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/10 disabled:opacity-40"
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
+
+      <p className="text-xs text-white/60">Drag to reposition · pinch or use the slider to zoom</p>
 
       {saveError && (
         <p role="alert" className="text-center text-sm text-red-300">
