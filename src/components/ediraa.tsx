@@ -189,7 +189,7 @@ export function Avatar({
     <img
       src={src}
       alt=""
-      className="aspect-square h-full w-full shrink-0 rounded-full border-2 border-background object-cover"
+      className="aspect-square h-full w-full shrink-0 rounded-full border-2 border-background object-cover object-center"
     />
   ) : (
     <div
