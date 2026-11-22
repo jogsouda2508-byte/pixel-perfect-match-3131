@@ -7,6 +7,7 @@ import {
   isMissingColumnError,
   isStoryLengthConstraintError,
 } from "@/lib/db-errors";
+import { inspectAndCleanVideo } from "@/lib/media-sanitize";
 import { storagePathFromPublicUrl, uploadVideoFile, validateVideoFile } from "@/lib/videos";
 
 /** A video story is never longer than this. */
@@ -122,6 +123,7 @@ export async function inspectStoryVideo(
   const problem = validateVideoFile(file);
   if (problem) return { ok: false, error: problem };
   try {
+    await inspectAndCleanVideo(file); // refuses files that are not really MP4 / MOV / WebM
     const durationSeconds = await readVideoDuration(file);
     if (durationSeconds > STORY_MAX_SECONDS + DURATION_TOLERANCE_SECONDS) {
       return {

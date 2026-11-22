@@ -55,6 +55,7 @@ import {
   useSeenStories,
 } from "@/lib/story-seen";
 import { timeAgo } from "@/lib/time";
+import { userMessage } from "@/lib/security";
 
 /** Story circle size: a little bigger on phones, unchanged on larger screens. */
 const AVATAR_DESKTOP = 56;
@@ -166,7 +167,7 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
           done += 1;
         }
       } catch (e) {
-        const reason = e instanceof Error && e.message ? e.message : "Couldn't add your story.";
+        const reason = userMessage(e, "Couldn't add your story.");
         throw new Error(
           files.length > 1 ? `Added ${done} of ${files.length} stories. ${reason}` : reason,
         );
@@ -182,7 +183,7 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
             : "Story added",
       );
     },
-    onError: (e: Error) => toast.error(e.message || "Couldn't add your story."),
+    onError: (e: Error) => toast.error(userMessage(e, "Couldn't add your story.")),
     // Returned (not fire-and-forget) so the upload stays "busy" until your new stories are in
     // the list. Otherwise a quick second tap would find no story yet and open the picker again.
     onSettled: async () => {
@@ -248,7 +249,7 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
     if (busy || syncing) return;
     if (isError) {
       toast.error("Couldn't load your stories.", {
-        description: loadError instanceof Error ? loadError.message : "Please try again.",
+        description: userMessage(loadError, "Please try again."),
       });
       void refetch();
       return;
@@ -305,7 +306,7 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
               // badge's bottom-right corner = avatar's bottom-right corner (row is COLUMN px wide, avatar centred,
               // 4px button padding on top); follows AVATAR if it is resized
               style={{ right: (COLUMN - AVATAR) / 2 - 4, top: 4 + AVATAR - 24 }}
-              className="absolute grid h-6 w-6 place-items-center rounded-full border-2 border-background bg-primary text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-80"
+              className="absolute grid h-6 w-6 place-items-center rounded-full border-2 border-card bg-gradient-brand text-primary-foreground shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-80"
             >
               {busy || syncing ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -348,11 +349,11 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
             <StoryButton label="Local Hub" ariaLabel="Open the Local feed" onClick={onLocalHub}>
               <div className="rounded-full bg-gradient-brand p-[2px]">
                 <div
-                  className="grid place-items-center rounded-full bg-background"
+                  className="grid place-items-center rounded-full bg-card"
                   style={{ height: AVATAR - 4, width: AVATAR - 4 }}
                 >
                   <MapPin
-                    className="text-success"
+                    className="text-primary"
                     style={{ height: AVATAR * 0.43, width: AVATAR * 0.43 }}
                   />
                 </div>
@@ -380,9 +381,7 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
               if ((await fetchCloseFriendIds(meId)).length > 0) return true;
               toast("Pick who is on your Close Friends list first.");
             } catch (e) {
-              toast.error(
-                e instanceof Error ? e.message : "Couldn't load your Close Friends list.",
-              );
+              toast.error(userMessage(e, "Couldn't load your Close Friends list."));
               return false;
             }
             setFriendsSheet(true);
@@ -436,10 +435,12 @@ function StoryButton({
       type="button"
       onClick={onClick}
       aria-label={ariaLabel}
-      className="flex w-full flex-col items-center gap-1.5 rounded-xl py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="group flex w-full flex-col items-center gap-1.5 rounded-xl py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       {children}
-      <span className="block w-full truncate px-0.5 text-center text-xs leading-4">{label}</span>
+      <span className="block w-full truncate px-0.5 text-center text-[11px] font-medium leading-4 text-muted-foreground transition-colors group-hover:text-foreground">
+        {label}
+      </span>
     </button>
   );
 }
@@ -675,10 +676,10 @@ function StoryViewer({
       onClick={onHeartButton}
       aria-pressed={stats.likedByMe}
       aria-label={stats.likedByMe ? "Unlike story" : "Like story"}
-      className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white/10 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+      className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white/10 ring-1 ring-white/10 backdrop-blur transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
     >
       <Heart
-        className={`h-6 w-6 ${stats.likedByMe ? "fill-red-500 text-red-500" : ""}`}
+        className={`sz-pop h-6 w-6 ${stats.likedByMe ? "fill-red-500 text-red-500" : ""}`}
         aria-hidden="true"
       />
     </button>
@@ -714,15 +715,15 @@ function StoryViewer({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex flex-col bg-black text-white"
+      className="sz-story-root fixed inset-0 z-[100] flex flex-col text-white"
       role="dialog"
       aria-label={`${group.name}'s story`}
     >
       <div className="flex gap-1 px-3 pt-3" aria-hidden="true">
         {group.items.map((s, idx) => (
-          <div key={s.id} className="h-1 flex-1 overflow-hidden rounded-full bg-white/25">
+          <div key={s.id} className="h-1 flex-1 overflow-hidden rounded-full bg-white/20">
             <div
-              className="h-full rounded-full bg-white"
+              className="sz-story-bar h-full rounded-full"
               style={{
                 width: `${idx < i ? 100 : idx === i ? fraction * 100 : 0}%`,
               }}
@@ -730,7 +731,7 @@ function StoryViewer({
           </div>
         ))}
       </div>
-      <div className="flex items-center gap-3 p-4">
+      <div className="sz-story-scrim-top flex items-center gap-3 p-4">
         {/* Tapping the author opens their profile (and closes the story). */}
         {group.username ? (
           <button
@@ -747,11 +748,11 @@ function StoryViewer({
           >
             <Avatar src={group.avatar} name={group.name} size={36} loading={videoLoading} />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold">{group.name}</p>
+              <p className="truncate font-display text-sm font-bold">{group.name}</p>
               <p className="flex items-center gap-1.5 text-xs text-white/70">
                 {timeAgo(item.created_at)}
                 {item.close_friends_only && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/90 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-success px-2 py-0.5 text-[10px] font-bold text-success-foreground">
                     <Star className="h-2.5 w-2.5 fill-current" aria-hidden="true" />
                     Close Friends
                   </span>
@@ -763,11 +764,11 @@ function StoryViewer({
           <>
             <Avatar src={group.avatar} name={group.name} size={36} loading={videoLoading} />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold">{group.name}</p>
+              <p className="truncate font-display text-sm font-bold">{group.name}</p>
               <p className="flex items-center gap-1.5 text-xs text-white/70">
                 {timeAgo(item.created_at)}
                 {item.close_friends_only && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/90 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-success px-2 py-0.5 text-[10px] font-bold text-success-foreground">
                     <Star className="h-2.5 w-2.5 fill-current" aria-hidden="true" />
                     Close Friends
                   </span>
@@ -788,7 +789,7 @@ function StoryViewer({
             aria-label={
               musicBlocked ? "Play the song" : musicMuted ? "Turn the song on" : "Mute the song"
             }
-            className={`rounded-full p-2 hover:bg-white/10 ${musicBlocked ? "animate-pulse bg-white/20" : ""}`}
+            className={`rounded-full p-2.5 transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${musicBlocked ? "animate-pulse bg-white/20" : ""}`}
           >
             {musicMuted || musicBlocked ? (
               <VolumeX className="h-5 w-5" />
@@ -801,7 +802,7 @@ function StoryViewer({
           <button
             onClick={onAdd}
             aria-label="Add another to your story"
-            className="rounded-full p-2 hover:bg-white/10"
+            className="rounded-full p-2.5 transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           >
             <Plus className="h-5 w-5" />
           </button>
@@ -812,7 +813,7 @@ function StoryViewer({
             username={group.username}
             report={{ type: "story", id: item.id, label: "Report story" }}
             trigger={<MoreHorizontal className="h-5 w-5" aria-hidden="true" />}
-            triggerClassName="rounded-full p-2 hover:bg-white/10"
+            triggerClassName="rounded-full p-2.5 transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             z={120}
             onOpenChange={setSafetyOpen}
             onDone={(a) => {
@@ -825,12 +826,16 @@ function StoryViewer({
             onClick={() => del.mutate(item)}
             disabled={del.isPending}
             aria-label={partOfMany ? "Delete this video story (all parts)" : "Delete story"}
-            className="rounded-full p-2 hover:bg-white/10"
+            className="rounded-full p-2.5 transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           >
             <Trash2 className="h-5 w-5" />
           </button>
         )}
-        <button onClick={onClose} aria-label="Close" className="rounded-full p-2 hover:bg-white/10">
+        <button
+          onClick={onClose}
+          aria-label="Close"
+          className="rounded-full p-2.5 transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+        >
           <X className="h-6 w-6" />
         </button>
       </div>
@@ -892,7 +897,7 @@ function StoryViewer({
           <button
             onClick={() => go(i - 1)}
             aria-label="Previous"
-            className="absolute left-2 rounded-full bg-black/50 p-2"
+            className="absolute left-2 rounded-full bg-black/40 p-2.5 ring-1 ring-white/15 backdrop-blur transition-colors hover:bg-black/60"
           >
             <ChevronLeft className="h-6 w-6" />
           </button>
@@ -901,7 +906,7 @@ function StoryViewer({
           <button
             onClick={() => go(i + 1)}
             aria-label="Next"
-            className="absolute right-2 rounded-full bg-black/50 p-2"
+            className="absolute right-2 rounded-full bg-black/40 p-2.5 ring-1 ring-white/15 backdrop-blur transition-colors hover:bg-black/60"
           >
             <ChevronRight className="h-6 w-6" />
           </button>
@@ -928,7 +933,7 @@ function StoryViewer({
               type="button"
               onClick={() => setViewersOpen(true)}
               aria-label={`Viewers: ${stats.views} ${stats.views === 1 ? "view" : "views"}, ${stats.likes} ${stats.likes === 1 ? "like" : "likes"}`}
-              className="flex min-h-11 items-center gap-4 rounded-full bg-white/10 px-4 text-sm font-medium hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              className="flex min-h-11 items-center gap-4 rounded-full bg-white/10 px-4 text-sm font-semibold ring-1 ring-white/10 backdrop-blur transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
               <span className="flex items-center gap-1.5">
                 <Eye className="h-5 w-5" aria-hidden="true" />
@@ -945,7 +950,7 @@ function StoryViewer({
               type="button"
               onClick={() => setPollSheetOpen(true)}
               aria-label="Add a poll to this story"
-              className="ml-auto flex min-h-11 items-center gap-2 rounded-full bg-white/10 px-4 text-sm font-medium hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              className="ml-auto flex min-h-11 items-center gap-2 rounded-full bg-white/10 px-4 text-sm font-semibold ring-1 ring-white/10 backdrop-blur transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
               <BarChart3 className="h-5 w-5" aria-hidden="true" />
               Poll
@@ -1037,7 +1042,7 @@ function StoryViewersSheet({ storyId, onClose }: { storyId: string; onClose: () 
           type="button"
           onClick={onClose}
           aria-label="Close viewers"
-          className="rounded-full p-2 hover:bg-white/10"
+          className="rounded-full p-2.5 transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
         >
           <X className="h-5 w-5" />
         </button>

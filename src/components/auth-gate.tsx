@@ -23,9 +23,10 @@ const PROTECTED = [
   "/settings",
   "/help",
   "/community",
+  "/invite",
 ];
-// Other people's profiles live at /u/<username>.
-const PROTECTED_PREFIXES = ["/u/", "/chat/"];
+// Other people's profiles live at /u/<username>; /post/<id> and /group/<id> are single posts and groups.
+const PROTECTED_PREFIXES = ["/u/", "/chat/", "/post/", "/group/"];
 // Need a session, but are the onboarding step itself.
 const ONBOARDING = "/onboarding";
 // Everything else (/verify, /reset-password, 404) is reachable in any state.

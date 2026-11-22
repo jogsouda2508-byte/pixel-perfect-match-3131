@@ -95,7 +95,8 @@ function PrivacyPage() {
             <p>
               We keep your data while your account exists. When you delete your account, your
               profile, posts, stories, comments, messages you sent, followers, listings, bookings
-              and uploaded files are removed. Reports about you may be kept without a link to a
+              and uploaded files are removed. A group you created that other people are in passes
+              to another member; a group with nobody else in it is deleted. Reports about you may be kept without a link to a
               profile so we can stop abuse. Backups are removed on their normal cycle. Copies of
               messages that other people received may remain in their chats.
             </p>

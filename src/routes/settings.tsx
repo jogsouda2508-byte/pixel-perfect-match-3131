@@ -19,6 +19,7 @@ import { useAuth } from "@/lib/auth";
 import { friendlyAuthError } from "@/lib/auth-errors";
 import { updateMyProfile, uploadAvatar } from "@/lib/social";
 import { passwordSchema, passwordStrength } from "@/lib/validation";
+import { userMessage } from "@/lib/security";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -81,7 +82,7 @@ function PrivacyCard({ profile }: { profile: Profile }) {
           : "Your account is now public. Pending requests were accepted.",
       );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Couldn't change your privacy setting.");
+      toast.error(userMessage(error, "Couldn't change your privacy setting."));
     } finally {
       setBusy(false);
     }
@@ -182,7 +183,7 @@ function EditProfileCard({ profile }: { profile: Profile }) {
       void qc.invalidateQueries({ queryKey: ["stories"] });
       toast.success("Profile updated");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Couldn't save your profile. Please try again.");
+      toast.error(userMessage(e, "Couldn't save your profile. Please try again."));
     } finally {
       setBusy(false);
     }

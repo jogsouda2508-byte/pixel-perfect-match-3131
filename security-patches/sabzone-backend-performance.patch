@@ -1,0 +1,1696 @@
+diff --git a/docs/BACKEND-PERFORMANCE.md b/docs/BACKEND-PERFORMANCE.md
+new file mode 100644
+index 0000000..567c547
+--- /dev/null
++++ b/docs/BACKEND-PERFORMANCE.md
+@@ -0,0 +1,128 @@
++# Backend performance audit (Nov 2026)
++
++Scope: database queries and indexes, API response times, caching, error handling, logging and
++monitoring, without weakening security. This was a **code and schema audit**: every finding comes
++from reading the 42 migrations that precede this patch, the client data layer and the `send-push` Edge Function. Nothing was
++run against the live Supabase project, so no query plan or timing from production is quoted. Section
++"How to measure" shows how to get those numbers; run it before and after applying the patch.
++
++## Findings
++
++| # | Area | Finding | Evidence | Status |
++|---|------|---------|----------|--------|
++| P1 | Indexes | 26 foreign-key columns had no index starting with them. Deleting an account (and joins by author) scanned whole tables, including `messages`, `post_comments`, `saved_posts`, `story_views`. | a static check over every `create table` / `alter table add column` / `create index`; now enforced by `src/test/migration-perf.test.ts` and `performance.assert.sql` | **Fixed** (migration `20261117000000`) |
++| P2 | RLS | All 121 policies (123 uses) wrote `auth.uid()` bare, so Postgres calls it again for every row checked; none used `(select auth.uid())`. | grep over migrations: 123 bare, 0 wrapped | **Fixed** (migration `20261117000001`) |
++| P3 | API time | `get_unread_notification_count()` built the whole notification list (7 sources + a scan of every chat message that shared a post, sorted, joined to profiles) only to count it. The home screen asks every 30 s. | function body in `20261018000000` calling `get_notifications(200)` | **Fixed** (counts each kind directly; shares were never counted) |
++| P4 | Caching | `new QueryClient()` with library defaults: data is stale immediately (every mount refetches) and every failed read is retried 3 times, even "permission denied" or "function missing". | `src/router.tsx` | **Fixed** (`src/lib/query-client.ts`) |
++| P5 | Monitoring | No timing, no slow-request signal, no crash monitor. A stalled mobile connection waited forever. | audit F: "Crash monitoring: none" | **Fixed in the app** (`src/lib/telemetry.ts`); external monitor still a choice for you |
++| P6 | Edge function | `send-push` fired every delivery at once (up to 500 people times their devices), with no deadline on the push services or Google, no size limit on the body and no timing in its logs. | `supabase/functions/send-push/index.ts` | **Fixed in the patch**, deploy is yours |
++| P7 | Search | Feed search and people search use `ilike '%text%'`. A leading wildcard cannot use a normal index, so they scan. A trigram index alone will **not** help: the `p_search is null or ...` shape and the function's `set search_path` stop the planner using it. | `get_feed`, `get_people` | Not changed (needs a query rewrite; see below) |
++| P8 | Notifications list | `get_notifications` still walks all of a person's likes, comments, follows and shared chat messages before sorting and keeping 30. Fine now; grows with account age. | `20261025000000` | Not changed (needs a design decision) |
++| P9 | Realtime | `chat-unread` and the chat list subscribe to `postgres_changes` on **all** of `messages` with no filter. Supabase checks row-level security per subscriber per change, which gets expensive with many users online. | `use-chat-unread.tsx`, `chat.index.tsx` | Not changed (see below) |
++| P10 | Feed | `posts_select_visible` calls `can_view_post()` per row. Needed for private accounts, and P2 cuts its per-row cost. | `20261021000001` | Not changed |
++
++What was already good (kept): indexes on feeds, chat, notifications sources and cascade children;
++long-lived `cacheControl` on content-addressed uploads; page sizes capped in every RPC
++(`least(p_limit, 50)`); the push function's token cache, shared-secret check and dead-subscription
++clean-up; cursor pagination (`p_before`) on the feed.
++
++## What the patch changes
++
++**Database** (run in order, both idempotent, neither touches data)
++
++1. `20261117000000_backend_performance.sql`
++   - 26 `create index if not exists`, one per foreign key (reports uses a partial index: most rows are null).
++   - `get_unread_notification_count()` rewritten as seven direct counts. Same rules as before: the
++     same seven kinds, chat shares never count, only things newer than `profiles.notifications_seen_at`,
++     capped at 100. It stays a plain function (not `security definer`), so row-level security still
++     decides what is counted, and it stays open to signed-in users only.
++     *One difference:* the old version counted among the newest 100 items *including* shares, so with
++     more than 100 new items it could show slightly less than 100. The new count is exact up to 100.
++2. `20261117000001_rls_initplan.sql` reads the policies that exist, wraps each `auth.uid()` as
++   `(select auth.uid())` and re-applies them with `alter policy`. It never drops or creates a
++   policy, never touches roles or commands, and compares a fingerprint of every policy's name,
++   command, roles and kind before and after; if anything differs it raises an error and rolls back.
++
++**App** (`src/`)
++
++- `lib/query-client.ts`: data stays fresh 15 s; failed reads retry at most twice and not at all for
++  permanent errors (HTTP 4xx except 408/429, permission/missing-object/constraint codes). Screens
++  that set their own `staleTime` keep it. Mutations still refresh with `invalidateQueries`.
++- `lib/telemetry.ts` wired in at `integrations/supabase/client.ts`:
++  times every Supabase request, keeps per-endpoint count / errors / slow / p50 / p95 / max, logs
++  **one JSON line** for a slow (> 2 s) or failed request, at most once per endpoint per 10 s, and
++  stops database and sign-in requests that get no answer for 30 s. Storage uploads are never timed
++  out. Labels are like `rpc/get_feed`; ids, filters, file names, headers and bodies are never recorded.
++  Read it in the browser console: `__sabzoneMetrics()`.
++
++**Edge function** (`supabase/functions/send-push/`, deploy yourself): at most 25 deliveries at once,
++10 s deadline for each push service / Google call, a 413 for a body over 64 KB (checked after the
++shared-secret check), and one numbers-only summary line per request (`send_push_done`, with the
++duration). The secret check, payload rules and clean-up are unchanged.
++
++## Security: what is preserved and how it is checked
++
++- No policy is added, removed or loosened (P2 aborts itself if the policy set changes).
++- `get_unread_notification_count` is still invoker-rights, `revoke ... from public, anon`, `grant ... to authenticated` (asserted in both test suites).
++- Telemetry and logs carry no ids, filters, bodies, tokens, endpoints or error messages (asserted).
++- The push function authenticates exactly as before and the new size check cannot run for an unauthenticated caller.
++
++## Apply order and rollback
++
++1. Apply the patch; review it.
++2. Run the two migrations (SQL Editor or `supabase db push`). **Index builds block writes to that table while they run.** The tables are small today, but if `messages`, `post_comments` or `post_likes` are already large, create those few indexes outside the transaction at a quiet time, for example `create index concurrently if not exists messages_sender_id_idx on public.messages (sender_id);` as a separate statement, then run the migration (it will skip them).
++3. Ship the app build. Deploy `send-push` when convenient (`supabase functions deploy send-push --no-verify-jwt`).
++
++Rollback, if ever needed:
++
++- Indexes: `drop index if exists public.<name>;` (names end in `_idx`; the list is in the migration).
++- Unread count: re-run the `get_unread_notification_count` block from `20261018000000_activity_vs_messages.sql`.
++- RLS wrapping is behaviour-neutral; to undo it anyway, reverse the replacement in the same style: `regexp_replace(qual, '\( SELECT auth\.uid\(\) AS uid\)', 'auth.uid()', 'g')` and `alter policy`.
++- App: revert `src/router.tsx` to `new QueryClient()` and remove `global.fetch` from `client.ts`.
++
++## How to measure (run in the Supabase SQL Editor, read-only)
++
++```sql
++-- slowest queries since the stats were last reset (extension pg_stat_statements is on by default)
++select calls, round(mean_exec_time::numeric, 1) as mean_ms,
++       round(total_exec_time::numeric) as total_ms, left(query, 120) as query
++from pg_stat_statements order by total_exec_time desc limit 20;
++
++-- tables read by sequential scan most often
++select relname, seq_scan, seq_tup_read, idx_scan, n_live_tup
++from pg_stat_user_tables order by seq_tup_read desc limit 15;
++
++-- indexes that are never used (check again after a few weeks; the new FK indexes are for deletes)
++select relname, indexrelname, idx_scan, pg_size_pretty(pg_relation_size(indexrelid))
++from pg_stat_user_indexes where idx_scan = 0 order by pg_relation_size(indexrelid) desc;
++
++-- how long does the polled call take for a real account? (replace the id)
++set local role authenticated; select set_config('request.jwt.claim.sub', '<user uuid>', true);
++explain (analyze, buffers) select public.get_unread_notification_count();
++```
++
++In the app: `__sabzoneMetrics().byEndpoint` shows p50 / p95 per endpoint; `.recentProblems` the last 50
++slow or failed requests. To forward them to a monitoring service, call
++`setTelemetrySink((event) => ...)` once at start-up (it receives only the label, status and timing).
++
++## Not done, and why
++
++- **Search (P7):** rewrite `get_feed` / `get_people` so the no-search path and the search path are separate
++  statements (plpgsql `if`), then add `pg_trgm` GIN indexes on `posts.content`, `profiles.full_name`,
++  `profiles.username`. Needs a database to verify the plans, so it is left for a change you can `EXPLAIN`.
++- **Notifications (P8):** if it becomes slow, move to a small `notifications` table written by triggers
++  (the push triggers already see each event) and keep a counter on `profiles`.
++- **Realtime (P9):** prefer one Broadcast channel per person for "new message" pings over a table-wide
++  `postgres_changes` subscription.
++- **Rate limits (earlier audit S4), the public username-to-email lookup (S1) and the public `chat-media` bucket (S2)** are still open; see `AUDIT-2026-11.md` and `PRIVACY-ACCOUNT-DELETION.md`.
++- Polling intervals (30 s unread counts) were left alone; they pause while the tab is hidden and the count is now cheap.
++
++## Tests added
++
++| File | What it proves |
++|------|----------------|
++| `src/test/migration-perf.test.ts` | every foreign key has a leading index (and the checker itself works); the RLS migration only alters policies and self-checks; the performance migration only adds indexes and keeps the permissions; later migrations keep using `(select auth.uid())` |
++| `src/test/query-client.test.ts` | permanent vs retryable errors, retry cap, defaults, delay cap |
++| `src/test/telemetry.test.ts` | id-free labels, percentiles, log throttling, no PII in logs, timeouts, caller aborts not counted as failures, sink isolation |
++| `src/test/send-push-perf.test.ts` | bounded concurrency keeps order, size guard fits a 500-person request, log line holds numbers only |
++| `supabase/tests/replay/performance.assert.sql` | on a real Postgres: no bare `auth.uid()`, every FK indexed, the new unread count equals the old way on seeded data, anon is still refused |
+diff --git a/src/integrations/supabase/client.ts b/src/integrations/supabase/client.ts
+index 160ac7e..06d6816 100644
+--- a/src/integrations/supabase/client.ts
++++ b/src/integrations/supabase/client.ts
+@@ -1,4 +1,5 @@
+ import { createClient } from "@supabase/supabase-js";
++import { createInstrumentedFetch } from "@/lib/telemetry";
+ import type { Database } from "./types";
+ 
+ // Only the PUBLIC (anon / publishable) key is ever used in the browser.
+@@ -21,5 +22,8 @@ export const supabase = createClient<Database>(
+       autoRefreshToken: true,
+       detectSessionInUrl: true,
+     },
++    // Times every request, logs slow / failed ones and stops requests that get no answer
++    // for 30 s (see src/lib/telemetry.ts). Looks fetch up at call time so tests can stub it.
++    global: { fetch: createInstrumentedFetch((input, init) => globalThis.fetch(input, init)) },
+   },
+ );
+diff --git a/src/lib/query-client.ts b/src/lib/query-client.ts
+new file mode 100644
+index 0000000..3b3d00c
+--- /dev/null
++++ b/src/lib/query-client.ts
+@@ -0,0 +1,53 @@
++import { QueryClient } from "@tanstack/react-query";
++
++/**
++ * Data stays "fresh" this long, so going back to a screen or switching tabs does not fire the
++ * same request again straight away. Screens that need something different set their own
++ * staleTime (community lists use 10-30 s, locations 5 min); mutations still refresh what they
++ * change with invalidateQueries, which ignores this.
++ */
++export const DEFAULT_STALE_MS = 15_000;
++
++/** Failed reads are retried at most this many times (React Query's default is 3). */
++export const MAX_QUERY_RETRIES = 2;
++
++type ErrorLike = { status?: unknown; statusCode?: unknown; code?: unknown };
++
++/**
++ * True when asking again cannot succeed: the request was refused or is wrong (HTTP 4xx other
++ * than "timed out" / "slow down", database permission / missing-object / constraint codes), as
++ * opposed to a dropped connection, a 5xx, or the database being busy.
++ */
++export function isPermanentError(error: unknown): boolean {
++  if (typeof error !== "object" || error === null) return false;
++  const { status, statusCode, code } = error as ErrorLike;
++
++  const http = Number(status ?? statusCode);
++  if (Number.isInteger(http) && http >= 400 && http < 500) return http !== 408 && http !== 429;
++
++  if (typeof code === "string") {
++    // PostgREST's own codes: PGRST000-003 = database unreachable / schema cache loading (transient)
++    if (/^PGRST00[0-3]$/.test(code)) return false;
++    if (code.startsWith("PGRST")) return true;
++    // SQLSTATE classes: 22 data, 23 integrity, 42 syntax / permission / missing object
++    if (/^(22|23|42)[0-9A-Z]{3}$/.test(code)) return true;
++  }
++  return false;
++}
++
++export function shouldRetryQuery(failureCount: number, error: unknown): boolean {
++  return failureCount < MAX_QUERY_RETRIES && !isPermanentError(error);
++}
++
++/** One place for the app's React Query defaults (router.tsx). */
++export function createQueryClient(): QueryClient {
++  return new QueryClient({
++    defaultOptions: {
++      queries: {
++        staleTime: DEFAULT_STALE_MS,
++        retry: shouldRetryQuery,
++        retryDelay: (attempt) => Math.min(1_000 * 2 ** attempt, 5_000),
++      },
++    },
++  });
++}
+diff --git a/src/lib/telemetry.ts b/src/lib/telemetry.ts
+new file mode 100644
+index 0000000..c051687
+--- /dev/null
++++ b/src/lib/telemetry.ts
+@@ -0,0 +1,278 @@
++/**
++ * Request timing, slow-request and failure logging for every call the app makes to Supabase.
++ *
++ * Wired in once, at the Supabase client (src/integrations/supabase/client.ts), so no screen has
++ * to change. It records how long each request took until the server answered, keeps small
++ * in-memory statistics (count, errors, slow, p50, p95, max per endpoint) and writes ONE
++ * structured log line for a slow or failing request, at most once per endpoint every 10 seconds.
++ *
++ * Privacy: only low-cardinality labels are kept ("rpc/get_feed", "rest/posts",
++ * "storage/object/avatars"). Query strings, filter values, user ids, file names, headers and
++ * bodies never reach a log or a metric. Failures keep only the error's name, not its message
++ * (messages can contain the URL).
++ *
++ * It also stops requests to the database and sign-in service that get no answer for 30 s
++ * (a stalled mobile connection would otherwise wait forever). Storage uploads and downloads
++ * are never timed out: a big video upload can legitimately take minutes.
++ *
++ * Read the numbers in the browser console: `__sabzoneMetrics()`.
++ */
++
++export const SLOW_REQUEST_MS = 2_000;
++export const REQUEST_TIMEOUT_MS = 30_000;
++const LOG_EVERY_MS = 10_000;
++const MAX_SAMPLES_PER_LABEL = 200;
++const MAX_LABELS = 150;
++const MAX_RECENT_PROBLEMS = 50;
++
++export type Outcome = "ok" | "http_error" | "network_error" | "timeout";
++
++export type RequestRecord = {
++  label: string;
++  method: string;
++  /** HTTP status, or 0 when no answer arrived */
++  status: number;
++  /** milliseconds until the server answered (headers received) */
++  ms: number;
++  outcome: Outcome;
++  at: number;
++};
++
++export type LabelSummary = {
++  count: number;
++  errors: number;
++  slow: number;
++  p50: number;
++  p95: number;
++  max: number;
++};
++
++/**
++ * A short, id-free name for a Supabase URL. Anything unrecognised becomes "other" so a new
++ * kind of URL can never leak into logs by accident.
++ */
++export function routeLabel(rawUrl: string): string {
++  let path: string;
++  try {
++    path = new URL(rawUrl, "http://local.invalid").pathname;
++  } catch {
++    return "other";
++  }
++  const seg = path.split("/").filter(Boolean);
++  const safe = (s: string | undefined) => (s && /^[A-Za-z0-9_-]{1,64}$/.test(s) ? s : "?");
++  if (seg[0] === "rest" && seg[1] === "v1") {
++    if (seg[2] === "rpc") return `rpc/${safe(seg[3])}`;
++    return `rest/${safe(seg[2])}`;
++  }
++  if (seg[0] === "storage" && seg[1] === "v1") {
++    // /storage/v1/object/<bucket>/<user id>/<file> : keep the operation and the bucket only
++    const kinds = ["public", "sign", "list"];
++    const op = seg[2] === "object" && kinds.includes(seg[3] ?? "") ? (seg[3] ?? "") : "";
++    const bucket = seg[2] === "object" ? seg[op ? 4 : 3] : seg[3];
++    return `storage/${safe(seg[2])}${op ? `/${op}` : ""}/${safe(bucket)}`;
++  }
++  if (seg[0] === "auth" && seg[1] === "v1") return `auth/${safe(seg[2])}`;
++  if (seg[0] === "functions" && seg[1] === "v1") return `functions/${safe(seg[2])}`;
++  return "other";
++}
++
++/** Nearest-rank percentile of an ascending list (p between 0 and 100). */
++export function percentile(sortedAscending: number[], p: number): number {
++  if (sortedAscending.length === 0) return 0;
++  const rank = Math.ceil((p / 100) * sortedAscending.length);
++  return sortedAscending[Math.min(sortedAscending.length, Math.max(1, rank)) - 1] ?? 0;
++}
++
++export class RequestMetrics {
++  private samples = new Map<string, number[]>();
++  private totals = new Map<string, { count: number; errors: number; slow: number }>();
++  private problems: RequestRecord[] = [];
++
++  record(rec: RequestRecord): void {
++    let label = rec.label;
++    if (!this.totals.has(label) && this.totals.size >= MAX_LABELS) label = "other";
++
++    const total = this.totals.get(label) ?? { count: 0, errors: 0, slow: 0 };
++    total.count++;
++    if (rec.outcome !== "ok") total.errors++;
++    if (rec.ms >= SLOW_REQUEST_MS) total.slow++;
++    this.totals.set(label, total);
++
++    const list = this.samples.get(label) ?? [];
++    list.push(rec.ms);
++    if (list.length > MAX_SAMPLES_PER_LABEL) list.shift();
++    this.samples.set(label, list);
++
++    if (rec.outcome !== "ok" || rec.ms >= SLOW_REQUEST_MS) {
++      this.problems.push(rec);
++      if (this.problems.length > MAX_RECENT_PROBLEMS) this.problems.shift();
++    }
++  }
++
++  summary(): Record<string, LabelSummary> {
++    const out: Record<string, LabelSummary> = {};
++    for (const [label, total] of this.totals) {
++      const sorted = [...(this.samples.get(label) ?? [])].sort((a, b) => a - b);
++      out[label] = {
++        ...total,
++        p50: percentile(sorted, 50),
++        p95: percentile(sorted, 95),
++        max: sorted[sorted.length - 1] ?? 0,
++      };
++    }
++    return out;
++  }
++
++  recentProblems(): RequestRecord[] {
++    return [...this.problems];
++  }
++
++  reset(): void {
++    this.samples.clear();
++    this.totals.clear();
++    this.problems = [];
++  }
++}
++
++export const metrics = new RequestMetrics();
++
++export type TelemetryEvent = { type: "slow" | "error"; record: RequestRecord };
++type Sink = (event: TelemetryEvent) => void;
++let sink: Sink | null = null;
++
++/** Optional: forward slow/failed requests to an external monitor (never receives ids or bodies). */
++export function setTelemetrySink(next: Sink | null): void {
++  sink = next;
++}
++
++const lastLogged = new Map<string, { at: number; suppressed: number }>();
++
++/** One JSON line. Goes through console, so the app's existing error capture sees errors too. */
++function logProblem(rec: RequestRecord, type: "slow" | "error", now: number): void {
++  const key = `${type}:${rec.label}`;
++  const prev = lastLogged.get(key);
++  if (prev && now - prev.at < LOG_EVERY_MS) {
++    prev.suppressed++;
++    return;
++  }
++  const suppressed = prev?.suppressed ?? 0;
++  lastLogged.set(key, { at: now, suppressed: 0 });
++  const line = JSON.stringify({
++    event: type === "slow" ? "slow_request" : "request_failed",
++    label: rec.label,
++    method: rec.method,
++    status: rec.status,
++    ms: Math.round(rec.ms),
++    outcome: rec.outcome,
++    ...(suppressed > 0 && { similar_suppressed: suppressed }),
++  });
++  if (type === "slow") console.warn(line);
++  else console.error(line);
++}
++
++function report(rec: RequestRecord, now: number): void {
++  metrics.record(rec);
++  const failed = rec.outcome === "network_error" || rec.outcome === "timeout" || rec.status >= 500;
++  const slow = rec.ms >= SLOW_REQUEST_MS;
++  if (failed) logProblem(rec, "error", now);
++  else if (slow) logProblem(rec, "slow", now);
++  if ((failed || slow) && sink) {
++    try {
++      sink({ type: failed ? "error" : "slow", record: rec });
++    } catch {
++      /* a broken sink must never break a request */
++    }
++  }
++}
++
++function timeoutFor(label: string): number | null {
++  return label.startsWith("rest/") || label.startsWith("rpc/") || label.startsWith("auth/")
++    ? REQUEST_TIMEOUT_MS
++    : null;
++}
++
++type FetchFn = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
++
++export function createInstrumentedFetch(
++  base: FetchFn,
++  options: { timeoutMs?: number | null | undefined; now?: () => number } = {},
++): FetchFn {
++  const clock = options.now ?? (() => Date.now());
++  return async (input, init) => {
++    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
++    const inputMethod = typeof input === "object" && "method" in input ? input.method : "GET";
++    const method = (init?.method ?? inputMethod).toUpperCase();
++    const label = routeLabel(url);
++    const limit = options.timeoutMs === undefined ? timeoutFor(label) : options.timeoutMs;
++
++    const started = clock();
++    const controller = limit ? new AbortController() : null;
++    let timedOut = false;
++    let timer: ReturnType<typeof setTimeout> | undefined;
++    let detach: (() => void) | undefined;
++
++    if (controller && limit) {
++      const outer = init?.signal ?? undefined;
++      if (outer) {
++        if (outer.aborted) controller.abort(outer.reason);
++        else {
++          const onAbort = () => controller.abort(outer.reason);
++          outer.addEventListener("abort", onAbort, { once: true });
++          detach = () => outer.removeEventListener("abort", onAbort);
++        }
++      }
++      timer = setTimeout(() => {
++        timedOut = true;
++        controller.abort(new DOMException("The request timed out", "TimeoutError"));
++      }, limit);
++    }
++
++    try {
++      const response = await base(
++        input,
++        controller ? { ...init, signal: controller.signal } : init,
++      );
++      const ms = clock() - started;
++      report(
++        {
++          label,
++          method,
++          status: response.status,
++          ms,
++          outcome: response.status >= 400 ? "http_error" : "ok",
++          at: started,
++        },
++        clock(),
++      );
++      return response;
++    } catch (error) {
++      const ms = clock() - started;
++      // A request the caller cancelled on purpose (navigated away) is not a failure.
++      const cancelled = !timedOut && (error as { name?: string } | null)?.name === "AbortError";
++      if (!cancelled) {
++        const outcome = timedOut ? "timeout" : "network_error";
++        report({ label, method, status: 0, ms, outcome, at: started }, clock());
++      }
++      throw error;
++    } finally {
++      if (timer !== undefined) clearTimeout(timer);
++      detach?.();
++    }
++  };
++}
++
++declare global {
++  interface Window {
++    __sabzoneMetrics?: () => {
++      byEndpoint: Record<string, LabelSummary>;
++      recentProblems: RequestRecord[];
++    };
++  }
++}
++
++if (typeof window !== "undefined") {
++  window.__sabzoneMetrics = () => ({
++    byEndpoint: metrics.summary(),
++    recentProblems: metrics.recentProblems(),
++  });
++}
+diff --git a/src/router.tsx b/src/router.tsx
+index 3423d59..4c61f15 100644
+--- a/src/router.tsx
++++ b/src/router.tsx
+@@ -1,9 +1,9 @@
+-import { QueryClient } from "@tanstack/react-query";
+ import { createRouter } from "@tanstack/react-router";
++import { createQueryClient } from "./lib/query-client";
+ import { routeTree } from "./routeTree.gen";
+ 
+ export const getRouter = () => {
+-  const queryClient = new QueryClient();
++  const queryClient = createQueryClient();
+ 
+   const router = createRouter({
+     routeTree,
+diff --git a/src/test/migration-perf.test.ts b/src/test/migration-perf.test.ts
+new file mode 100644
+index 0000000..97ce671
+--- /dev/null
++++ b/src/test/migration-perf.test.ts
+@@ -0,0 +1,206 @@
++import { readdirSync, readFileSync } from "node:fs";
++import path from "node:path";
++import { describe, expect, it } from "vitest";
++
++// Static guards for the database's speed and safety. They read the migration files, so they run in
++// plain CI without a database. The real-Postgres versions of the same checks are in
++// supabase/tests/replay/performance.assert.sql.
++
++const DIR = path.resolve(__dirname, "../../supabase/migrations");
++const files = readdirSync(DIR)
++  .filter((f) => f.endsWith(".sql"))
++  .sort();
++const read = (name: string) => readFileSync(path.join(DIR, name), "utf8");
++const strip = (sql: string) => sql.replace(/--[^\n]*/g, "");
++
++const PERF = "20261117000000_backend_performance.sql";
++const RLS = "20261117000001_rls_initplan.sql";
++
++// ---- foreign keys without an index of their own ---------------------------------------------
++
++type Table = { fks: { col: string; target: string }[]; lead: Set<string> };
++
++function splitTop(body: string): string[] {
++  const parts: string[] = [];
++  let depth = 0;
++  let cur = "";
++  for (const ch of body) {
++    if (ch === "(") depth++;
++    if (ch === ")") depth--;
++    if (ch === "," && depth === 0) {
++      parts.push(cur);
++      cur = "";
++    } else cur += ch;
++  }
++  if (cur.trim()) parts.push(cur);
++  return parts.map((p) => p.trim());
++}
++
++const firstCol = (text: string): string | undefined => {
++  const inside = /\(([^)]*)\)/.exec(text)?.[1] ?? "";
++  return /\w+/.exec(inside)?.[0];
++};
++
++/** Foreign-key columns that no primary key, unique constraint or index starts with. */
++export function foreignKeysWithoutIndex(sqlFiles: string[]): string[] {
++  const sql = strip(sqlFiles.join("\n"));
++  const tables = new Map<string, Table>();
++  const table = (n: string): Table => {
++    let t = tables.get(n);
++    if (!t) tables.set(n, (t = { fks: [], lead: new Set() }));
++    return t;
++  };
++
++  const create = /create table(?: if not exists)? (?:public\.)?(\w+)\s*\(([\s\S]*?)\n\)\s*;/gi;
++  for (const m of sql.matchAll(create)) {
++    const t = table(m[1] ?? "");
++    for (const part of splitTop(m[2] ?? "")) {
++      const low = part.toLowerCase();
++      if (low.startsWith("primary key") || low.startsWith("unique")) {
++        const c = firstCol(part);
++        if (c) t.lead.add(c);
++      } else if (/^(constraint|check|foreign key)/.test(low)) {
++        const fk = /foreign key\s*\((\w+)\)\s*references\s+(?:public\.)?([\w.]+)/i.exec(part);
++        if (fk) t.fks.push({ col: fk[1] ?? "", target: fk[2] ?? "" });
++        const u = /unique\s*\(([^)]*)\)/i.exec(part);
++        const uc = u ? /\w+/.exec(u[1] ?? "")?.[0] : undefined;
++        if (uc) t.lead.add(uc);
++        const pk = /primary key\s*\(([^)]*)\)/i.exec(part);
++        const pc = pk ? /\w+/.exec(pk[1] ?? "")?.[0] : undefined;
++        if (pc) t.lead.add(pc);
++      } else {
++        const col = /^(\w+)\s/.exec(part)?.[1];
++        if (!col) continue;
++        if (low.includes("primary key") || / unique/.test(low)) t.lead.add(col);
++        const ref = /references\s+(?:public\.)?([\w.]+)/i.exec(part);
++        if (ref) t.fks.push({ col, target: ref[1] ?? "" });
++      }
++    }
++  }
++
++  const alter =
++    /alter table(?: if exists)?(?: only)? (?:public\.)?(\w+)\s+add column(?: if not exists)? (\w+)([^;]*?)(?:;|,\s*add column)/gi;
++  for (const m of sql.matchAll(alter)) {
++    const ref = /references\s+(?:public\.)?([\w.]+)/i.exec(m[3] ?? "");
++    if (ref) table(m[1] ?? "").fks.push({ col: m[2] ?? "", target: ref[1] ?? "" });
++  }
++
++  const index =
++    /create (?:unique )?index(?: if not exists)? \w+\s+on\s+(?:public\.)?(\w+)(?:\s+using\s+\w+)?\s*\(\s*([^)]*?)\)/gi;
++  for (const m of sql.matchAll(index)) {
++    const c = /\w+/.exec(m[2] ?? "")?.[0];
++    if (c) table(m[1] ?? "").lead.add(c);
++  }
++
++  const missing: string[] = [];
++  for (const [name, t] of [...tables].sort(([a], [b]) => a.localeCompare(b))) {
++    for (const fk of t.fks) if (!t.lead.has(fk.col)) missing.push(`${name}.${fk.col} -> ${fk.target}`);
++  }
++  return missing;
++}
++
++describe("foreign-key indexes", () => {
++  it("every foreign key column starts an index (deleting a person must not scan whole tables)", () => {
++    expect(foreignKeysWithoutIndex(files.map(read))).toEqual([]);
++  });
++
++  it("the checker really catches a missing index (and accepts a covered one)", () => {
++    const parent = "create table public.parent (\n  id uuid primary key\n);";
++    const child = (extra: string) =>
++      "create table public.child (\n  id uuid,\n" +
++      `  parent_id uuid references public.parent (id) on delete cascade${extra}\n);`;
++    const bad = `${parent}\n${child("")}`;
++    expect(foreignKeysWithoutIndex([bad])).toEqual(["child.parent_id -> parent"]);
++    const indexed = `${bad}\ncreate index child_parent_idx on public.child (parent_id);`;
++    expect(foreignKeysWithoutIndex([indexed])).toEqual([]);
++    // the FK column leading a composite key counts; trailing it does not
++    const leading = `${parent}\n${child(",\n  primary key (parent_id, id)")}`;
++    expect(foreignKeysWithoutIndex([leading])).toEqual([]);
++    const trailing = `${parent}\n${child(",\n  primary key (id, parent_id)")}`;
++    expect(foreignKeysWithoutIndex([trailing])).toEqual(["child.parent_id -> parent"]);
++  });
++});
++
++// ---- row-level security stays exactly as strict, only faster --------------------------------
++
++describe("row-level-security speed-up", () => {
++  const sql = strip(read(RLS));
++
++  it("only alters policies: it never drops or creates one", () => {
++    expect(/drop\s+policy/i.test(sql)).toBe(false);
++    expect(/create\s+policy/i.test(sql)).toBe(false);
++    expect(/alter policy/i.test(sql)).toBe(true);
++  });
++
++  it("changes only the expressions, never the roles or the command", () => {
++    // ALTER POLICY without TO keeps the roles; FOR / TO would be a syntax error anyway
++    expect(/alter policy[^;]*\bto\b/i.test(sql.replace(/format\([^)]*\)/gi, ""))).toBe(false);
++  });
++
++  it("checks that the set of policies is unchanged and aborts if not", () => {
++    expect(sql).toMatch(/pg_policies/);
++    expect(sql).toMatch(/raise exception/i);
++  });
++
++  it("is safe to run twice: it skips an auth.uid() that is already wrapped", () => {
++    expect(sql).toContain("(?<!select )auth");
++  });
++
++  it("migrations after it keep writing (select auth.uid()) in new policies", () => {
++    const later = files.filter((f) => f > RLS);
++    const offenders: string[] = [];
++    for (const f of later) {
++      for (const m of strip(read(f)).matchAll(/create\s+policy[\s\S]*?;/gi)) {
++        if (/(?<!select\s)auth\.uid\(\)/i.test(m[0])) offenders.push(f);
++      }
++    }
++    expect(offenders).toEqual([]);
++  });
++});
++
++// ---- the performance migration changes no data and no permission ---------------------------
++
++describe("backend performance migration", () => {
++  const sql = strip(read(PERF));
++
++  it("only adds indexes and replaces the one count function", () => {
++    expect(/\b(delete|truncate|drop|update|insert)\b/i.test(sql)).toBe(false);
++    expect(/alter\s+table/i.test(sql)).toBe(false);
++    expect(/create\s+(or replace\s+)?function/gi.exec(sql)).not.toBe(null);
++    const functions = [...sql.matchAll(/create or replace function ([\w.]+)/gi)].map((m) => m[1]);
++    expect(functions).toEqual(["public.get_unread_notification_count"]);
++  });
++
++  it("every index is idempotent and inside the transaction (no CONCURRENTLY)", () => {
++    const creates = [...sql.matchAll(/create\s+index[^;]*;/gi)].map((m) => m[0]);
++    expect(creates.length).toBeGreaterThan(20);
++    for (const c of creates) expect(c).toMatch(/if not exists/i);
++    expect(/concurrently/i.test(sql)).toBe(false);
++  });
++
++  it("keeps the unread count a plain (RLS-respecting) function open to signed-in users only", () => {
++    expect(/security\s+definer/i.test(sql)).toBe(false);
++    expect(sql).toMatch(
++      /revoke all on function public\.get_unread_notification_count\(\) from public, anon;/i,
++    );
++    expect(sql).toMatch(
++      /grant execute on function public\.get_unread_notification_count\(\) to authenticated;/i,
++    );
++  });
++
++  it("counts the same kinds as the notification list, and never a chat share", () => {
++    const body = sql.slice(sql.indexOf("create or replace function"));
++    for (const table of [
++      "post_likes",
++      "post_comments",
++      "follows",
++      "post_tags",
++      "story_views",
++      "follow_requests",
++    ]) {
++      expect(body.includes(`public.${table}`)).toBe(true);
++    }
++    expect(body.includes("shared_post_id")).toBe(false);
++    expect(body.includes("public.messages")).toBe(false);
++  });
++});
+diff --git a/src/test/query-client.test.ts b/src/test/query-client.test.ts
+new file mode 100644
+index 0000000..5dede91
+--- /dev/null
++++ b/src/test/query-client.test.ts
+@@ -0,0 +1,74 @@
++import { describe, expect, it } from "vitest";
++import {
++  DEFAULT_STALE_MS,
++  MAX_QUERY_RETRIES,
++  createQueryClient,
++  isPermanentError,
++  shouldRetryQuery,
++} from "@/lib/query-client";
++
++describe("isPermanentError", () => {
++  it("treats refused or malformed requests as permanent", () => {
++    expect(isPermanentError({ status: 401 })).toBe(true);
++    expect(isPermanentError({ status: 403 })).toBe(true);
++    expect(isPermanentError({ status: 404 })).toBe(true);
++    expect(isPermanentError({ statusCode: "406" })).toBe(true);
++  });
++
++  it("treats database permission, missing-object and integrity codes as permanent", () => {
++    expect(isPermanentError({ code: "42501" })).toBe(true); // row-level security / permission
++    expect(isPermanentError({ code: "42883" })).toBe(true); // missing function (migration not run)
++    expect(isPermanentError({ code: "42P01" })).toBe(true); // missing table
++    expect(isPermanentError({ code: "23505" })).toBe(true); // duplicate
++    expect(isPermanentError({ code: "22P02" })).toBe(true); // bad input
++    expect(isPermanentError({ code: "PGRST202" })).toBe(true);
++    expect(isPermanentError({ code: "PGRST116" })).toBe(true);
++  });
++
++  it("keeps retrying what can recover: timeouts, throttling, 5xx, a busy database, a bad network", () => {
++    expect(isPermanentError({ status: 408 })).toBe(false);
++    expect(isPermanentError({ status: 429 })).toBe(false);
++    expect(isPermanentError({ status: 500 })).toBe(false);
++    expect(isPermanentError({ status: 503 })).toBe(false);
++    expect(isPermanentError({ code: "PGRST000" })).toBe(false);
++    expect(isPermanentError({ code: "PGRST002" })).toBe(false);
++    expect(isPermanentError({ code: "57014" })).toBe(false); // statement timeout
++    expect(isPermanentError(new TypeError("Failed to fetch"))).toBe(false);
++    expect(isPermanentError(null)).toBe(false);
++    expect(isPermanentError("boom")).toBe(false);
++  });
++});
++
++describe("shouldRetryQuery", () => {
++  it("retries a transient failure up to the limit, then stops", () => {
++    const transient = { status: 503 };
++    expect(shouldRetryQuery(0, transient)).toBe(true);
++    expect(shouldRetryQuery(MAX_QUERY_RETRIES - 1, transient)).toBe(true);
++    expect(shouldRetryQuery(MAX_QUERY_RETRIES, transient)).toBe(false);
++  });
++
++  it("never retries a permanent failure", () => {
++    expect(shouldRetryQuery(0, { code: "42501" })).toBe(false);
++    expect(shouldRetryQuery(0, { status: 403 })).toBe(false);
++  });
++});
++
++describe("createQueryClient", () => {
++  it("applies the app defaults", () => {
++    const q = createQueryClient().getDefaultOptions().queries;
++    expect(q?.staleTime).toBe(DEFAULT_STALE_MS);
++    expect(q?.retry).toBe(shouldRetryQuery);
++  });
++
++  it("caps the retry delay so a failing screen settles quickly", () => {
++    const delay = createQueryClient().getDefaultOptions().queries?.retryDelay;
++    if (typeof delay !== "function") throw new Error("retryDelay should be a function");
++    expect(delay(0, new Error("x"))).toBe(1_000);
++    expect(delay(1, new Error("x"))).toBe(2_000);
++    expect(delay(10, new Error("x"))).toBe(5_000);
++  });
++
++  it("returns an independent client each time (one per server request)", () => {
++    expect(createQueryClient() === createQueryClient()).toBe(false);
++  });
++});
+diff --git a/src/test/send-push-perf.test.ts b/src/test/send-push-perf.test.ts
+new file mode 100644
+index 0000000..f810525
+--- /dev/null
++++ b/src/test/send-push-perf.test.ts
+@@ -0,0 +1,111 @@
++import { describe, expect, it } from "vitest";
++import {
++  DELIVERY_TIMEOUT_MS,
++  MAX_BODY_BYTES,
++  MAX_CONCURRENT_DELIVERIES,
++  MAX_RECIPIENTS,
++  isBodyTooLarge,
++  mapWithConcurrency,
++  pushSummaryLog,
++} from "../../supabase/functions/send-push/logic";
++
++const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
++
++describe("mapWithConcurrency", () => {
++  it("returns results in input order", async () => {
++    const out = await mapWithConcurrency([30, 5, 15, 1], 2, async (n) => {
++      await sleep(n);
++      return n * 2;
++    });
++    expect(out).toEqual([60, 10, 30, 2]);
++  });
++
++  it("never runs more than `limit` at once", async () => {
++    let running = 0;
++    let peak = 0;
++    await mapWithConcurrency(Array.from({ length: 20 }, (_, i) => i), 4, async () => {
++      running++;
++      peak = Math.max(peak, running);
++      await sleep(3);
++      running--;
++    });
++    expect(peak).toBe(4);
++  });
++
++  it("handles an empty list, a limit above the size, and a nonsense limit", async () => {
++    expect(await mapWithConcurrency([], 5, async (x: number) => x)).toEqual([]);
++    expect(await mapWithConcurrency([1, 2], 50, async (x) => x + 1)).toEqual([2, 3]);
++    expect(await mapWithConcurrency([1, 2, 3], 0, async (x) => x)).toEqual([1, 2, 3]);
++    expect(await mapWithConcurrency([1, 2, 3], Number.NaN, async (x) => x)).toEqual([1, 2, 3]);
++  });
++
++  it("passes the index and rejects when a task throws", async () => {
++    const seen: number[] = [];
++    await mapWithConcurrency(["a", "b", "c"], 2, async (_, i) => void seen.push(i));
++    expect(seen.sort()).toEqual([0, 1, 2]);
++    await expect(
++      mapWithConcurrency([1, 2], 2, async () => {
++        throw new Error("boom");
++      }),
++    ).rejects.toBeInstanceOf(Error);
++  });
++
++  it("is fast enough for one request's worst case", () => {
++    // 500 recipients with 25 at a time = 20 waves, not 500 simultaneous connections
++    expect(Math.ceil(MAX_RECIPIENTS / MAX_CONCURRENT_DELIVERIES)).toBe(20);
++    expect(DELIVERY_TIMEOUT_MS).toBeGreaterThan(0);
++  });
++});
++
++describe("isBodyTooLarge", () => {
++  it("rejects only a Content-Length above the limit", () => {
++    expect(isBodyTooLarge(null)).toBe(false);
++    expect(isBodyTooLarge("300")).toBe(false);
++    expect(isBodyTooLarge(String(MAX_BODY_BYTES))).toBe(false);
++    expect(isBodyTooLarge(String(MAX_BODY_BYTES + 1))).toBe(true);
++    expect(isBodyTooLarge("not a number")).toBe(false);
++  });
++
++  it("leaves room for a full request of 500 recipients", () => {
++    const biggest = JSON.stringify({
++      recipient_ids: Array.from({ length: MAX_RECIPIENTS }, () => "00000000-0000-4000-8000-00000000000a"),
++      sender_id: "00000000-0000-4000-8000-00000000000b",
++      title: "x".repeat(80),
++      body: "y".repeat(140),
++      url: "/" + "z".repeat(299),
++      tag: "t".repeat(100),
++    });
++    expect(biggest.length).toBeLessThan(MAX_BODY_BYTES);
++  });
++});
++
++describe("pushSummaryLog", () => {
++  it("is one JSON line with numbers only", () => {
++    const line = pushSummaryLog({
++      ms: 123.7,
++      recipients: 3,
++      web: { sent: 2, removed: 1, failed: 0 },
++      android: { sent: 1, removed: 0, failed: 1 },
++    });
++    expect(line.includes("\n")).toBe(false);
++    expect(JSON.parse(line)).toEqual({
++      event: "send_push_done",
++      ms: 124,
++      recipients: 3,
++      web: { sent: 2, removed: 1, failed: 0 },
++      android: { sent: 1, removed: 0, failed: 1 },
++    });
++  });
++
++  it("drops anything that is not a known counter (no endpoints, tokens or ids)", () => {
++    const sneaky = {
++      ms: 1,
++      recipients: 1,
++      web: { sent: 1, removed: 0, failed: 0, endpoint: "https://push.example/abc", token: "secret" },
++      android: { sent: 0, removed: 0, failed: 0 },
++    };
++    const line = pushSummaryLog(sneaky);
++    expect(line.includes("push.example")).toBe(false);
++    expect(line.includes("secret")).toBe(false);
++  });
++});
+diff --git a/src/test/telemetry.test.ts b/src/test/telemetry.test.ts
+new file mode 100644
+index 0000000..830f072
+--- /dev/null
++++ b/src/test/telemetry.test.ts
+@@ -0,0 +1,288 @@
++import { beforeEach, describe, expect, it } from "vitest";
++import {
++  RequestMetrics,
++  SLOW_REQUEST_MS,
++  createInstrumentedFetch,
++  metrics,
++  percentile,
++  routeLabel,
++  setTelemetrySink,
++  type RequestRecord,
++  type TelemetryEvent,
++} from "@/lib/telemetry";
++
++const UID = "6f1c2d3e-4a5b-4c6d-8e7f-0123456789ab";
++const BASE = "https://abc.supabase.co";
++
++describe("routeLabel", () => {
++  it("names rpc and table calls without their filters or ids", () => {
++    expect(routeLabel(`${BASE}/rest/v1/rpc/get_feed`)).toBe("rpc/get_feed");
++    expect(routeLabel(`${BASE}/rest/v1/rpc/get_feed?p_tab=following`)).toBe("rpc/get_feed");
++    expect(routeLabel(`${BASE}/rest/v1/posts?select=*&author_id=eq.${UID}&limit=10`)).toBe(
++      "rest/posts",
++    );
++  });
++
++  it("keeps the operation and bucket of a storage call, never the folder or file", () => {
++    expect(routeLabel(`${BASE}/storage/v1/object/avatars/${UID}/me.jpg`)).toBe(
++      "storage/object/avatars",
++    );
++    expect(routeLabel(`${BASE}/storage/v1/object/public/chat-media/${UID}/a.png`)).toBe(
++      "storage/object/public/chat-media",
++    );
++    expect(routeLabel(`${BASE}/storage/v1/object/sign/voice/${UID}/n.webm?token=abc`)).toBe(
++      "storage/object/sign/voice",
++    );
++    expect(routeLabel(`${BASE}/storage/v1/object/list/media`)).toBe("storage/object/list/media");
++  });
++
++  it("labels sign-in and functions, and calls everything else 'other'", () => {
++    expect(routeLabel(`${BASE}/auth/v1/token?grant_type=password`)).toBe("auth/token");
++    expect(routeLabel(`${BASE}/functions/v1/send-push`)).toBe("functions/send-push");
++    expect(routeLabel("https://example.com/whatever")).toBe("other");
++    expect(routeLabel("not a url at all")).toBe("other");
++  });
++
++  it("never lets an odd path segment through", () => {
++    expect(routeLabel(`${BASE}/rest/v1/rpc/get feed%20x`)).toBe("rpc/?");
++    expect(routeLabel(`${BASE}/rest/v1/${"a".repeat(200)}`)).toBe("rest/?");
++  });
++});
++
++describe("percentile", () => {
++  it("uses the nearest rank", () => {
++    const xs = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
++    expect(percentile(xs, 50)).toBe(50);
++    expect(percentile(xs, 95)).toBe(100);
++    expect(percentile(xs, 0)).toBe(10);
++    expect(percentile([], 95)).toBe(0);
++    expect(percentile([7], 95)).toBe(7);
++  });
++});
++
++const rec = (over: Partial<RequestRecord> = {}): RequestRecord => ({
++  label: "rpc/get_feed",
++  method: "POST",
++  status: 200,
++  ms: 100,
++  outcome: "ok",
++  at: 0,
++  ...over,
++});
++
++describe("RequestMetrics", () => {
++  it("summarises count, errors, slow, p50, p95 and max per endpoint", () => {
++    const m = new RequestMetrics();
++    for (const ms of [100, 200, 300, 400, 500]) m.record(rec({ ms }));
++    m.record(rec({ ms: SLOW_REQUEST_MS + 500 }));
++    m.record(rec({ status: 500, outcome: "http_error", ms: 50 }));
++    const s = m.summary()["rpc/get_feed"];
++    expect(s).toEqual({ count: 7, errors: 1, slow: 1, p50: 300, p95: 2500, max: 2500 });
++  });
++
++  it("keeps only the latest problems, newest last", () => {
++    const m = new RequestMetrics();
++    for (let i = 0; i < 80; i++) m.record(rec({ status: 500, outcome: "http_error", ms: i }));
++    const problems = m.recentProblems();
++    expect(problems.length).toBe(50);
++    expect(problems[problems.length - 1]?.ms).toBe(79);
++  });
++
++  it("folds new endpoint names into 'other' once too many are tracked", () => {
++    const m = new RequestMetrics();
++    for (let i = 0; i < 200; i++) m.record(rec({ label: `rest/t${i}` }));
++    const labels = Object.keys(m.summary());
++    expect(labels.length).toBeLessThanOrEqual(151);
++    expect(labels.includes("other")).toBe(true);
++  });
++
++  it("reset() clears everything", () => {
++    const m = new RequestMetrics();
++    m.record(rec());
++    m.reset();
++    expect(m.summary()).toEqual({});
++    expect(m.recentProblems()).toEqual([]);
++  });
++});
++
++/** Captures console output for the duration of one call. */
++async function captureConsole<T>(run: () => Promise<T>) {
++  const warn: string[] = [];
++  const error: string[] = [];
++  const original = { warn: console.warn, error: console.error };
++  console.warn = (...a: unknown[]) => void warn.push(a.map(String).join(" "));
++  console.error = (...a: unknown[]) => void error.push(a.map(String).join(" "));
++  try {
++    return { result: await run(), warn, error };
++  } finally {
++    console.warn = original.warn;
++    console.error = original.error;
++  }
++}
++
++let epoch = 0;
++/** A fake clock that starts far from every earlier test, so log throttling never carries over. */
++function clock() {
++  epoch += 10_000_000;
++  let t = epoch;
++  return { now: () => t, advance: (ms: number) => void (t += ms) };
++}
++
++describe("createInstrumentedFetch", () => {
++  beforeEach(() => {
++    metrics.reset();
++    setTelemetrySink(null);
++  });
++
++  it("passes the response through untouched and records a fast request quietly", async () => {
++    const c = clock();
++    const response = new Response("{}", { status: 200 });
++    const f = createInstrumentedFetch(async () => response, { now: c.now });
++    const { result, warn, error } = await captureConsole(() =>
++      f(`${BASE}/rest/v1/rpc/get_feed`, { method: "POST" }),
++    );
++    expect(result).toBe(response);
++    expect(warn).toEqual([]);
++    expect(error).toEqual([]);
++    expect(metrics.summary()["rpc/get_feed"]?.count).toBe(1);
++  });
++
++  it("logs a slow request once as a structured warning without any ids or filters", async () => {
++    const c = clock();
++    const f = createInstrumentedFetch(
++      async () => {
++        c.advance(SLOW_REQUEST_MS + 1);
++        return new Response("{}", { status: 200 });
++      },
++      { now: c.now },
++    );
++    const { warn, error } = await captureConsole(async () => {
++      await f(`${BASE}/rest/v1/posts?author_id=eq.${UID}&select=*`, { method: "GET" });
++      await f(`${BASE}/rest/v1/posts?author_id=eq.${UID}&select=*`, { method: "GET" });
++    });
++    expect(error).toEqual([]);
++    expect(warn.length).toBe(1); // the second one within 10 s is counted, not printed
++    const line = JSON.parse(warn[0] ?? "{}");
++    expect(line).toMatchObject({ event: "slow_request", label: "rest/posts", method: "GET", status: 200 });
++    expect(warn[0]?.includes(UID)).toBe(false);
++    expect(warn[0]?.includes("select")).toBe(false);
++    expect(metrics.summary()["rest/posts"]?.slow).toBe(2);
++  });
++
++  it("says how many similar problems were held back when it logs again later", async () => {
++    const c = clock();
++    const f = createInstrumentedFetch(async () => new Response("", { status: 502 }), { now: c.now });
++    const { error } = await captureConsole(async () => {
++      await f(`${BASE}/rest/v1/rpc/get_feed`);
++      await f(`${BASE}/rest/v1/rpc/get_feed`);
++      await f(`${BASE}/rest/v1/rpc/get_feed`);
++      c.advance(11_000);
++      await f(`${BASE}/rest/v1/rpc/get_feed`);
++    });
++    expect(error.length).toBe(2);
++    expect(JSON.parse(error[1] ?? "{}").similar_suppressed).toBe(2);
++  });
++
++  it("logs a server error as an error, but not a 4xx (those are normal answers)", async () => {
++    const c = clock();
++    let status = 500;
++    const f = createInstrumentedFetch(async () => new Response("", { status }), { now: c.now });
++    const first = await captureConsole(() => f(`${BASE}/rest/v1/rpc/get_people`));
++    expect(JSON.parse(first.error[0] ?? "{}")).toMatchObject({
++      event: "request_failed",
++      status: 500,
++      outcome: "http_error",
++    });
++    status = 409;
++    const second = await captureConsole(() => f(`${BASE}/rest/v1/rpc/get_notifications`));
++    expect(second.error).toEqual([]);
++    expect(metrics.summary()["rpc/get_notifications"]?.errors).toBe(1);
++  });
++
++  it("records a network failure (without the error message) and rethrows the same error", async () => {
++    const c = clock();
++    const boom = new TypeError(`Failed to fetch ${BASE}/rest/v1/rpc/get_feed?token=secret`);
++    const f = createInstrumentedFetch(async () => Promise.reject(boom), { now: c.now });
++    const { error, result } = await captureConsole(() =>
++      f(`${BASE}/rest/v1/rpc/get_feed`).then(
++        () => "resolved",
++        (e: unknown) => e,
++      ),
++    );
++    expect(result).toBe(boom);
++    expect(JSON.parse(error[0] ?? "{}")).toMatchObject({ outcome: "network_error", status: 0 });
++    expect(error[0]?.includes("secret")).toBe(false);
++  });
++
++  it("stops a database request that gets no answer, and records a timeout", async () => {
++    const c = clock();
++    const f = createInstrumentedFetch(
++      (_input, init) =>
++        new Promise<Response>((_resolve, reject) => {
++          init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
++        }),
++      { timeoutMs: 25, now: c.now },
++    );
++    const { result, error } = await captureConsole(() =>
++      f(`${BASE}/rest/v1/rpc/get_feed`).then(
++        () => "resolved",
++        (e: unknown) => e,
++      ),
++    );
++    expect((result as { name?: string }).name).toBe("TimeoutError");
++    expect(JSON.parse(error[0] ?? "{}")).toMatchObject({ outcome: "timeout", label: "rpc/get_feed" });
++  });
++
++  it("never times out a storage upload", async () => {
++    const seen: (AbortSignal | null | undefined)[] = [];
++    const f = createInstrumentedFetch(
++      async (_input, init) => {
++        seen.push(init?.signal);
++        return new Response("{}", { status: 200 });
++      },
++      {},
++    );
++    const init = { method: "POST" };
++    await f(`${BASE}/storage/v1/object/videos/${UID}/clip.mp4`, init);
++    expect(seen[0]).toBe(undefined);
++  });
++
++  it("does not count a request the caller cancelled as a failure", async () => {
++    const c = clock();
++    const caller = new AbortController();
++    const f = createInstrumentedFetch(
++      (_input, init) =>
++        new Promise<Response>((_resolve, reject) => {
++          init?.signal?.addEventListener("abort", () =>
++            reject(new DOMException("aborted", "AbortError")),
++          );
++        }),
++      { now: c.now, timeoutMs: 5_000 },
++    );
++    const { error, result } = await captureConsole(() => {
++      const p = f(`${BASE}/rest/v1/rpc/get_feed`, { signal: caller.signal }).then(
++        () => "resolved",
++        (e: unknown) => e,
++      );
++      caller.abort();
++      return p;
++    });
++    expect((result as { name?: string }).name).toBe("AbortError");
++    expect(error).toEqual([]);
++    expect(metrics.summary()["rpc/get_feed"]).toBe(undefined);
++  });
++
++  it("tells an optional sink about slow and failed requests, and survives a sink that throws", async () => {
++    const c = clock();
++    const events: TelemetryEvent[] = [];
++    setTelemetrySink((e) => {
++      events.push(e);
++      throw new Error("sink bug");
++    });
++    const f = createInstrumentedFetch(async () => new Response("", { status: 503 }), { now: c.now });
++    await captureConsole(() => f(`${BASE}/rest/v1/rpc/get_feed`));
++    expect(events.length).toBe(1);
++    expect(events[0]?.type).toBe("error");
++    expect(events[0]?.record.label).toBe("rpc/get_feed");
++  });
++});
+diff --git a/supabase/functions/send-push/index.ts b/supabase/functions/send-push/index.ts
+index bdd91d8..a127c22 100644
+--- a/supabase/functions/send-push/index.ts
++++ b/supabase/functions/send-push/index.ts
+@@ -19,8 +19,13 @@ import { createClient } from "npm:@supabase/supabase-js@2";
+ import webpush from "npm:web-push@3.6.7";
+ import { getAccessToken, parseServiceAccount, sendFcm } from "./fcm.ts";
+ import {
++  DELIVERY_TIMEOUT_MS,
++  MAX_CONCURRENT_DELIVERIES,
++  isBodyTooLarge,
+   isGoneStatus,
++  mapWithConcurrency,
+   parsePushRequest,
++  pushSummaryLog,
+   recipientsWithoutSender,
+   safeEqual,
+   toPayload,
+@@ -29,7 +34,12 @@ import {
+ const json = (status: number, body: unknown) =>
+   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+ 
++// every call to Google (sign-in + FCM) gets a deadline, so one hung request cannot hold the function
++const timedFetch: typeof fetch = (input, init) =>
++  fetch(input, { ...init, signal: AbortSignal.timeout(DELIVERY_TIMEOUT_MS) });
++
+ Deno.serve(async (req) => {
++  const startedAt = Date.now();
+   if (req.method !== "POST") return json(405, { error: "Use POST." });
+ 
+   const secret = Deno.env.get("PUSH_WEBHOOK_SECRET") ?? "";
+@@ -49,6 +59,10 @@ Deno.serve(async (req) => {
+   if (webReady) webpush.setVapidDetails(subject!, publicKey!, privateKey!);
+   else console.warn("send-push: VAPID secrets are missing, browsers will not be notified");
+ 
++  if (isBodyTooLarge(req.headers.get("content-length"))) {
++    return json(413, { error: "Request too large." });
++  }
++
+   let parsed;
+   try {
+     parsed = parsePushRequest(await req.json());
+@@ -89,13 +103,15 @@ Deno.serve(async (req) => {
+   let sent = 0;
+   let failed = 0;
+ 
+-  await Promise.all(
+-    (webRows.data ?? []).map(async (s) => {
++  await mapWithConcurrency(
++    webRows.data ?? [],
++    MAX_CONCURRENT_DELIVERIES,
++    async (s) => {
+       try {
+         await webpush.sendNotification(
+           { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+           payload,
+-          { TTL: 60 * 60 * 24, urgency: "high" },
++          { TTL: 60 * 60 * 24, urgency: "high", timeout: DELIVERY_TIMEOUT_MS },
+         );
+         sent++;
+       } catch (e) {
+@@ -106,7 +122,7 @@ Deno.serve(async (req) => {
+           console.error("send-push: delivery failed", status, (e as Error).message);
+         }
+       }
+-    }),
++    },
+   );
+ 
+   // 404 / 410 = the browser unsubscribed or the subscription expired: forget it
+@@ -122,11 +138,13 @@ Deno.serve(async (req) => {
+   const phones = phoneRows.error ? [] : (phoneRows.data ?? []);
+   if (serviceAccount && phones.length > 0) {
+     try {
+-      const accessToken = await getAccessToken(serviceAccount);
+-      await Promise.all(
+-        phones.map(async (p) => {
++      const accessToken = await getAccessToken(serviceAccount, timedFetch);
++      await mapWithConcurrency(
++        phones,
++        MAX_CONCURRENT_DELIVERIES,
++        async (p) => {
+           try {
+-            const r = await sendFcm(serviceAccount, accessToken, p.token, pushPayload);
++            const r = await sendFcm(serviceAccount, accessToken, p.token, pushPayload, timedFetch);
+             if (r.ok) phoneSent++;
+             else if (r.dead) deadPhones.push(p.id);
+             else {
+@@ -137,7 +155,7 @@ Deno.serve(async (req) => {
+             phoneFailed++;
+             console.error("send-push: FCM request failed", (e as Error).message);
+           }
+-        }),
++        },
+       );
+     } catch (e) {
+       phoneFailed += phones.length;
+@@ -150,6 +168,15 @@ Deno.serve(async (req) => {
+     if (delError) console.error("send-push: removing dead device tokens failed", delError);
+   }
+ 
++  console.log(
++    pushSummaryLog({
++      ms: Date.now() - startedAt,
++      recipients: recipients.length,
++      web: { sent, removed: gone.length, failed },
++      android: { sent: phoneSent, removed: deadPhones.length, failed: phoneFailed },
++    }),
++  );
++
+   return json(200, {
+     sent,
+     removed: gone.length,
+diff --git a/supabase/functions/send-push/logic.ts b/supabase/functions/send-push/logic.ts
+index d9ed1fc..8ccea04 100644
+--- a/supabase/functions/send-push/logic.ts
++++ b/supabase/functions/send-push/logic.ts
+@@ -87,3 +87,64 @@ export function safeEqual(a: string, b: string): boolean {
+   for (let i = 0; i < len; i++) diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+   return diff === 0;
+ }
++
++// ---- speed and observability helpers ---------------------------------------------------------
++
++/** At most this many pushes are in flight at once (one request can name 500 people). */
++export const MAX_CONCURRENT_DELIVERIES = 25;
++/** A push service or Google that has not answered after this long is counted as failed. */
++export const DELIVERY_TIMEOUT_MS = 10_000;
++/** A real request is a few hundred bytes; 500 UUIDs fit well under this. */
++export const MAX_BODY_BYTES = 64 * 1024;
++
++/** True when the Content-Length header announces a body that is too large to accept. */
++export function isBodyTooLarge(contentLength: string | null): boolean {
++  if (contentLength === null) return false;
++  const n = Number(contentLength);
++  return Number.isFinite(n) && n > MAX_BODY_BYTES;
++}
++
++/**
++ * Like Promise.all(items.map(fn)) but with at most `limit` calls running at the same time.
++ * Results keep the order of `items`.
++ */
++export async function mapWithConcurrency<T, R>(
++  items: readonly T[],
++  limit: number,
++  fn: (item: T, index: number) => Promise<R>,
++): Promise<R[]> {
++  const results = new Array<R>(items.length);
++  let next = 0;
++  const worker = async (): Promise<void> => {
++    for (;;) {
++      const i = next++;
++      if (i >= items.length) return;
++      results[i] = await fn(items[i] as T, i);
++    }
++  };
++  const workers = Math.max(1, Math.min(Math.floor(limit) || 1, items.length));
++  await Promise.all(Array.from({ length: workers }, worker));
++  return results;
++}
++
++export type DeliveryCounts = { sent: number; removed: number; failed: number };
++
++/**
++ * One structured log line for a finished request: how long it took and how many pushes went
++ * where. Numbers only: no people, endpoints, tokens or message text can end up in the log.
++ */
++export function pushSummaryLog(fields: {
++  ms: number;
++  recipients: number;
++  web: DeliveryCounts;
++  android: DeliveryCounts;
++}): string {
++  const counts = (c: DeliveryCounts) => ({ sent: c.sent, removed: c.removed, failed: c.failed });
++  return JSON.stringify({
++    event: "send_push_done",
++    ms: Math.round(fields.ms),
++    recipients: fields.recipients,
++    web: counts(fields.web),
++    android: counts(fields.android),
++  });
++}
+diff --git a/supabase/migrations/20261117000000_backend_performance.sql b/supabase/migrations/20261117000000_backend_performance.sql
+new file mode 100644
+index 0000000..f965947
+--- /dev/null
++++ b/supabase/migrations/20261117000000_backend_performance.sql
+@@ -0,0 +1,103 @@
++-- =====================================================================
++-- Backend performance: missing foreign-key indexes + a cheaper unread-notification count.
++-- Safe to run more than once. Changes no data, no permission and no row-level-security rule.
++-- Run in Supabase Dashboard -> SQL Editor (or `supabase db push`). Details and rollback:
++-- docs/BACKEND-PERFORMANCE.md
++--
++-- 1. FOREIGN-KEY INDEXES. When a person is deleted, Postgres must find every row that points at
++--    them in every child table. Where the pointing column had no index of its own that was a full
++--    table scan per table (messages, post_comments, ...), so deleting one account got slower as
++--    the app grew. The same indexes speed up "all rows by this person" reads and joins.
++--    (Composite primary keys only help when the person column comes FIRST; the columns below were
++--    second or not in a key at all. src/test/migration-perf.test.ts keeps it that way.)
++-- 2. get_unread_notification_count() used to build the whole notification list (up to 100 rows,
++--    sorted, joined to profiles, including a scan of every chat message that shared a post) just
++--    to count it, and the home screen asks every 30 seconds. It now counts each kind directly.
++--    Same rules as before: the same seven kinds, "shares" never count, only things newer than
++--    profiles.notifications_seen_at, capped at 100 like the old list.
++-- =====================================================================
++
++-- ---- 1. foreign-key indexes -----------------------------------------
++create index if not exists business_reviews_reviewer_id_idx        on public.business_reviews (reviewer_id);
++create index if not exists community_alert_votes_user_id_idx       on public.community_alert_votes (user_id);
++create index if not exists community_alerts_author_id_idx          on public.community_alerts (author_id);
++create index if not exists community_answer_helpful_user_id_idx    on public.community_answer_helpful (user_id);
++create index if not exists community_answers_author_id_idx         on public.community_answers (author_id);
++create index if not exists community_event_rsvps_user_id_idx       on public.community_event_rsvps (user_id);
++create index if not exists community_events_host_id_idx            on public.community_events (host_id);
++create index if not exists community_poll_options_poll_id_idx      on public.community_poll_options (poll_id);
++create index if not exists community_poll_votes_user_id_idx        on public.community_poll_votes (user_id);
++create index if not exists community_poll_votes_option_id_idx      on public.community_poll_votes (option_id);
++create index if not exists community_polls_author_id_idx           on public.community_polls (author_id);
++create index if not exists community_questions_author_id_idx       on public.community_questions (author_id);
++create index if not exists community_quiz_keys_option_id_idx       on public.community_quiz_keys (option_id);
++create index if not exists community_skill_swaps_user_id_idx       on public.community_skill_swaps (user_id);
++create index if not exists group_invites_invited_by_idx            on public.group_invites (invited_by);
++create index if not exists groups_created_by_idx                   on public.groups (created_by);
++create index if not exists message_reactions_user_id_idx           on public.message_reactions (user_id);
++create index if not exists messages_sender_id_idx                  on public.messages (sender_id);
++create index if not exists poll_votes_user_id_idx                  on public.poll_votes (user_id);
++create index if not exists polls_created_by_idx                    on public.polls (created_by);
++create index if not exists post_comments_author_id_idx             on public.post_comments (author_id);
++create index if not exists post_tags_tagged_by_idx                 on public.post_tags (tagged_by);
++create index if not exists post_video_views_viewer_id_idx          on public.post_video_views (viewer_id);
++create index if not exists saved_posts_post_id_idx                 on public.saved_posts (post_id);
++create index if not exists story_views_viewer_id_idx               on public.story_views (viewer_id);
++-- ON DELETE SET NULL (not cascade): the report stays, the person is cleared. Most rows are null.
++create index if not exists reports_target_user_id_idx
++  on public.reports (target_user_id) where target_user_id is not null;
++
++-- ---- 2. cheaper unread-notification count ---------------------------
++create or replace function public.get_unread_notification_count()
++returns bigint
++language sql
++stable
++set search_path = public
++as $$
++  with me as (
++    select pr.id as uid, pr.notifications_seen_at as seen
++    from public.profiles pr
++    where pr.id = auth.uid()
++  )
++  select least(100, (
++      -- likes on my posts
++      (select count(*) from me
++         join public.posts p on p.author_id = me.uid
++         join public.post_likes l on l.post_id = p.id
++        where l.user_id <> me.uid and l.created_at > me.seen)
++      -- comments on my posts
++    + (select count(*) from me
++         join public.posts p on p.author_id = me.uid
++         join public.post_comments c on c.post_id = p.id
++        where c.author_id <> me.uid and c.created_at > me.seen)
++      -- new followers
++    + (select count(*) from me
++         join public.follows f on f.following_id = me.uid
++        where f.created_at > me.seen)
++      -- tagged in a post
++    + (select count(*) from me
++         join public.post_tags t on t.tagged_user_id = me.uid
++         join public.posts tp on tp.id = t.post_id
++        where t.tagged_by <> me.uid and t.created_at > me.seen)
++      -- likes on my stories
++    + (select count(*) from me
++         join public.stories st on st.author_id = me.uid
++         join public.story_views v on v.story_id = st.id
++        where v.viewer_id <> me.uid and v.liked
++          and v.first_liked_at is not null and v.first_liked_at > me.seen)
++      -- follow requests waiting for me
++    + (select count(*) from me
++         join public.follow_requests fr on fr.target_id = me.uid
++        where fr.status = 'pending' and fr.created_at > me.seen)
++      -- accounts I asked to follow that accepted me (while I still follow them)
++    + (select count(*) from me
++         join public.follow_requests fr on fr.requester_id = me.uid
++        where fr.status = 'accepted'
++          and coalesce(fr.responded_at, fr.created_at) > me.seen
++          and exists (select 1 from public.follows f
++                      where f.follower_id = me.uid and f.following_id = fr.target_id))
++  ))::bigint;
++$$;
++
++revoke all on function public.get_unread_notification_count() from public, anon;
++grant execute on function public.get_unread_notification_count() to authenticated;
+diff --git a/supabase/migrations/20261117000001_rls_initplan.sql b/supabase/migrations/20261117000001_rls_initplan.sql
+new file mode 100644
+index 0000000..230cb46
+--- /dev/null
++++ b/supabase/migrations/20261117000001_rls_initplan.sql
+@@ -0,0 +1,79 @@
++-- =====================================================================
++-- Row-level-security speed-up: evaluate auth.uid() once per query, not once per row.
++-- Safe to run more than once. Changes WHO can see or do WHAT: nothing.
++-- Run in Supabase Dashboard -> SQL Editor (or `supabase db push`). Details and rollback:
++-- docs/BACKEND-PERFORMANCE.md
++--
++-- Every policy in this app wrote `auth.uid()` directly. Postgres then calls that function again
++-- for every row it checks. Written as `(select auth.uid())` it is evaluated once per query (an
++-- "InitPlan") and the planner can use the value like a constant, which matters most on the big
++-- tables: posts, messages, post_likes, post_comments, follows, stories.
++-- Supabase documents this as the standard fix: https://supabase.com/docs/guides/database/postgres/row-level-security#call-functions-with-select
++--
++-- How it is done: instead of re-typing 120 policies (and drifting from what the earlier
++-- migrations really left behind), this reads the policies that exist, replaces each bare
++-- auth.uid() with (select auth.uid()) and re-applies them with ALTER POLICY. The command, the
++-- roles and the permissive/restrictive kind are never touched. Before it finishes it checks that
++-- the number of policies and each policy's name, command, roles and kind are exactly what they
++-- were; if not, it raises an error and the whole migration is rolled back.
++-- New policies written after this one should use (select auth.uid()) too; the replay test
++-- supabase/tests/replay/performance.assert.sql fails on a bare one.
++-- =====================================================================
++
++do $$
++declare
++  -- an auth.uid() that is not already directly after "select " (so a second run does nothing)
++  pat     constant text := '(?<!select )auth\.uid\(\)';
++  pol     record;
++  v_using text;
++  v_check text;
++  v_done  int := 0;
++  v_skip  int := 0;
++  v_before text;
++  v_after  text;
++begin
++  select md5(coalesce(string_agg(
++           concat_ws('|', schemaname, tablename, policyname, cmd, permissive, roles::text),
++           ',' order by schemaname, tablename, policyname), ''))
++    into v_before
++  from pg_policies where schemaname in ('public', 'storage');
++
++  for pol in
++    select schemaname, tablename, policyname, qual, with_check
++    from pg_policies
++    where schemaname in ('public', 'storage')
++      and (coalesce(qual, '') ~* pat or coalesce(with_check, '') ~* pat)
++    order by schemaname, tablename, policyname
++  loop
++    v_using := case when pol.qual is null then null
++                    else regexp_replace(pol.qual, pat, '(select auth.uid())', 'gi') end;
++    v_check := case when pol.with_check is null then null
++                    else regexp_replace(pol.with_check, pat, '(select auth.uid())', 'gi') end;
++    begin
++      execute format(
++        'alter policy %I on %I.%I%s%s',
++        pol.policyname, pol.schemaname, pol.tablename,
++        case when v_using is null then '' else ' using (' || v_using || ')' end,
++        case when v_check is null then '' else ' with check (' || v_check || ')' end
++      );
++      v_done := v_done + 1;
++    exception when insufficient_privilege then
++      -- e.g. a policy on a table this role does not own: leave it as it was
++      v_skip := v_skip + 1;
++      raise notice 'left unchanged (not the owner): %.% / %',
++        pol.schemaname, pol.tablename, pol.policyname;
++    end;
++  end loop;
++
++  select md5(coalesce(string_agg(
++           concat_ws('|', schemaname, tablename, policyname, cmd, permissive, roles::text),
++           ',' order by schemaname, tablename, policyname), ''))
++    into v_after
++  from pg_policies where schemaname in ('public', 'storage');
++
++  if v_before is distinct from v_after then
++    raise exception 'rls_initplan: the set of policies changed (%, %); rolled back', v_before, v_after;
++  end if;
++
++  raise notice 'rls_initplan: % policies rewritten, % left unchanged', v_done, v_skip;
++end $$;
+diff --git a/supabase/tests/replay/performance.assert.sql b/supabase/tests/replay/performance.assert.sql
+new file mode 100644
+index 0000000..c6a58f5
+--- /dev/null
++++ b/supabase/tests/replay/performance.assert.sql
+@@ -0,0 +1,99 @@
++-- Performance guards, enforced with ASSERT. Runs inside one transaction and rolls back.
++-- Covers 20261117000000_backend_performance.sql and 20261117000001_rls_initplan.sql.
++begin;
++
++-- ---- 1. No policy still calls auth.uid() once per row.
++do $$
++declare bad text;
++begin
++  select string_agg(format('%s.%s / %s', schemaname, tablename, policyname), ', ') into bad
++  from pg_policies
++  where schemaname in ('public', 'storage')
++    and (coalesce(qual, '') ~* '(?<!select )auth\.uid\(\)'
++         or coalesce(with_check, '') ~* '(?<!select )auth\.uid\(\)');
++  assert bad is null, 'policies with a bare auth.uid() (use (select auth.uid())): ' || coalesce(bad, '');
++end $$;
++
++-- ---- 2. Every foreign key has an index that starts with its column (delete + join speed).
++do $$
++declare bad text;
++begin
++  select string_agg(format('%s(%s)', c.conrelid::regclass, a.attname), ', ') into bad
++  from pg_constraint c
++  join pg_attribute a on a.attrelid = c.conrelid and a.attnum = c.conkey[1]
++  where c.contype = 'f'
++    and c.connamespace = 'public'::regnamespace
++    and not exists (
++      select 1 from pg_index i
++      where i.indrelid = c.conrelid and i.indkey[0] = c.conkey[1] and i.indisvalid
++    );
++  assert bad is null, 'foreign keys without a leading index: ' || coalesce(bad, '');
++end $$;
++
++-- ---- 3. The cheaper unread count gives the same answer as the old way
++--         (the notification list, shares left out, newer than "seen").
++insert into auth.users (id, email, raw_user_meta_data) values
++  ('00000000-0000-0000-0000-00000000000a', 'a@test.local', '{"username":"asha","full_name":"Asha"}'),
++  ('00000000-0000-0000-0000-00000000000b', 'b@test.local', '{"username":"ravi","full_name":"Ravi"}'),
++  ('00000000-0000-0000-0000-00000000000c', 'c@test.local', '{"username":"meena","full_name":"Meena"}'),
++  ('00000000-0000-0000-0000-00000000000d', 'd@test.local', '{"username":"zedd","full_name":"Zed"}');
++
++update public.profiles set notifications_seen_at = now() - interval '1 day'
++  where username = 'asha';
++
++insert into public.posts (id, author_id, content) values
++  ('40000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000a', 'hello');
++insert into public.post_likes (post_id, user_id, created_at) values
++  ('40000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000b', now()),
++  ('40000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000a', now()),                       -- my own like: no
++  ('40000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000c', now() - interval '2 days');   -- before "seen": no
++insert into public.post_comments (post_id, author_id, content) values
++  ('40000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000c', 'nice');
++insert into public.follows (follower_id, following_id) values
++  ('00000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-00000000000a'),
++  ('00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-00000000000d');
++insert into public.follow_requests (requester_id, target_id, status) values
++  ('00000000-0000-0000-0000-00000000000c', '00000000-0000-0000-0000-00000000000a', 'pending');
++insert into public.follow_requests (requester_id, target_id, status, responded_at) values
++  ('00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-00000000000d', 'accepted', now());
++-- a shared post in chat: shows in the list, never in the count
++insert into public.conversations (id) values ('50000000-0000-0000-0000-000000000001');
++insert into public.conversation_participants (conversation_id, user_id) values
++  ('50000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000a'),
++  ('50000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000b');
++insert into public.messages (conversation_id, sender_id, body, shared_post_id) values
++  ('50000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000b', '',
++   '40000000-0000-0000-0000-000000000001');
++
++select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', true);
++set local role authenticated;
++do $$
++declare v_new bigint; v_old bigint;
++begin
++  v_new := public.get_unread_notification_count();
++  select count(*) into v_old
++  from public.get_notifications(200) n
++  where n.kind <> 'share'
++    and n.created_at > (select pr.notifications_seen_at from public.profiles pr where pr.id = auth.uid());
++  assert v_new > 0, 'the seeded notifications should be counted';
++  assert v_new = v_old, format('unread count changed: new %s, old way %s', v_new, v_old);
++end $$;
++reset role;
++
++-- nothing is newer than "seen" -> zero, both ways
++update public.profiles set notifications_seen_at = now() + interval '1 hour' where username = 'asha';
++set local role authenticated;
++do $$ begin
++  assert public.get_unread_notification_count() = 0, 'nothing newer than seen -> 0';
++end $$;
++reset role;
++
++-- ---- 4. Still closed to the public key.
++set local role anon;
++do $$ begin
++  perform public.get_unread_notification_count();
++  raise exception 'anon can call get_unread_notification_count';
++exception when insufficient_privilege then null; end $$;
++reset role;
++
++rollback;

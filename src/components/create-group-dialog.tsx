@@ -14,6 +14,7 @@ import {
 import { MemberPicker, type PickedPerson } from "@/components/member-picker";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { createGroup } from "@/lib/social";
+import { userMessage } from "@/lib/security";
 
 const NAME_MIN = 3;
 const NAME_MAX = 50;
@@ -68,9 +69,10 @@ export function CreateGroupDialog({
     },
     onError: (e) =>
       toast.error(
-        e instanceof Error && e.message
-          ? e.message
-          : `Couldn't create the group. Names must be ${NAME_MIN}–${NAME_MAX} characters.`,
+        userMessage(
+          e,
+          `Couldn't create the group. Names must be ${NAME_MIN}–${NAME_MAX} characters.`,
+        ),
       ),
   });
 
@@ -83,7 +85,11 @@ export function CreateGroupDialog({
 
   const form = (
     <form
-      className={sheet ? "flex min-h-0 flex-1 flex-col gap-3 px-4 pb-[max(env(safe-area-inset-bottom),1rem)]" : "space-y-4"}
+      className={
+        sheet
+          ? "flex min-h-0 flex-1 flex-col gap-3 px-4 pb-[max(env(safe-area-inset-bottom),1rem)]"
+          : "space-y-4"
+      }
       onSubmit={(e) => {
         e.preventDefault();
         if (nameOk && !create.isPending) create.mutate();

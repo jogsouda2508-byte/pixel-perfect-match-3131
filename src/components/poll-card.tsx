@@ -15,17 +15,18 @@ import {
   type Poll,
   type PollDraft,
 } from "@/lib/polls";
+import { userMessage } from "@/lib/security";
 
 type Variant = "post" | "story";
 
 const styles = {
   post: {
-    box: "rounded-2xl border border-border bg-primary/5 p-4 text-foreground",
-    badge: "bg-primary/10 text-primary",
+    box: "rounded-3xl border border-border bg-gradient-to-br from-primary/10 via-card to-card p-4 text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]",
+    badge: "bg-gradient-brand text-primary-foreground",
     muted: "text-muted-foreground",
-    option: "border border-border bg-background",
-    fill: "bg-muted",
-    fillPicked: "bg-primary/20",
+    option: "border border-border bg-elevated/60",
+    fill: "bg-surface-2",
+    fillPicked: "bg-primary/30",
     ring: "focus-visible:ring-ring",
     check: "bg-primary text-primary-foreground",
   },
@@ -35,9 +36,9 @@ const styles = {
     muted: "text-white/70",
     option: "border border-white/25 bg-black/20",
     fill: "bg-white/15",
-    fillPicked: "bg-white/40",
+    fillPicked: "bg-primary/60",
     ring: "focus-visible:ring-white",
-    check: "bg-white text-black",
+    check: "bg-primary text-primary-foreground",
   },
 } as const;
 
@@ -114,7 +115,7 @@ export function PollCard({
     },
     onError: (e: Error, _o, ctx) => {
       if (ctx) qc.setQueryData(key, ctx.before);
-      toast.error(e.message || "Couldn't save your vote.");
+      toast.error(userMessage(e, "Couldn't save your vote."));
     },
     onSettled: () => void qc.invalidateQueries({ queryKey: key }),
   });
@@ -139,7 +140,9 @@ export function PollCard({
         >
           <BarChart3 className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} />
         </span>
-        <p className={`min-w-0 flex-1 break-words font-bold leading-snug ${compact ? "text-sm" : "text-base"}`}>
+        <p
+          className={`min-w-0 flex-1 break-words font-display font-bold leading-snug ${compact ? "text-sm" : "text-base"}`}
+        >
           {poll.question}
         </p>
       </div>
@@ -155,7 +158,7 @@ export function PollCard({
               aria-pressed={picked}
               aria-label={showResults ? `${o.label}, ${pct[i]}%` : o.label}
               onClick={() => vote.mutate(o.id)}
-              className={`relative flex ${compact ? "min-h-9 text-[13px]" : "min-h-12 text-sm"} w-full items-center overflow-hidden rounded-xl text-left transition active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 ${s.ring} ${s.option} ${voted ? "cursor-default" : "hover:brightness-110"}`}
+              className={`relative flex ${compact ? "min-h-9 text-[13px]" : "min-h-12 text-sm"} w-full items-center overflow-hidden rounded-2xl text-left transition active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 ${s.ring} ${s.option} ${voted ? "cursor-default" : "hover:brightness-110"}`}
             >
               {showResults && (
                 <span
@@ -181,7 +184,9 @@ export function PollCard({
         })}
       </div>
 
-      <p className={`flex items-center gap-1.5 ${compact ? "mt-1.5 text-[11px]" : "mt-3 text-xs"} ${s.muted}`}>
+      <p
+        className={`flex items-center gap-1.5 ${compact ? "mt-1.5 text-[11px]" : "mt-3 text-xs"} ${s.muted}`}
+      >
         {vote.isPending && <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />}
         {total} {total === 1 ? "vote" : "votes"}
         <span aria-hidden="true">•</span>
@@ -234,14 +239,13 @@ export function PollSheet({
       await onSubmit({ question: question.trim(), options: [a.trim(), b.trim()] });
       onOpenChange(false);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Couldn't add the poll.");
+      toast.error(userMessage(e, "Couldn't add the poll."));
     } finally {
       setBusy(false);
     }
   };
 
-  const field =
-    `w-full rounded-xl border border-border bg-elevated/40 px-3.5 py-3 text-base ${compact ? "max-md:rounded-lg max-md:px-3 max-md:py-2 max-md:text-sm" : ""} outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring`;
+  const field = `w-full rounded-2xl border border-border bg-elevated/50 px-4 py-3 text-base ${compact ? "max-md:rounded-lg max-md:px-3 max-md:py-2 max-md:text-sm" : ""} outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-primary/60 focus-visible:ring-2 focus-visible:ring-ring/40`;
   const label = `mb-1.5 block text-sm font-semibold ${compact ? "max-md:mb-1 max-md:text-xs" : ""}`;
 
   return (
@@ -257,7 +261,7 @@ export function PollSheet({
           <button
             type="button"
             onClick={() => onOpenChange(false)}
-            className={`min-h-12 flex-1 rounded-full border border-border bg-card text-sm font-semibold ${compact ? "max-md:min-h-10 max-md:text-xs" : ""} hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+            className={`min-h-12 flex-1 rounded-full border border-border bg-card/60 text-sm font-semibold ${compact ? "max-md:min-h-10 max-md:text-xs" : ""} hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
           >
             Cancel
           </button>
@@ -286,7 +290,9 @@ export function PollSheet({
             maxLength={POLL_QUESTION_MAX}
             className={field}
           />
-          <p className={`mt-1 text-right text-xs text-muted-foreground ${compact ? "max-md:mt-0.5 max-md:text-[11px]" : ""}`}>
+          <p
+            className={`mt-1 text-right text-xs text-muted-foreground ${compact ? "max-md:mt-0.5 max-md:text-[11px]" : ""}`}
+          >
             {question.length}/{POLL_QUESTION_MAX}
           </p>
         </div>

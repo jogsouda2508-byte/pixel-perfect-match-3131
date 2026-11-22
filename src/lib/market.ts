@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { communityError, type CommunityPerson } from "@/lib/community";
 import { validateImage } from "@/lib/social";
+import { sanitizeImageFile } from "@/lib/image-sanitize";
 import { randomId } from "@/lib/uuid";
 
 // The generated database types don't know the market table, so talk to it untyped.
@@ -128,10 +129,11 @@ function marketError(
 export async function uploadListingPhoto(userId: string, file: File): Promise<string> {
   const problem = validateImage(file);
   if (problem) throw new Error(problem);
-  const ext = file.type === "image/jpeg" ? "jpg" : file.type.split("/")[1];
+  const clean = await sanitizeImageFile(file, 10 * 1024 * 1024);
+  const ext = clean.type === "image/jpeg" ? "jpg" : clean.type.split("/")[1];
   const path = `${userId}/market/${randomId()}.${ext}`;
-  const { error } = await supabase.storage.from("media").upload(path, file, {
-    contentType: file.type,
+  const { error } = await supabase.storage.from("media").upload(path, clean, {
+    contentType: clean.type,
     cacheControl: "31536000",
   });
   if (error) {

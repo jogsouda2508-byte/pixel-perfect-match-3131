@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { friendlyError } from "@/lib/engage";
+import { inspectAudio } from "@/lib/media-sanitize";
 import { isMissingFunctionError } from "@/lib/db-errors";
 import type { MessageRow } from "@/integrations/supabase/types";
 
@@ -10,6 +11,8 @@ const db = supabase as unknown as SupabaseClient;
 /** Keeps every file well under the bucket's 5 MB limit on every browser. */
 export const VOICE_MAX_SECONDS = 120;
 export const VOICE_MIN_SECONDS = 1;
+/** The voice bucket refuses anything bigger than this. */
+export const VOICE_MAX_BYTES = 5 * 1024 * 1024;
 
 const VOICE_MIGRATION_HINT =
   "Voice messages need a one-time database update. In Supabase open SQL Editor, run " +
@@ -48,14 +51,6 @@ export function pickVoiceFormat() {
   return FORMATS.find((f) => MediaRecorder.isTypeSupported(f.mime));
 }
 
-function extFor(blobType: string): { type: string; ext: string } {
-  const base = (blobType.split(";")[0] ?? "").trim().toLowerCase();
-  if (base === "audio/mp4" || base === "video/mp4") return { type: base, ext: "m4a" };
-  if (base === "audio/ogg") return { type: base, ext: "ogg" };
-  if (base === "audio/mpeg") return { type: base, ext: "mp3" };
-  return { type: base === "video/webm" ? base : "audio/webm", ext: "webm" };
-}
-
 /** Uploads the recording to my own folder of the "voice" bucket, then sends it to the chat. */
 export async function sendVoiceMessage(
   conversationId: string,
@@ -64,7 +59,11 @@ export async function sendVoiceMessage(
   seconds: number,
 ): Promise<MessageRow> {
   const secs = Math.min(600, Math.max(1, Math.round(seconds)));
-  const { type, ext } = extFor(blob.type);
+  if (blob.size > VOICE_MAX_BYTES)
+    throw new Error("That voice message is too long. Try a shorter one.");
+  // The stored type comes from the recording's actual container, not from whatever the blob claims.
+  const audio = await inspectAudio(blob);
+  const { type, ext } = { type: audio.kind.mime, ext: audio.kind.ext };
   const path = `${userId}/${crypto.randomUUID()}.${ext}`;
   const { error: uploadError } = await supabase.storage
     .from("voice")

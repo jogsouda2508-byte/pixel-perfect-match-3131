@@ -56,18 +56,13 @@ import { blockedMessage, fetchBlockState, unblockUser } from "@/lib/safety";
 import { fetchUserVideos, fetchVideoViewCounts } from "@/lib/videos";
 import type { Profile } from "@/integrations/supabase/types";
 import emptyPostsUrl from "@/assets/empty-posts.jpg";
+import { userMessage } from "@/lib/security";
 
 const tabs = ["Posts", "Reels", "Tagged"] as const;
 const tabIcons = { Posts: Grid3x3, Reels: ReelsIcon, Tagged: SquareUser } as const;
 
 /** Shared by /profile (your own) and /u/<username> (anyone else). */
-export function ProfileView({
-  profile,
-  isMe,
-}: {
-  profile: Profile;
-  isMe: boolean;
-}) {
+export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [tab, setTab] = useState<(typeof tabs)[number]>("Posts");
@@ -175,12 +170,7 @@ export function ProfileView({
       const id = await startConversation(profile.id);
       navigate({ to: "/chat/$id", params: { id } });
     } catch (error) {
-      toast.error(
-        blockedMessage(
-          error,
-          error instanceof Error ? error.message : "Couldn't start a conversation.",
-        ),
-      );
+      toast.error(blockedMessage(error, userMessage(error, "Couldn't start a conversation.")));
     } finally {
       setStartingMessage(false);
     }
@@ -193,10 +183,7 @@ export function ProfileView({
       {videos.isLoading && (
         <div className="grid grid-cols-3 gap-0.5 bg-card" aria-label="Loading videos">
           {[0, 1, 2, 3, 4, 5].map((item) => (
-            <div
-              key={item}
-              className="aspect-[9/16] animate-pulse bg-elevated"
-            />
+            <div key={item} className="aspect-[9/16] animate-pulse bg-elevated" />
           ))}
         </div>
       )}
@@ -207,9 +194,7 @@ export function ProfileView({
       )}
       {videos.isSuccess && videos.data.length === 0 && (
         <p className="glass-card p-6 text-center text-sm text-muted-foreground">
-          {isMe
-            ? "You haven't shared any videos yet."
-            : "No videos to show yet."}
+          {isMe ? "You haven't shared any videos yet." : "No videos to show yet."}
         </p>
       )}
       <div className="grid grid-cols-3 gap-0.5 bg-card">
@@ -316,7 +301,11 @@ export function ProfileView({
                     aria-label="Change profile photo"
                     className="absolute bottom-0.5 right-0.5 grid h-6 w-6 place-items-center rounded-full border-2 border-background bg-primary md:h-7 md:w-7 text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    <Plus className="h-3.5 w-3.5 md:h-4 md:w-4" strokeWidth={2.75} aria-hidden="true" />
+                    <Plus
+                      className="h-3.5 w-3.5 md:h-4 md:w-4"
+                      strokeWidth={2.75}
+                      aria-hidden="true"
+                    />
                   </Link>
                 )}
               </div>
@@ -339,9 +328,7 @@ export function ProfileView({
             </div>
 
             {profile.bio && (
-              <p className="mt-3 whitespace-pre-line text-sm leading-relaxed">
-                {profile.bio}
-              </p>
+              <p className="mt-3 whitespace-pre-line text-sm leading-relaxed">{profile.bio}</p>
             )}
             {profile.location && (
               <p className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -501,7 +488,9 @@ export function ProfileView({
             <span className="grid h-14 w-14 place-items-center rounded-full bg-elevated text-muted-foreground">
               <Ban className="h-6 w-6" aria-hidden="true" />
             </span>
-            <h2 className="font-semibold">{iBlocked ? `You blocked ${name}` : "No posts to show"}</h2>
+            <h2 className="font-semibold">
+              {iBlocked ? `You blocked ${name}` : "No posts to show"}
+            </h2>
             <p className="max-w-xs text-sm text-muted-foreground">
               {iBlocked
                 ? "You can't see their posts or stories, and they can't see yours. Unblock them to see their posts again."
@@ -534,9 +523,7 @@ export function ProfileView({
             )}
             {grid.isError && (
               <p className="mt-3 text-center text-sm text-destructive">
-                {tab === "Tagged"
-                  ? "Couldn't load tagged posts."
-                  : "Couldn't load posts."}
+                {tab === "Tagged" ? "Couldn't load tagged posts." : "Couldn't load posts."}
               </p>
             )}
             {grid.isSuccess && grid.data.length === 0 && tab === "Tagged" && isMe && (
@@ -571,9 +558,7 @@ export function ProfileView({
                   {isMe ? "Create your first post" : "No posts yet"}
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {isMe
-                    ? "Share your point of view."
-                    : `${name} hasn't posted anything yet.`}
+                  {isMe ? "Share your point of view." : `${name} hasn't posted anything yet.`}
                 </p>
                 {isMe && (
                   <div className="mx-auto mt-3 w-40">
@@ -588,9 +573,7 @@ export function ProfileView({
                   <button
                     type="button"
                     key={p.id}
-                    onClick={() =>
-                      setGalleryIndex(galleryIndexByPost.get(p.id) ?? 0)
-                    }
+                    onClick={() => setGalleryIndex(galleryIndexByPost.get(p.id) ?? 0)}
                     aria-label={`Play video${p.content ? `: ${p.content.slice(0, 60)}` : ""}`}
                     className="relative block aspect-square w-full overflow-hidden bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
@@ -614,9 +597,7 @@ export function ProfileView({
                   <button
                     type="button"
                     key={p.id}
-                    onClick={() =>
-                      setGalleryIndex(galleryIndexByPost.get(p.id) ?? 0)
-                    }
+                    onClick={() => setGalleryIndex(galleryIndexByPost.get(p.id) ?? 0)}
                     aria-label={`Open photo${p.content ? `: ${p.content.slice(0, 60)}` : ""}`}
                     className="block aspect-square w-full overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
@@ -628,10 +609,7 @@ export function ProfileView({
                     />
                   </button>
                 ) : (
-                  <div
-                    key={p.id}
-                    className="flex aspect-square items-center bg-elevated p-3"
-                  >
+                  <div key={p.id} className="flex aspect-square items-center bg-elevated p-3">
                     <p className="line-clamp-5 break-words text-xs font-medium leading-snug">
                       {p.content}
                     </p>
@@ -673,15 +651,7 @@ export function ProfileView({
   );
 }
 
-function Stat({
-  n,
-  l,
-  onClick,
-}: {
-  n: string;
-  l: string;
-  onClick?: () => void;
-}) {
+function Stat({ n, l, onClick }: { n: string; l: string; onClick?: () => void }) {
   const body = (
     <>
       <p className="text-lg font-bold">{n}</p>
@@ -730,9 +700,7 @@ function FollowListDialog({
     <Dialog open={!!kind} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
-            {kind === "followers" ? "Followers" : "Following"}
-          </DialogTitle>
+          <DialogTitle>{kind === "followers" ? "Followers" : "Following"}</DialogTitle>
           <DialogDescription className="sr-only">
             {kind === "followers"
               ? "People who follow this profile"
@@ -744,14 +712,10 @@ function FollowListDialog({
             <Loader2 className="h-5 w-5 animate-spin text-primary" />
           </div>
         )}
-        {people.isError && (
-          <p className="text-sm text-destructive">Couldn't load this list.</p>
-        )}
+        {people.isError && <p className="text-sm text-destructive">Couldn't load this list.</p>}
         {people.isSuccess && people.data.length === 0 && (
           <p className="py-4 text-center text-sm text-muted-foreground">
-            {kind === "followers"
-              ? "No followers yet."
-              : "Not following anyone yet."}
+            {kind === "followers" ? "No followers yet." : "Not following anyone yet."}
           </p>
         )}
         <div className="space-y-4">
@@ -774,9 +738,7 @@ function FollowListDialog({
                   following={isFollowing}
                   requested={follow.isRequested(p.id)}
                   pending={follow.isPending(p.id)}
-                  {...(isSelf
-                    ? {}
-                    : { onToggle: () => follow.toggle(p.id, isFollowing) })}
+                  {...(isSelf ? {} : { onToggle: () => follow.toggle(p.id, isFollowing) })}
                 />
               </div>
             );
@@ -786,7 +748,6 @@ function FollowListDialog({
     </Dialog>
   );
 }
-
 
 /** The big "Unblock" button shown on the profile of someone I blocked. */
 function UnblockButton({ userId, username }: { userId: string; username: string }) {
@@ -805,7 +766,7 @@ function UnblockButton({ userId, username }: { userId: string; username: string 
           toast.success(`Unblocked @${username}`);
           refresh();
         } catch (e) {
-          toast.error(e instanceof Error ? e.message : "Couldn't unblock them. Please try again.");
+          toast.error(userMessage(e, "Couldn't unblock them. Please try again."));
         } finally {
           setBusy(false);
         }

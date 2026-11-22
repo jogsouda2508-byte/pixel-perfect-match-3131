@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth";
 import { whatsappShareHref } from "@/lib/community-share";
 import { nativeCopy, nativeShareLink, isNativeApp } from "@/lib/native-share";
 import { fetchReferrals, inviteMessage, inviteUrl } from "@/lib/referral";
+import { userMessage } from "@/lib/security";
 
 export const Route = createFileRoute("/invite")({
   head: () => ({
@@ -148,7 +149,7 @@ function InvitePage() {
               </div>
             ) : joined.error ? (
               <p role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">
-                {joined.error instanceof Error ? joined.error.message : "Couldn't load your invites."}
+                {userMessage(joined.error, "Couldn't load your invites.")}
               </p>
             ) : people.length === 0 ? (
               <p className="py-4 text-center text-sm text-muted-foreground">

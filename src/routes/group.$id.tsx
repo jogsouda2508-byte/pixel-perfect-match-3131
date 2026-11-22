@@ -32,14 +32,14 @@ import {
   respondToGroupInvite,
   setGroupMembership,
 } from "@/lib/social";
+import { userMessage } from "@/lib/security";
 
 export const Route = createFileRoute("/group/$id")({
   head: () => ({ meta: [{ title: "Group — SabZone" }] }),
   component: GroupPage,
 });
 
-const errorText = (e: unknown, fallback: string) =>
-  e instanceof Error && e.message ? e.message : fallback;
+const errorText = (e: unknown, fallback: string) => userMessage(e, fallback);
 
 function GroupPage() {
   const { id } = Route.useParams();

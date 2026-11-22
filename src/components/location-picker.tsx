@@ -13,6 +13,7 @@ import {
   type Coordinates,
   type PlaceSelection,
 } from "@/lib/places";
+import { userMessage } from "@/lib/security";
 
 const DEBOUNCE_MS = 300;
 
@@ -194,9 +195,7 @@ export function LocationPickerModal({
         {!waiting && showResults && active.isError && (
           <div className="space-y-3 py-6 text-center" role="alert">
             <p className="text-sm text-destructive">
-              {active.error instanceof Error
-                ? active.error.message
-                : "Couldn't load places. Please try again."}
+              {userMessage(active.error, "Couldn't load places. Please try again.")}
             </p>
             <Button
               type="button"

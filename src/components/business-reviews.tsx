@@ -13,6 +13,7 @@ import {
   type BusinessReview,
 } from "@/lib/business";
 import { timeAgo } from "@/lib/time";
+import { userMessage } from "@/lib/security";
 
 const MAX_TEXT = 500;
 const RATING_WORDS = ["", "Poor", "Fair", "Good", "Very good", "Excellent"];
@@ -384,7 +385,7 @@ export function BusinessReviews({
       setEditing(false);
       refresh();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(userMessage(e, "Something went wrong. Please try again.")),
   });
   const remove = useMutation({
     mutationFn: () => deleteBusinessReview(businessId, meId),
@@ -392,7 +393,7 @@ export function BusinessReviews({
       toast.success("Review deleted");
       refresh();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(userMessage(e, "Something went wrong. Please try again.")),
   });
   const reply = useMutation({
     mutationFn: (v: { reviewerId: string; text: string }) =>
@@ -401,7 +402,7 @@ export function BusinessReviews({
       toast.success("Reply saved");
       refresh();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(userMessage(e, "Something went wrong. Please try again.")),
   });
 
   const onReply = (reviewerId: string, text: string) => reply.mutate({ reviewerId, text });

@@ -344,7 +344,7 @@ function ConversationDetail({ id }: { id: string }) {
       setMessages((current) =>
         current.map((item) => (item.id === message.id ? { ...item, status: "failed" } : item)),
       );
-      setScreenError(cause instanceof Error ? cause.message : "Couldn't send your message.");
+      setScreenError("Couldn't send your message.");
     } finally {
       sendingRef.current = false;
       setSending(false);
@@ -382,7 +382,7 @@ function ConversationDetail({ id }: { id: string }) {
       replacePending(pendingId, saved);
     } catch (cause) {
       setMessages((current) => current.filter((item) => item.id !== pendingId));
-      setScreenError(cause instanceof Error ? cause.message : "Couldn't send your voice message.");
+      setScreenError("Couldn't send your voice message.");
     } finally {
       URL.revokeObjectURL(localUrl);
     }
@@ -426,7 +426,7 @@ function ConversationDetail({ id }: { id: string }) {
         URL.revokeObjectURL(localUrl);
       } catch (cause) {
         setMessages((c) => c.map((m) => (m.id === pendingId ? { ...m, status: "failed" } : m)));
-        setScreenError(cause instanceof Error ? cause.message : "Couldn't send your photo.");
+        setScreenError("Couldn't send your photo.");
       }
     };
     retryRef.current.set(pendingId, () => void run());
@@ -479,7 +479,7 @@ function ConversationDetail({ id }: { id: string }) {
         URL.revokeObjectURL(localUrl);
       } catch (cause) {
         setMessages((c) => c.map((m) => (m.id === pendingId ? { ...m, status: "failed" } : m)));
-        setScreenError(cause instanceof Error ? cause.message : "Couldn't send your file.");
+        setScreenError("Couldn't send your file.");
       }
     };
     retryRef.current.set(pendingId, () => void run());
@@ -532,7 +532,7 @@ function ConversationDetail({ id }: { id: string }) {
       setEditingId(null);
       void queryClient.invalidateQueries({ queryKey: ["chat-conversations", user?.id] });
     } catch (cause) {
-      setScreenError(cause instanceof Error ? cause.message : "Couldn't edit your message.");
+      setScreenError("Couldn't edit your message.");
     } finally {
       setActionBusy(false);
     }
@@ -550,7 +550,7 @@ function ConversationDetail({ id }: { id: string }) {
       patchCachedMessages(queryClient, { type: "delete", id: message.id });
       void queryClient.invalidateQueries({ queryKey: ["chat-conversations", user?.id] });
     } catch (cause) {
-      setScreenError(cause instanceof Error ? cause.message : "Couldn't delete your message.");
+      setScreenError("Couldn't delete your message.");
     } finally {
       setActionBusy(false);
       setPendingDelete(null);
@@ -573,7 +573,7 @@ function ConversationDetail({ id }: { id: string }) {
     );
     reactToMessage(message.id, emoji).catch((cause: unknown) => {
       queryClient.setQueryData(key, before);
-      setScreenError(cause instanceof Error ? cause.message : "Couldn't react to that message.");
+      setScreenError("Couldn't react to that message.");
     });
   };
 
@@ -1082,7 +1082,7 @@ function ConversationDetail({ id }: { id: string }) {
             multiple
             hidden
             aria-label="Choose a document"
-            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.json,.rtf,application/*,text/*"
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.json,.rtf"
             onChange={onDocumentsChosen}
           />
           <form onSubmit={submitMessage} className="flex items-end gap-2 px-2 pb-2 pt-1.5">

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { escapeXml, isHexColor } from "@/lib/security";
 import { Download, Link2, Loader2, Share2, X } from "lucide-react";
 import { toast } from "sonner";
 import { makeQr } from "@/lib/qr";
@@ -25,17 +26,20 @@ function qrRects(modules: boolean[][]): string {
 }
 
 /** The QR picture as a standalone SVG string (used on screen and for the download). */
-function cardSvg(modules: boolean[][], fg: string, label: string): string {
+export function cardSvg(modules: boolean[][], fg: string, label: string): string {
   const n = modules.length + QUIET * 2;
   const W = 1000;
   const qrSize = 760;
   const scale = qrSize / n;
-  const safe = label.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  // This string is injected with dangerouslySetInnerHTML, so everything that is not a number we
+  // computed is escaped or validated first.
+  const safe = escapeXml(label);
+  const color = isHexColor(fg) ? fg : "#000000";
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="1000" viewBox="0 0 ${W} 1000">` +
     `<rect width="${W}" height="1000" rx="70" fill="#ffffff"/>` +
-    `<g transform="translate(${(W - qrSize) / 2} 90) scale(${scale})" fill="${fg}">${qrRects(modules)}</g>` +
-    `<text x="${W / 2}" y="930" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="70" font-weight="700" fill="${fg}">${safe}</text>` +
+    `<g transform="translate(${(W - qrSize) / 2} 90) scale(${scale})" fill="${color}">${qrRects(modules)}</g>` +
+    `<text x="${W / 2}" y="930" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="70" font-weight="700" fill="${color}">${safe}</text>` +
     `</svg>`
   );
 }
@@ -129,9 +133,7 @@ export function ProfileQrSheet({
   };
 
   const makePng = async (): Promise<Blob> => {
-    const blobUrl = URL.createObjectURL(
-      new Blob([svg], { type: "image/svg+xml;charset=utf-8" }),
-    );
+    const blobUrl = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
     try {
       const img = new Image();
       await new Promise<void>((resolve, reject) => {
@@ -230,11 +232,17 @@ export function ProfileQrSheet({
   const link = encodeURIComponent(url);
   const apps = [
     { name: "WhatsApp", href: `https://wa.me/?text=${text}` },
-    { name: "Telegram", href: `https://t.me/share/url?url=${link}&text=${encodeURIComponent(`${label} on SabZone`)}` },
+    {
+      name: "Telegram",
+      href: `https://t.me/share/url?url=${link}&text=${encodeURIComponent(`${label} on SabZone`)}`,
+    },
     { name: "Facebook", href: `https://www.facebook.com/sharer/sharer.php?u=${link}` },
     { name: "X", href: `https://twitter.com/intent/tweet?text=${text}` },
     { name: "Messages", href: `sms:?&body=${text}` },
-    { name: "Email", href: `mailto:?subject=${encodeURIComponent(`${label} on SabZone`)}&body=${text}` },
+    {
+      name: "Email",
+      href: `mailto:?subject=${encodeURIComponent(`${label} on SabZone`)}&body=${text}`,
+    },
   ];
 
   const actionBtn =

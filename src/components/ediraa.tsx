@@ -8,6 +8,7 @@ import { CommunityBadge } from "@/components/community-home";
 import { UnreadBadge, useChatUnread } from "@/lib/use-chat-unread";
 import { followLabel } from "@/lib/follow-state";
 import { useAuth } from "@/lib/auth";
+import { safeMediaUrl } from "@/lib/security";
 
 export function Logo({ size = 96, className = "" }: { size?: number; className?: string }) {
   return (
@@ -24,26 +25,22 @@ export function Logo({ size = 96, className = "" }: { size?: number; className?:
 }
 
 /**
- * The "SabZone" wordmark: one premium gradient word, no second line. Text only: the Logo
- * component above is deliberately not touched.
+ * The "SabZone" wordmark: Bricolage Grotesque in the marigold-to-ember brand gradient.
+ * Text only: the Logo component above is deliberately not touched.
  */
 export function BrandName({ compact = false }: { compact?: boolean }) {
   return (
-    <span className="flex min-w-0 flex-col items-start" translate="no">
+    <span className="flex min-w-0 items-center" translate="no">
       <span
-        className={`bg-gradient-to-br from-[#1E1170] via-[#4F36D6] to-[#8A3FE8] bg-clip-text font-extrabold leading-none tracking-[-0.02em] text-transparent drop-shadow-[0_1px_8px_rgba(106,51,224,0.28)] dark:from-[#E4E7FF] dark:via-[#C3B0FF] dark:to-[#E0C2FF] dark:drop-shadow-[0_1px_10px_rgba(183,156,255,0.35)] ${compact ? "text-[17px]" : "text-[23px]"}`}
+        className={`bg-gradient-brand bg-clip-text font-display font-extrabold leading-none tracking-[-0.035em] text-transparent ${compact ? "text-[19px]" : "text-[25px]"}`}
       >
         SabZone
       </span>
-      <span
-        aria-hidden="true"
-        className={`rounded-full bg-gradient-to-r from-[#4F36D6] via-[#8A3FE8] to-transparent ${compact ? "mt-0.5 h-[1.5px] w-7" : "mt-1 h-[2px] w-10"}`}
-      />
     </span>
   );
 }
 
-/** The existing logo next to the name, on a soft lavender surface. */
+/** The existing logo next to the name, on a frosted ink tile with a warm edge light. */
 export function BrandLockup({
   compact = false,
   fill = false,
@@ -53,7 +50,7 @@ export function BrandLockup({
 }) {
   return (
     <span
-      className={`${fill ? "flex w-full justify-center" : "inline-flex"} items-center rounded-2xl bg-gradient-to-br from-[#F7F4FF] via-[#EEE9FF] to-[#E2DAFF] shadow-[0_6px_20px_-8px_rgba(79,54,214,0.35),inset_0_1px_0_rgba(255,255,255,0.8)] ring-1 ring-[#CFC3FF]/80 dark:from-[#2E2460] dark:via-[#251D4E] dark:to-[#1C1740] dark:shadow-[0_6px_24px_-8px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.08)] dark:ring-white/10 ${compact ? "gap-2 px-2.5 py-1.5" : "gap-2.5 px-3.5 py-2.5"}`}
+      className={`${fill ? "flex w-full justify-center" : "inline-flex"} items-center rounded-2xl border border-border bg-card/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_10px_30px_-18px_rgba(249,178,51,0.45)] ${compact ? "gap-2 px-2.5 py-1.5" : "gap-2.5 px-3.5 py-2.5"}`}
     >
       <span aria-hidden="true" className="shrink-0">
         <Logo size={compact ? 24 : 34} />
@@ -63,18 +60,18 @@ export function BrandLockup({
   );
 }
 
-/** Premium multi-colour story ring: amber -> pink -> violet -> blue -> cyan. */
+/** Story ring: marigold -> ember -> rose -> violet -> lagoon. */
 const STORY_RING_STOPS: [string, string][] = [
-  ["0%", "#fbbf24"],
-  ["28%", "#f43f5e"],
-  ["52%", "#d946ef"],
-  ["76%", "#6366f1"],
-  ["100%", "#22d3ee"],
+  ["0%", "#f9b233"],
+  ["30%", "#f2705a"],
+  ["58%", "#e2528f"],
+  ["82%", "#9b6bff"],
+  ["100%", "#35d0ba"],
 ];
-/** The green ring of a Close Friends story. */
+/** The lagoon-green ring of a Close Friends story. */
 const CLOSE_RING_STOPS: [string, string][] = [
-  ["0%", "#4ade80"],
-  ["100%", "#16a34a"],
+  ["0%", "#5eead4"],
+  ["100%", "#1fae7a"],
 ];
 const STORY_RING_CSS = `linear-gradient(45deg, ${STORY_RING_STOPS.map(([o, c]) => `${c} ${o}`).join(", ")})`;
 
@@ -185,9 +182,10 @@ export function Avatar({
     .slice(0, 2)
     .map((w) => w[0]!.toUpperCase())
     .join("");
-  const photo = src ? (
+  const safeSrc = safeMediaUrl(src);
+  const photo = safeSrc ? (
     <img
-      src={src}
+      src={safeSrc}
       alt=""
       className="aspect-square h-full w-full shrink-0 rounded-full border-2 border-background object-cover object-center"
     />
@@ -249,7 +247,7 @@ export function Pill({
   return (
     <button
       onClick={onClick}
-      className={`shrink-0 rounded-full font-medium transition ${large ? "px-4 py-2 text-[11px] sm:px-5 sm:py-2.5 sm:text-sm" : compact ? "px-4 py-2 text-[11px]" : "px-4 py-2 text-sm"} ${active ? "bg-gradient-brand text-primary-foreground glow" : "border border-border bg-card text-foreground"}`}
+      className={`shrink-0 rounded-full font-semibold tracking-[-0.005em] transition ${large ? "px-4 py-2 text-[11px] sm:px-5 sm:py-2.5 sm:text-sm" : compact ? "px-4 py-2 text-[11px]" : "px-4 py-2 text-sm"} ${active ? "bg-gradient-brand text-primary-foreground glow" : "border border-border bg-card/70 text-muted-foreground hover:border-primary/40 hover:text-foreground"}`}
     >
       {children}
     </button>
@@ -338,8 +336,8 @@ const items = [
 export function BottomNav({ showCreate = false }: { showCreate?: boolean }) {
   return (
     <>
-      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background/95 backdrop-blur md:hidden">
-        <div className="mx-auto flex max-w-xl items-center justify-around px-1 py-1">
+      <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:hidden">
+        <div className="sz-dock pointer-events-auto mx-auto flex max-w-sm items-center justify-around rounded-[1.75rem] p-1.5">
           {items.map((i) => (
             <NavItem key={i.label} {...i} />
           ))}
@@ -377,33 +375,39 @@ function NavItem({
   const isProfile = to === "/profile";
   const avatar = isProfile ? profile?.avatar_url : null;
   const base =
-    "relative flex min-h-12 min-w-0 flex-1 items-center justify-center px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset";
+    "relative flex min-h-12 min-w-0 flex-1 items-center justify-center rounded-2xl px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset";
   // Icon-only: no text, no dot, no background. Selected = stronger colour / filled Home.
   return (
     <Link
       to={to}
       aria-label={label}
       activeOptions={{ exact: true }}
-      activeProps={{ className: `${base} text-foreground`, "aria-current": "page" }}
+      activeProps={{ className: `${base} text-primary`, "aria-current": "page" }}
       inactiveProps={{ className: `${base} text-muted-foreground` }}
     >
       {({ isActive }: { isActive: boolean }) => (
         <>
-          <span className="grid h-9 w-14 place-items-center">
+          <span
+            className={`grid h-10 w-14 place-items-center rounded-2xl transition-colors duration-200 ${isActive ? "bg-primary/15" : ""}`}
+          >
             {avatar ? (
               <img
                 src={avatar}
                 alt=""
                 aria-hidden="true"
-                className={`h-7 w-7 rounded-full object-cover ${isActive ? "ring-2 ring-primary" : ""}`}
+                className={`h-7 w-7 rounded-full object-cover ring-offset-2 ring-offset-card ${isActive ? "ring-2 ring-primary" : "opacity-90"}`}
               />
             ) : isActive && to === "/home" ? (
               <HomeSelectedIcon />
             ) : (
-              <Icon className="h-6 w-6" strokeWidth={isActive ? 2.6 : 2} aria-hidden="true" />
+              <Icon
+                className="h-[22px] w-[22px]"
+                strokeWidth={isActive ? 2.4 : 1.9}
+                aria-hidden="true"
+              />
             )}
           </span>
-          <UnreadBadge count={count} className="absolute right-1/4 top-0.5" />
+          <UnreadBadge count={count} className="absolute right-[22%] top-1" />
         </>
       )}
     </Link>
@@ -413,8 +417,8 @@ function NavItem({
 export function SideNav() {
   const chatUnread = useChatUnread();
   return (
-    <aside className="sticky top-6 hidden h-fit flex-col gap-2 md:flex">
-      <div className="mb-4">
+    <aside className="sticky top-6 hidden h-fit flex-col gap-1 md:flex">
+      <div className="mb-5">
         <BrandLockup fill />
       </div>
       {items.map((i) => (
@@ -423,11 +427,12 @@ export function SideNav() {
           to={i.to}
           activeOptions={{ exact: true }}
           activeProps={{
-            className: "flex items-center gap-3 rounded-xl px-3 py-2.5 bg-elevated text-primary",
+            className:
+              "flex items-center gap-3 rounded-2xl bg-primary/12 px-3.5 py-2.5 font-semibold text-primary shadow-[inset_0_0_0_1px_oklch(0.82_0.16_78/0.18)]",
           }}
           inactiveProps={{
             className:
-              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-muted-foreground hover:bg-card",
+              "flex items-center gap-3 rounded-2xl px-3.5 py-2.5 font-medium text-muted-foreground transition-colors hover:bg-card hover:text-foreground",
           }}
         >
           <i.icon className="h-5 w-5" />
@@ -438,11 +443,12 @@ export function SideNav() {
       <Link
         to="/community"
         activeProps={{
-          className: "flex items-center gap-3 rounded-xl px-3 py-2.5 bg-elevated text-primary",
+          className:
+            "flex items-center gap-3 rounded-2xl bg-primary/12 px-3.5 py-2.5 font-semibold text-primary shadow-[inset_0_0_0_1px_oklch(0.82_0.16_78/0.18)]",
         }}
         inactiveProps={{
           className:
-            "flex items-center gap-3 rounded-xl px-3 py-2.5 text-muted-foreground hover:bg-card",
+            "flex items-center gap-3 rounded-2xl px-3.5 py-2.5 font-medium text-muted-foreground transition-colors hover:bg-card hover:text-foreground",
         }}
       >
         <UsersRound className="h-5 w-5" />

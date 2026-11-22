@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { checkUsernameAvailable } from "@/lib/auth-gateway";
 import { toast } from "sonner";
 import { Check, Loader2, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -69,11 +70,9 @@ function SignUpForm() {
     setAvail("checking");
     let active = true;
     const t = setTimeout(async () => {
-      const { data, error } = await supabase.rpc("is_username_available", {
-        p_username: v.username.trim().toLowerCase(),
-      });
+      const result = await checkUsernameAvailable(v.username.trim().toLowerCase());
       if (!active) return;
-      setAvail(error ? "error" : data ? "available" : "taken");
+      setAvail(result);
     }, 400);
     return () => {
       active = false;
@@ -105,8 +104,14 @@ function SignUpForm() {
     }
     if (res.needsVerification) {
       toast.success("We sent a 6-digit code to your email.");
-      // verify with the email the account was really created with (an alias for the 2nd/3rd account)
-      navigate({ to: "/verify", search: { email: res.authEmail ?? v.email.trim() } });
+      // the code is checked per username on the server; the page only shows a hidden address
+      navigate({
+        to: "/verify",
+        search: {
+          username: res.verifyUsername ?? v.username.trim().toLowerCase(),
+          masked: res.maskedEmail ?? "",
+        },
+      });
     } else {
       toast.success("Account created!");
       navigate({ to: "/onboarding" });
@@ -298,11 +303,9 @@ function GoogleCompleteSignup() {
     setAvail("checking");
     let active = true;
     const t = setTimeout(async () => {
-      const { data, error } = await supabase.rpc("is_username_available", {
-        p_username: username.trim().toLowerCase(),
-      });
+      const result = await checkUsernameAvailable(username.trim().toLowerCase());
       if (!active) return;
-      setAvail(error ? "error" : data ? "available" : "taken");
+      setAvail(result);
     }, 400);
     return () => {
       active = false;

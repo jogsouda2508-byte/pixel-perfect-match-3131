@@ -12,6 +12,7 @@ import {
   zoomAround,
   type CropState,
 } from "@/lib/image-crop";
+import { userMessage } from "@/lib/security";
 
 type Pt = { x: number; y: number };
 
@@ -186,7 +187,7 @@ export function AvatarCropper({
       const blob = await renderCrop(imgRef.current, cropRegion(state, natural.w, natural.h, view));
       onDone(new File([blob], "avatar.jpg", { type: "image/jpeg", lastModified: Date.now() }));
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : "Couldn't save the cropped photo.");
+      setSaveError(userMessage(e, "Couldn't save the cropped photo."));
       setSaving(false);
     }
   };

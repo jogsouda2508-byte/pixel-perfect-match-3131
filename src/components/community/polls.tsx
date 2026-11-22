@@ -33,6 +33,7 @@ import {
   useNow,
 } from "./shared";
 import { communityLink, WhatsAppShare } from "./share-button";
+import { userMessage } from "@/lib/security";
 
 const DURATIONS = [
   { h: 6, label: "6 hours" },
@@ -101,7 +102,7 @@ export function PollsTab({ locality }: { locality: string | null }) {
     },
     onError: (e, _v, ctx) => {
       ctx?.snap.forEach(([k, d]) => qc.setQueryData(k, d));
-      toast.error(e instanceof Error ? e.message : "Couldn't save your vote.");
+      toast.error(userMessage(e, "Couldn't save your vote."));
     },
     onSettled: refresh,
   });
@@ -112,7 +113,7 @@ export function PollsTab({ locality }: { locality: string | null }) {
       toast.success("Poll deleted");
       refresh();
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't delete the poll."),
+    onError: (e) => toast.error(userMessage(e, "Couldn't delete the poll.")),
   });
 
   const openSheet = (preset?: Partial<PollForm>) => {
@@ -380,7 +381,7 @@ function PollSheet({
       onDone();
       onOpenChange(false);
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't create the poll."),
+    onError: (e) => toast.error(userMessage(e, "Couldn't create the poll.")),
   });
   const submit = () => {
     setTried(true);

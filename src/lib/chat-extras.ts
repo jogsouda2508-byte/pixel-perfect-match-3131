@@ -2,6 +2,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { isMissingFunctionError } from "@/lib/db-errors";
 import type { MessageReactionRow, MessageRow } from "@/integrations/supabase/types";
+import { sanitizeImageBytes } from "@/lib/image-sanitize";
+import {
+  UploadRejectedError,
+  looksLikeMarkup,
+  readBytes,
+  safeFileName,
+  sniffDocument,
+  sniffImage,
+} from "@/lib/file-sniff";
 
 // the generated database types don't know these functions / tables yet
 const db = supabase as unknown as SupabaseClient;
@@ -105,22 +114,36 @@ const IMAGE_MAX_SIDE = 1600;
 
 export type PreparedImage = { blob: Blob; width: number; height: number; ext: string };
 
-/** Shrinks big camera photos so they upload fast; small images and GIFs are sent untouched. */
+/**
+ * Gets a picked photo ready to send, and makes sure it is safe:
+ *  - SVG / web pages are refused (they can run scripts);
+ *  - big photos are shrunk by redrawing them, which also drops EXIF/GPS;
+ *  - small photos and GIFs are NOT redrawn (to keep quality and animation), so their metadata is
+ *    stripped at byte level instead. A photo is never sent with its original, untouched bytes.
+ */
 export async function prepareImage(file: File): Promise<PreparedImage> {
-  const original = async (): Promise<PreparedImage> => {
-    const size = await measure(file).catch(() => ({ width: 0, height: 0 }));
-    const ext = (file.type.split("/")[1] ?? "jpg")
-      .replace("jpeg", "jpg")
-      .replace(/[^a-z0-9]/gi, "");
-    return { blob: file, ...size, ext: ext || "jpg" };
+  const head = await readBytes(file, 0, Math.min(file.size, 4096));
+  if (!sniffImage(head) && looksLikeMarkup(head)) {
+    throw new UploadRejectedError(
+      "SVG and web-page files can't be sent as photos. Please choose a JPG, PNG, WebP or GIF image.",
+    );
+  }
+
+  /** Lossless: keeps pixels (and animation), removes EXIF/GPS and anything hidden after the image. */
+  const cleaned = async (): Promise<PreparedImage> => {
+    const out = sanitizeImageBytes(await readBytes(file));
+    const blob = new Blob([out.bytes], { type: out.kind.mime });
+    const size = await measure(blob).catch(() => ({ width: 0, height: 0 }));
+    return { blob, ...size, ext: out.kind.ext };
   };
-  if (file.type === "image/gif" || file.type === "image/svg+xml") return original();
+
+  if (sniffImage(head)?.mime === "image/gif") return cleaned();
   try {
     const bitmap = await createImageBitmap(file);
     const scale = Math.min(1, IMAGE_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
-    if (scale === 1 && file.size < 1.5 * 1024 * 1024) {
+    if (scale === 1 && file.size < 1.5 * 1024 * 1024 && sniffImage(head)) {
       bitmap.close();
-      return original();
+      return await cleaned();
     }
     const width = Math.max(1, Math.round(bitmap.width * scale));
     const height = Math.max(1, Math.round(bitmap.height * scale));
@@ -130,17 +153,20 @@ export async function prepareImage(file: File): Promise<PreparedImage> {
     const ctx = canvas.getContext("2d");
     if (!ctx) {
       bitmap.close();
-      return original();
+      return await cleaned();
     }
     ctx.drawImage(bitmap, 0, 0, width, height);
     bitmap.close();
     const blob = await new Promise<Blob | null>((resolve) =>
       canvas.toBlob(resolve, "image/jpeg", 0.82),
     );
-    if (!blob) return original();
+    if (!blob) return await cleaned();
     return { blob, width, height, ext: "jpg" };
-  } catch {
-    return original();
+  } catch (error) {
+    if (error instanceof UploadRejectedError) throw error;
+    // The browser couldn't decode it (or has no createImageBitmap): fall back to the byte-level path,
+    // which refuses anything that is not a real JPG/PNG/WebP/GIF.
+    return cleaned();
   }
 }
 
@@ -219,12 +245,10 @@ export async function sendImageMessage(
   args: SendArgs & { userId: string; image: PreparedImage },
 ): Promise<MessageRow> {
   if (args.image.blob.size > MEDIA_MAX_BYTES) throw new Error("Photos must be 15 MB or smaller.");
-  const { path, url } = await upload(
-    args.userId,
-    args.image.blob,
-    args.image.ext,
-    args.image.blob.type || "image/jpeg",
-  );
+  // Last line of defence: whatever produced this blob, only a real raster image leaves the device.
+  const kind = sniffImage(await readBytes(args.image.blob, 0, Math.min(args.image.blob.size, 64)));
+  if (!kind) throw new UploadRejectedError("Please choose a JPG, PNG, WebP or GIF image.");
+  const { path, url } = await upload(args.userId, args.image.blob, kind.ext, kind.mime);
   try {
     return await callSend({
       ...args,
@@ -242,18 +266,15 @@ export async function sendFileMessage(
   args: SendArgs & { userId: string; file: File },
 ): Promise<MessageRow> {
   if (args.file.size > MEDIA_MAX_BYTES) throw new Error("Files must be 15 MB or smaller.");
-  const ext = args.file.name.includes(".") ? (args.file.name.split(".").pop() ?? "bin") : "bin";
-  const { path, url } = await upload(
-    args.userId,
-    args.file,
-    ext,
-    args.file.type || "application/octet-stream",
-  );
+  if (args.file.size <= 0) throw new UploadRejectedError("That file is empty.");
+  // Only an allow-list of document types, and the content must match the extension.
+  const doc = sniffDocument(await readBytes(args.file), args.file.name);
+  const { path, url } = await upload(args.userId, args.file, doc.ext, doc.mime);
   try {
     return await callSend({
       ...args,
       fileUrl: url,
-      fileName: args.file.name,
+      fileName: safeFileName(args.file.name, "Document"),
       fileSize: args.file.size,
     });
   } catch (error) {

@@ -1,4 +1,5 @@
 import { randomId } from "@/lib/uuid";
+import { inspectAndCleanVideo, type CleanVideo } from "@/lib/media-sanitize";
 import { supabase } from "@/integrations/supabase/client";
 import type { Audience, PostRow, VideoFeedRow } from "@/integrations/supabase/types";
 import type { PlaceSelection } from "@/lib/places";
@@ -100,8 +101,23 @@ export function storagePathFromPublicUrl(url: string, bucket: "videos" | "media"
 
 type UploadResult = { path: string; publicUrl: string };
 
-export function uploadVideoFile(
+/**
+ * Uploads a video to the `videos` bucket. First the content is checked (a real MP4 / MOV / WebM?)
+ * and GPS / device details are removed from MP4 and MOV files; then the stored extension and
+ * Content-Type come from what the file really is, not from the name the person picked.
+ */
+export async function uploadVideoFile(
   file: File,
+  userId: string,
+  signal: AbortSignal,
+  onProgress: (progress: number) => void,
+): Promise<UploadResult> {
+  const clean = await inspectAndCleanVideo(file);
+  return sendVideo(clean, userId, signal, onProgress);
+}
+
+function sendVideo(
+  clean: CleanVideo,
   userId: string,
   signal: AbortSignal,
   onProgress: (progress: number) => void,
@@ -123,8 +139,7 @@ export function uploadVideoFile(
           return;
         }
 
-        const extension = file.name.split(".").pop()?.toLowerCase() || "mp4";
-        const path = `${userId}/${randomId()}.${extension}`;
+        const path = `${userId}/${randomId()}.${clean.kind.ext}`;
         const encodedPath = path.split("/").map(encodeURIComponent).join("/");
         const xhr = new XMLHttpRequest();
         const abort = () => xhr.abort();
@@ -141,7 +156,7 @@ export function uploadVideoFile(
         );
         xhr.setRequestHeader("apikey", publishableKey);
         xhr.setRequestHeader("Authorization", `Bearer ${data.session.access_token}`);
-        xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+        xhr.setRequestHeader("Content-Type", clean.kind.mime);
         xhr.setRequestHeader("Cache-Control", "31536000");
         xhr.upload.onprogress = (event) => {
           if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
@@ -167,7 +182,7 @@ export function uploadVideoFile(
             publicUrl: `${projectUrl.replace(/\/$/, "")}/storage/v1/object/public/videos/${encodedPath}`,
           });
         };
-        xhr.send(file);
+        xhr.send(clean.blob);
       })
       .catch((error: unknown) => {
         console.error("Video upload authentication failed", error);

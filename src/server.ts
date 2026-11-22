@@ -2,6 +2,7 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
+import { securityHeaders, withSecurityHeaders } from "./lib/security-headers";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -44,18 +45,31 @@ function isH3SwallowedErrorBody(body: string): boolean {
   }
 }
 
+function headersFor(request: Request): Record<string, string> {
+  const proto = request.headers.get("x-forwarded-proto") ?? new URL(request.url).protocol;
+  return securityHeaders({
+    supabaseUrl: import.meta.env["VITE_SUPABASE_URL"] as string | undefined,
+    enforceCsp: typeof process !== "undefined" && process.env?.["CSP_ENFORCE"] === "1",
+    https: proto === "https" || proto === "https:",
+  });
+}
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
+    const extra = headersFor(request);
     try {
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
-      return await normalizeCatastrophicSsrResponse(response);
+      return withSecurityHeaders(await normalizeCatastrophicSsrResponse(response), extra);
     } catch (error) {
       console.error(error);
-      return new Response(renderErrorPage(), {
-        status: 500,
-        headers: { "content-type": "text/html; charset=utf-8" },
-      });
+      return withSecurityHeaders(
+        new Response(renderErrorPage(), {
+          status: 500,
+          headers: { "content-type": "text/html; charset=utf-8" },
+        }),
+        extra,
+      );
     }
   },
 };

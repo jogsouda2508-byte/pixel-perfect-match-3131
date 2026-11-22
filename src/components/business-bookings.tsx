@@ -31,6 +31,7 @@ import {
   type OfferDuration,
 } from "@/lib/bookings";
 import { cn } from "@/lib/utils";
+import { userMessage } from "@/lib/security";
 
 const STATUS_STYLE = {
   pending: "bg-muted text-muted-foreground",
@@ -53,7 +54,7 @@ export function BusinessOffers({ businessId, isMe }: { businessId: string; isMe:
       toast.success("Offer removed");
       refresh();
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't remove the offer."),
+    onError: (e) => toast.error(userMessage(e, "Couldn't remove the offer.")),
   });
 
   const list = offers.data ?? [];
@@ -152,7 +153,7 @@ function OfferSheet({
       onDone();
       onOpenChange(false);
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't post the offer."),
+    onError: (e) => toast.error(userMessage(e, "Couldn't post the offer.")),
   });
 
   const submit = () => {
@@ -251,7 +252,7 @@ export function BookButton({
       void qc.invalidateQueries({ queryKey: ["my-bookings"] });
       setOpen(false);
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't send your request."),
+    onError: (e) => toast.error(userMessage(e, "Couldn't send your request.")),
   });
 
   const submit = () => {
@@ -400,7 +401,7 @@ function BookingCard({ b, role }: { b: Booking; role: "business" | "customer" })
       toast.success(accept ? "Booking confirmed" : "Request declined");
       refresh();
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't save your answer."),
+    onError: (e) => toast.error(userMessage(e, "Couldn't save your answer.")),
   });
   const cancel = useMutation({
     mutationFn: () => cancelBooking(b.id),
@@ -408,7 +409,7 @@ function BookingCard({ b, role }: { b: Booking; role: "business" | "customer" })
       toast.success("Booking cancelled");
       refresh();
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't cancel the booking."),
+    onError: (e) => toast.error(userMessage(e, "Couldn't cancel the booking.")),
   });
   const busy = answer.isPending || cancel.isPending;
   const fading = b.status === "declined" || b.status === "cancelled";

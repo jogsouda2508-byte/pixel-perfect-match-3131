@@ -7,6 +7,7 @@ import { BottomSheet } from "@/components/bottom-sheet";
 import { NoteBubble } from "@/components/notes-tray";
 import { useAuth } from "@/lib/auth";
 import { deleteNote, NOTE_MAX, saveNote, type NoteView } from "@/lib/notes";
+import { userMessage } from "@/lib/security";
 
 const IDEAS = [
   "🎧 Listening to music",
@@ -43,7 +44,8 @@ export function NoteEditorSheet({
       toast.success("Note shared for 24 hours");
       onOpenChange(false);
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) =>
+      toast.error(userMessage(e, "Couldn't save your note. Please try again.")),
     onSettled: () => void qc.invalidateQueries({ queryKey: ["notes", meId] }),
   });
   const remove = useMutation({
@@ -52,7 +54,8 @@ export function NoteEditorSheet({
       toast.success("Note deleted");
       onOpenChange(false);
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) =>
+      toast.error(userMessage(e, "Couldn't save your note. Please try again.")),
     onSettled: () => void qc.invalidateQueries({ queryKey: ["notes", meId] }),
   });
 

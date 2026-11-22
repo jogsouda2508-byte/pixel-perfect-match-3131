@@ -9,6 +9,7 @@ import { Avatar } from "@/components/ediraa";
 import { AvatarCropper } from "@/components/avatar-cropper";
 import { uploadAvatar as uploadAvatarFile } from "@/lib/social";
 import { AuthShell, PrimaryButton, inputClass } from "@/components/auth-ui";
+import { userMessage } from "@/lib/security";
 
 export const Route = createFileRoute("/onboarding")({
   head: () => ({ meta: [{ title: "Set up your profile — Ediraa" }] }),
@@ -180,7 +181,7 @@ function OnboardingPage() {
       toast.success("You're all set!");
       navigate({ to: "/home" });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Couldn't save your profile. Please try again.");
+      toast.error(userMessage(e, "Couldn't save your profile. Please try again."));
       setBusy(false);
     }
   };
@@ -195,7 +196,7 @@ function OnboardingPage() {
       } catch (e) {
         setBusy(false);
         {
-          toast.error(e instanceof Error ? e.message : "Photo upload failed.");
+          toast.error(userMessage(e, "Photo upload failed."));
           return;
         }
       }

@@ -1,13 +1,10 @@
-import {
-  createFileRoute,
-  useBlocker,
-  useNavigate,
-} from "@tanstack/react-router";
+import { createFileRoute, useBlocker, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Building2, Globe, UserCheck } from "lucide-react";
 import { toast } from "sonner";
-import { BottomNav, SideNav } from "@/components/ediraa";
+import { Avatar } from "@/components/ediraa";
+import { PageShell } from "@/components/page-shell";
 import { ComposerLauncher } from "@/components/composer";
 import {
   EMPTY_EXTRAS,
@@ -19,6 +16,7 @@ import { appendHashtagMark, extractHashtags } from "@/lib/post-extras";
 import { createPost } from "@/lib/social";
 import { createPoll } from "@/lib/polls";
 import type { Audience } from "@/integrations/supabase/types";
+import { userMessage } from "@/lib/security";
 
 export const Route = createFileRoute("/create")({
   head: () => ({
@@ -121,87 +119,110 @@ function CreatePostPage() {
       navigate({ to: "/home" });
     },
     onError: (error: Error) =>
-      toast.error(
-        error.message || "Couldn't publish your post. Please try again.",
-      ),
+      toast.error(userMessage(error, "Couldn't publish your post. Please try again.")),
   });
 
+  const used = text.length;
+  const nearLimit = used > MAX * 0.9;
+  const C = 2 * Math.PI * 9;
+  const myName = profile?.full_name || profile?.username || "";
+
   return (
-    <div className="mx-auto max-w-[1480px] app-page px-4 sm:px-6 pb-24 pt-0 sm:pt-5 sm:pb-28 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]">
-      <SideNav />
-      <main className="app-main min-w-0 space-y-1.5 sm:space-y-4">
-        <header className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => navigate({ to: "/home" })}
-            aria-label="Back"
-            className="grid h-11 w-11 place-items-center rounded-full hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <ArrowLeft className="h-5 w-5" aria-hidden="true" />
-          </button>
-          <h1 className="text-xl font-bold">Create Post</h1>
-        </header>
-        <section className="glass-card space-y-4 p-4">
+    <PageShell>
+      <header className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => navigate({ to: "/home" })}
+          aria-label="Back"
+          className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card/70 transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+        </button>
+        <h1 className="text-2xl font-extrabold">Create Post</h1>
+      </header>
+      <section className="glass-card space-y-4 p-4 sm:p-5">
+        <div className="flex items-center gap-3">
+          <Avatar src={profile?.avatar_url} name={myName} size={44} />
+          <div className="min-w-0">
+            <p className="truncate font-display text-[0.95rem] font-bold leading-tight">{myName}</p>
+            <p className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-primary/12 px-2 py-0.5 text-[11px] font-semibold text-primary">
+              {audience}
+            </p>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-border bg-elevated/40 transition-colors focus-within:border-primary/70">
           <textarea
             ref={textInput}
             value={text}
-            onChange={(event) =>
-              setText(event.currentTarget.value.slice(0, MAX))
-            }
+            onChange={(event) => setText(event.currentTarget.value.slice(0, MAX))}
             placeholder="What's on your mind?"
             rows={5}
             aria-label="Post text"
-            className="w-full resize-none rounded-xl border border-border bg-elevated/40 p-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            className="w-full resize-none rounded-2xl bg-transparent p-4 text-[0.95rem] leading-relaxed outline-none placeholder:text-muted-foreground"
           />
-          <p className="-mt-3 text-right text-xs text-muted-foreground">
-            {text.length}/{MAX}
-          </p>
-          <ComposerLauncher
-            variant="media"
-            extras={extras}
-            onExtrasChange={setExtras}
-          />
-          <PostExtrasFields
-            value={extras}
-            onChange={setExtras}
-            audience={audience}
-            hashtags={extractHashtags(text)}
-            onAddHashtag={() => {
-              setText((value) => appendHashtagMark(value, MAX));
-              textInput.current?.focus();
-            }}
-          />
-        </section>
-        <section className="glass-card p-4">
-          <h2 className="mb-3 text-sm font-semibold">Post to</h2>
-          <div className="space-y-1">
-            {audiences.map(({ label, icon: Icon }) => (
-              <button
-                key={label}
-                type="button"
-                onClick={() => setAudience(label)}
-                aria-pressed={audience === label}
-                className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm ${audience === label ? "bg-elevated text-primary" : "text-foreground hover:bg-card"}`}
-              >
-                <Icon className="h-5 w-5" aria-hidden="true" />
-                {label}
-                <span
-                  className={`ml-auto h-4 w-4 rounded-full border-2 ${audience === label ? "border-primary bg-primary" : "border-muted-foreground"}`}
-                />
-              </button>
-            ))}
+          <div className="flex items-center justify-end gap-2 px-4 pb-3">
+            <svg viewBox="0 0 24 24" className="h-5 w-5 -rotate-90" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" fill="none" strokeWidth="3" className="stroke-border" />
+              <circle
+                cx="12"
+                cy="12"
+                r="9"
+                fill="none"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeDasharray={C}
+                strokeDashoffset={C * (1 - used / MAX)}
+                className={nearLimit ? "stroke-warning" : "stroke-primary"}
+              />
+            </svg>
+            <p
+              className={`text-xs tabular-nums ${nearLimit ? "text-warning" : "text-muted-foreground"}`}
+            >
+              {text.length}/{MAX}
+            </p>
           </div>
-        </section>
-        <button
-          type="button"
-          onClick={() => publish.mutate()}
-          disabled={!text.trim() || !profile || publish.isPending}
-          className="flex min-h-11 w-full items-center justify-center rounded-full bg-gradient-brand py-3.5 font-semibold text-primary-foreground glow disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {publish.isPending ? "Posting..." : "Post"}
-        </button>
-      </main>
-      <BottomNav />
-    </div>
+        </div>
+        <ComposerLauncher variant="media" extras={extras} onExtrasChange={setExtras} />
+        <PostExtrasFields
+          value={extras}
+          onChange={setExtras}
+          audience={audience}
+          hashtags={extractHashtags(text)}
+          onAddHashtag={() => {
+            setText((value) => appendHashtagMark(value, MAX));
+            textInput.current?.focus();
+          }}
+        />
+      </section>
+      <section className="glass-card p-4 sm:p-5">
+        <h2 className="mb-3 text-sm font-bold">Post to</h2>
+        <div className="grid grid-cols-3 gap-2">
+          {audiences.map(({ label, icon: Icon }) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => setAudience(label)}
+              aria-pressed={audience === label}
+              className={`flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-2xl border px-2 text-center text-xs font-semibold transition-colors sm:text-sm ${
+                audience === label
+                  ? "border-primary/60 bg-primary/12 text-primary shadow-[0_8px_24px_-14px_rgba(249,178,51,0.6)]"
+                  : "border-border bg-elevated/40 text-muted-foreground hover:border-primary/30 hover:text-foreground"
+              }`}
+            >
+              <Icon className="h-5 w-5" aria-hidden="true" />
+              {label}
+            </button>
+          ))}
+        </div>
+      </section>
+      <button
+        type="button"
+        onClick={() => publish.mutate()}
+        disabled={!text.trim() || !profile || publish.isPending}
+        className="flex min-h-12 w-full items-center justify-center rounded-2xl bg-gradient-brand py-3.5 text-[0.95rem] font-bold text-primary-foreground glow transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+      >
+        {publish.isPending ? "Posting..." : "Post"}
+      </button>
+    </PageShell>
   );
 }

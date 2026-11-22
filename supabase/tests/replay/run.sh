@@ -32,5 +32,24 @@ for t in "$HERE"/*.assert.sql; do
     echo "FAIL  $(basename "$t")"; echo "$out" | head -10 | sed 's/^/        /'; status=1
   fi
 done
+# Lock-down script (kept outside migrations on purpose), then the checks that need it applied.
+LOCKDOWN="$HERE/../../manual/auth_lockdown.sql"
+if [ -f "$LOCKDOWN" ]; then
+  for pass in 1 2; do   # run twice: it must be safe to repeat
+    if out=$(psql -q -d "$DB" -v ON_ERROR_STOP=1 -f "$LOCKDOWN" 2>&1 >/dev/null | grep -v -E "NOTICE|WARNING|HINT"); [ -z "$out" ]; then
+      echo "ok    manual/auth_lockdown.sql (run $pass)"
+    else
+      echo "FAIL  manual/auth_lockdown.sql"; echo "$out" | head -8 | sed 's/^/        /'; status=1
+    fi
+  done
+  for t in "$HERE"/*.afterlockdown.sql; do
+    [ -f "$t" ] || continue
+    if out=$(psql -q -d "$DB" -v ON_ERROR_STOP=1 -f "$t" 2>&1 >/dev/null | grep -v -E "^(NOTICE|WARNING|HINT)|^psql:.*(NOTICE|WARNING)"); [ -z "$out" ]; then
+      echo "pass  $(basename "$t")"
+    else
+      echo "FAIL  $(basename "$t")"; echo "$out" | head -10 | sed 's/^/        /'; status=1
+    fi
+  done
+fi
 dropdb --if-exists "$DB" >/dev/null 2>&1
 exit $status

@@ -31,7 +31,7 @@ function DeleteAccountPage() {
         <ol className="list-decimal space-y-1 pl-5 text-sm">
           <li>Open More, then Settings &amp; Privacy.</li>
           <li>Scroll to Delete account and tap Delete my account.</li>
-          <li>Type DELETE and confirm.</li>
+          <li>Type DELETE and enter your password to confirm. If you signed in with Google, sign in again first.</li>
         </ol>
       </section>
 
@@ -40,7 +40,7 @@ function DeleteAccountPage() {
         <p className="text-sm">
           Your profile, posts, stories, comments, followers, messages you sent, market listings,
           bookings and offers, blocks and Close Friends list, notification settings, and the photos,
-          videos and voice notes you uploaded. This happens right away and cannot be undone.
+          videos and voice notes you uploaded. This happens right away and cannot be undone. If you created a group that other people are in, it passes to another member so they keep it; a group with nobody else in it is deleted.
         </p>
       </section>
 

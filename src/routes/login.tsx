@@ -32,7 +32,7 @@ function LoginPage() {
     password?: string | undefined;
   }>({});
   const [formError, setFormError] = useState<string>();
-  const [verifyEmail, setVerifyEmail] = useState<string>();
+  const [verifyUser, setVerifyUser] = useState<{ username: string; masked: string }>();
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
@@ -46,8 +46,10 @@ function LoginPage() {
     if (Object.keys(errs).length) return;
 
     setLoading(true);
-    const { error, verifyEmail: toVerify } = await signIn(identifier, password);
-    setVerifyEmail(toVerify);
+    const { error, verifyUsername, maskedEmail } = await signIn(identifier, password);
+    setVerifyUser(
+      verifyUsername ? { username: verifyUsername, masked: maskedEmail ?? "" } : undefined,
+    );
     // On success the session changes and <AuthGate /> sends the user to /home (or /onboarding).
     setLoading(false);
     if (error) {
@@ -113,10 +115,10 @@ function LoginPage() {
             className="rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
           >
             {formError}{" "}
-            {verifyEmail && (
+            {verifyUser && (
               <Link
                 to="/verify"
-                search={{ email: verifyEmail }}
+                search={{ username: verifyUser.username, masked: verifyUser.masked }}
                 className="font-semibold underline"
               >
                 Enter code

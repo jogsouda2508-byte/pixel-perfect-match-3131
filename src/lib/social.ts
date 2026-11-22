@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchMutedIds } from "@/lib/safety";
 import { randomId } from "@/lib/uuid";
+import { sanitizeImageFile } from "@/lib/image-sanitize";
 import { supabase } from "@/integrations/supabase/client";
 import { removeStoryVideoFile } from "@/lib/story-video";
 import { embedGifs, readEmbeddedGifs, type StoryGif } from "@/lib/story-gifs";
@@ -56,7 +57,11 @@ export function validateImage(file: File): string | null {
   return null;
 }
 
-/** Uploads to the public `media` bucket under <uid>/<folder>/<uuid>.<ext> and returns the public URL. */
+/**
+ * Uploads to the public `media` bucket under <uid>/<folder>/<uuid>.<ext> and returns the public URL.
+ * The bytes are checked and cleaned first (real image? EXIF/GPS removed?), and the stored extension
+ * and Content-Type come from the content, never from the file name the person picked.
+ */
 async function uploadImage(
   userId: string,
   folder: "posts" | "stories",
@@ -64,10 +69,11 @@ async function uploadImage(
 ): Promise<string> {
   const problem = validateImage(file);
   if (problem) throw new Error(problem);
-  const ext = file.type === "image/jpeg" ? "jpg" : file.type.split("/")[1];
+  const clean = await sanitizeImageFile(file, MAX_IMAGE_BYTES);
+  const ext = clean.type === "image/jpeg" ? "jpg" : clean.type.split("/")[1];
   const path = `${userId}/${folder}/${randomId()}.${ext}`;
-  const { error } = await supabase.storage.from("media").upload(path, file, {
-    contentType: file.type,
+  const { error } = await supabase.storage.from("media").upload(path, clean, {
+    contentType: clean.type,
     cacheControl: "31536000",
   });
   if (error) fail("Image upload", error);
@@ -820,11 +826,14 @@ export async function uploadAvatar(userId: string, file: File): Promise<string> 
   if (!ALLOWED_TYPES.includes(file.type))
     throw new Error("Please choose a JPG, PNG, WebP or GIF image.");
   if (file.size > MAX_AVATAR_BYTES) throw new Error("Image must be 5 MB or smaller.");
-  const ext = file.type === "image/jpeg" ? "jpg" : file.type.split("/")[1];
+  // Profile photos are public: verify the content and remove EXIF/GPS even if the file did not
+  // come from the cropper (which already redraws it).
+  const clean = await sanitizeImageFile(file, MAX_AVATAR_BYTES);
+  const ext = clean.type === "image/jpeg" ? "jpg" : clean.type.split("/")[1];
   const path = `${userId}/avatar.${ext}`; // folder name must equal the user's id (storage policy)
   const { error } = await supabase.storage
     .from("avatars")
-    .upload(path, file, { upsert: true, contentType: file.type });
+    .upload(path, clean, { upsert: true, contentType: clean.type });
   if (error) fail("Photo upload", error);
   // Earlier photos were stored as avatar.png / .webp / .gif, uncropped, and stayed public after a
   // change. Remove those leftovers (best effort: a failure here must never fail the upload).

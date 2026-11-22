@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useResolvedMediaUrl } from "@/lib/private-media";
 import { toast } from "sonner";
 import { Mic, Pause, Play, Trash2 } from "lucide-react";
 import { Avatar } from "@/components/ediraa";
@@ -249,6 +250,9 @@ export function VoiceBubble({
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [failed, setFailed] = useState(false);
+  const audioSrc = useResolvedMediaUrl(url);
+  // a freshly signed link gets a fresh chance to load
+  useEffect(() => setFailed(false), [audioSrc]);
   const [speedIdx, setSpeedIdx] = useState(0);
   const [heard, setHeard] = useState(false);
   const total = Math.max(1, seconds);
@@ -313,7 +317,7 @@ export function VoiceBubble({
     <div className="flex w-[min(15.5rem,66vw)] max-w-full items-center gap-1.5 py-0.5 sm:w-[min(17rem,72vw)] sm:gap-2">
       <audio
         ref={audioRef}
-        src={url}
+        src={audioSrc}
         preload="none"
         onPlay={() => {
           setIsPlaying(true);

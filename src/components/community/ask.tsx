@@ -44,6 +44,7 @@ import {
   SkeletonList,
 } from "./shared";
 import { communityLink, WhatsAppShare } from "./share-button";
+import { userMessage } from "@/lib/security";
 
 const FILTERS: { key: QuestionFilter; label: string }[] = [
   { key: "new", label: "Newest" },
@@ -183,8 +184,7 @@ function QuestionView({ id, meId, onBack }: { id: string; meId: string; onBack: 
     void qc.invalidateQueries({ queryKey: ["community", "question", id] });
     void qc.invalidateQueries({ queryKey: ["community", "questions"] });
   };
-  const onErr = (e: unknown) =>
-    toast.error(e instanceof Error ? e.message : "Something went wrong.");
+  const onErr = (e: unknown) => toast.error(userMessage(e, "Something went wrong."));
 
   const post = useMutation({
     mutationFn: () => createAnswer(id, meId, text),
@@ -424,7 +424,7 @@ function AskSheet({
       onOpenChange(false);
       onDone(id);
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't post your question."),
+    onError: (e) => toast.error(userMessage(e, "Couldn't post your question.")),
   });
   const submit = () => {
     setTried(true);

@@ -44,6 +44,7 @@ import {
   useNow,
 } from "./shared";
 import { communityLink, WhatsAppShare } from "./share-button";
+import { userMessage } from "@/lib/security";
 
 const ICONS: Record<AlertKind, ComponentType<{ className?: string }>> = {
   power: Zap,
@@ -92,7 +93,7 @@ export function AlertsTab({ locality, meId }: { locality: string | null; meId: s
     },
     onError: (e, _v, ctx) => {
       ctx?.snap.forEach(([k, d]) => qc.setQueryData(k, d));
-      toast.error(e instanceof Error ? e.message : "Couldn't save your vote.");
+      toast.error(userMessage(e, "Couldn't save your vote."));
     },
     onSettled: refresh,
   });
@@ -106,7 +107,7 @@ export function AlertsTab({ locality, meId }: { locality: string | null; meId: s
       );
       refresh();
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Something went wrong."),
+    onError: (e) => toast.error(userMessage(e, "Something went wrong.")),
   });
 
   const active = q.data?.filter((a) => a.status !== "resolved") ?? [];
@@ -326,7 +327,7 @@ function AlertSheet({
       onDone();
       onOpenChange(false);
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't post the alert."),
+    onError: (e) => toast.error(userMessage(e, "Couldn't post the alert.")),
   });
 
   const submit = () => {

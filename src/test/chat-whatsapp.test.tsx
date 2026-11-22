@@ -318,7 +318,12 @@ describe("bubble parts", () => {
 
   it("a voice message shows its length, the time and a play button", () => {
     render(
-      <VoiceBubble url="https://x/y.webm" seconds={4} own={false} footer={<span>8:15 pm</span>} />,
+      <VoiceBubble
+        url="blob:http://localhost/voice-1"
+        seconds={4}
+        own={false}
+        footer={<span>8:15 pm</span>}
+      />,
     );
     expect(screen.getByText("0:04")).toBeInTheDocument();
     expect(screen.getByText("8:15 pm")).toBeInTheDocument();

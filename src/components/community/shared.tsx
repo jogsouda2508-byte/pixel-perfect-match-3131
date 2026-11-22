@@ -6,6 +6,7 @@ import { BottomSheet } from "@/components/bottom-sheet";
 import { cn } from "@/lib/utils";
 import { fetchLocalities } from "@/lib/social";
 import type { CommunityPerson } from "@/lib/community";
+import { userMessage } from "@/lib/security";
 
 /** Re-renders now and then so "Starts in 5 min" and "Closes in 2 h" stay fresh. */
 export function useNow(everyMs = 30_000) {
@@ -119,7 +120,7 @@ export function EmptyState({
 }
 
 export function ErrorState({ error, onRetry }: { error: unknown; onRetry: () => void }) {
-  const msg = error instanceof Error ? error.message : "Something went wrong.";
+  const msg = userMessage(error, "Something went wrong.");
   return (
     <div className="glass-card flex flex-col items-center gap-3 px-6 py-8 text-center" role="alert">
       <AlertCircle className="h-8 w-8 max-md:h-7 max-md:w-7 text-destructive" aria-hidden="true" />

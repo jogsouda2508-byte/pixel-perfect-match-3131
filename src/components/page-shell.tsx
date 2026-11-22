@@ -7,16 +7,20 @@ import { BottomNav, SideNav } from "@/components/ediraa";
 export function PageShell({
   children,
   showBottomNav = true,
+  aside,
 }: {
   children: ReactNode;
   showBottomNav?: boolean;
+  /** Optional right-hand column (shown from large screens up), e.g. suggestions on Home. */
+  aside?: ReactNode;
 }) {
   return (
     <div
-      className={`mx-auto max-w-[1480px] app-page px-4 sm:px-6 ${showBottomNav ? "pb-24 sm:pb-28" : "pb-5"} pt-0 sm:pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]`}
+      className={`mx-auto max-w-[1480px] app-page px-4 sm:px-6 ${showBottomNav ? "pb-28 sm:pb-32 md:pb-8" : "pb-5"} pt-0 sm:pt-5 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]`}
     >
       <SideNav />
       <main className="app-main min-w-0 space-y-1.5 sm:space-y-4">{children}</main>
+      {aside}
       {showBottomNav && <BottomNav />}
     </div>
   );
@@ -39,7 +43,7 @@ export function PageHeader({
   const canGoBack = useCanGoBack();
   const navigate = useNavigate();
   const cls =
-    "grid h-10 w-10 place-items-center rounded-full hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+    "grid h-10 w-10 place-items-center rounded-full border border-border bg-card/70 transition-colors hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
   return (
     <header className="flex items-center gap-3">
       {smartBack ? (
@@ -56,7 +60,9 @@ export function PageHeader({
           <ArrowLeft className="h-5 w-5" />
         </Link>
       )}
-      <h1 className={compact ? "text-xl font-bold sm:text-2xl" : "text-2xl font-bold"}>{title}</h1>
+      <h1 className={compact ? "text-xl font-bold sm:text-2xl" : "text-2xl font-bold sm:text-3xl"}>
+        {title}
+      </h1>
     </header>
   );
 }

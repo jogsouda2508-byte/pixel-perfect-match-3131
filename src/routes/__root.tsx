@@ -89,11 +89,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "SabZone" },
       { name: "description", content: "SabZone social network" },
       { name: "author", content: "Lovable" },
-      { name: "theme-color", content: "#15121f" },
+      // also applies to the Android app's bundled pages, where server headers don't exist
+      { name: "referrer", content: "strict-origin-when-cross-origin" },
+      { name: "theme-color", content: "#0d0b1a" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-title", content: "SabZone" },
-      
-      
+
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@Lovable" },
@@ -106,7 +107,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
       { rel: "manifest", href: "/manifest.webmanifest" },
       { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@800&display=swap",
+      },
       // font styles for story text (Modern, Classic, Signature, Editor, ...)
       { rel: "stylesheet", href: TEXT_FONTS_CSS_URL },
     ],
@@ -119,7 +123,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark" style={{ colorScheme: "dark" }}>
       <head>
         <HeadContent />
       </head>

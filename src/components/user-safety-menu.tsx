@@ -30,6 +30,7 @@ import {
   useMutedIds,
   type ReportTarget,
 } from "@/lib/safety";
+import { userMessage } from "@/lib/security";
 
 /** Refresh everything that shows other people's content. */
 export function useRefreshAfterSafetyChange() {
@@ -95,7 +96,7 @@ export function UserSafetyMenu({
       );
       refresh();
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't do that. Please try again."),
+    onError: (e) => toast.error(userMessage(e, "Couldn't do that. Please try again.")),
   });
 
   const block = useMutation({
@@ -107,14 +108,18 @@ export function UserSafetyMenu({
       onDone?.(blocked ? "unblocked" : "blocked");
     },
     onError: (e) => {
-      toast.error(e instanceof Error ? e.message : "Couldn't do that. Please try again.");
+      toast.error(userMessage(e, "Couldn't do that. Please try again."));
       openConfirm(false);
     },
   });
 
   if (!user || user.id === userId) return null;
 
-  const reportTarget = report ?? { type: "user" as const, id: userId, label: `Report @${username}` };
+  const reportTarget = report ?? {
+    type: "user" as const,
+    id: userId,
+    label: `Report @${username}`,
+  };
 
   return (
     <>
@@ -140,7 +145,7 @@ export function UserSafetyMenu({
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={() => (blocked ? block.mutate() : openConfirm(true))}
-            className="text-destructive focus:text-destructive"
+            className="text-destructive focus:bg-destructive/10 focus:text-destructive"
           >
             <Ban className="mr-2 h-4 w-4" aria-hidden="true" />
             {blocked ? `Unblock @${username}` : `Block @${username}`}

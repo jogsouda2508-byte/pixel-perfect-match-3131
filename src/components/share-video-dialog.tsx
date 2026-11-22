@@ -20,6 +20,7 @@ import { useAuth } from "@/lib/auth";
 import { fetchFollowList } from "@/lib/social";
 import { shareCountKey } from "@/lib/post-shares";
 import { shareVideoWithUser } from "@/lib/video-share";
+import { userMessage } from "@/lib/security";
 
 /**
  * "Send to…" picker for a video. It only lists people the current user follows, and the
@@ -48,16 +49,16 @@ export function ShareVideoDialog({
         shouldScaleBackground={false}
       >
         <DrawerPrimitive.Portal>
-          <DrawerPrimitive.Overlay className="fixed inset-0 z-[60] bg-black/50" />
+          <DrawerPrimitive.Overlay className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-[2px]" />
           <DrawerPrimitive.Content
             onOpenAutoFocus={(event) => event.preventDefault()}
-            className="fixed inset-x-0 bottom-0 z-[60] flex h-[75dvh] max-h-[90dvh] flex-col rounded-t-[28px] bg-background text-foreground outline-none"
+            className="fixed inset-x-0 bottom-0 z-[60] flex h-[75dvh] max-h-[90dvh] flex-col rounded-t-[32px] border border-b-0 border-border bg-popover/95 text-foreground shadow-[0_-24px_70px_-20px_rgba(0,0,0,0.8)] outline-none backdrop-blur-xl sm:mx-auto sm:max-w-xl"
           >
             <div
               aria-hidden="true"
-              className="mx-auto mt-2.5 h-[3px] w-9 shrink-0 rounded-full bg-muted-foreground/60"
+              className="mx-auto mt-3 h-1 w-10 shrink-0 rounded-full bg-muted-foreground/40"
             />
-            <DrawerPrimitive.Title className="shrink-0 pt-3 text-center text-base font-medium">
+            <DrawerPrimitive.Title className="shrink-0 pt-3 text-center font-display text-base font-bold">
               Share {kind}
             </DrawerPrimitive.Title>
             <DrawerPrimitive.Description className="shrink-0 px-4 pb-3 pt-1 text-center text-sm text-muted-foreground">
@@ -146,9 +147,7 @@ function RecipientList({
       results.forEach((result, index) => {
         const id = selectedIds[index]!;
         if (result.status === "fulfilled") okCount += 1;
-        else
-          failed[id] =
-            result.reason instanceof Error ? result.reason.message : `Couldn't share this ${kind}.`;
+        else failed[id] = userMessage(result.reason, `Couldn't share this ${kind}.`);
       });
       const label = kind === "video" ? "Video" : "Post";
       if (okCount > 0) {
@@ -217,7 +216,7 @@ function RecipientList({
             </p>
             <Link
               to="/discover"
-              className="inline-block rounded-full border border-primary px-5 py-2 text-sm font-semibold text-primary"
+              className="inline-block rounded-full border border-primary/50 px-5 py-2 text-sm font-semibold text-primary transition-colors hover:bg-primary/10"
             >
               Find people
             </Link>
@@ -242,16 +241,16 @@ function RecipientList({
                   aria-label={`Select ${name}`}
                   disabled={sending}
                   onClick={() => toggle(person.id)}
-                  className="flex min-h-[56px] w-full items-center gap-3 rounded-lg px-1 text-left hover:bg-elevated/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                  className="flex min-h-[56px] w-full items-center gap-3 rounded-2xl px-2 text-left transition-colors hover:bg-elevated/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
                 >
                   <Avatar src={person.avatar_url} name={name} size={44} />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold">{name}</p>
+                    <p className="truncate text-sm font-bold">{name}</p>
                     <p className="truncate text-sm text-muted-foreground">@{person.username}</p>
                   </div>
                   <span
                     aria-hidden="true"
-                    className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border-2 ${
+                    className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border-2 transition-colors ${
                       isSelected
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-border"

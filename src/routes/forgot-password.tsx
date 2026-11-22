@@ -1,10 +1,10 @@
+// TODO: remove once 20261118000001_revoke_email_lookup
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { authRedirect, NATIVE_RESET_REDIRECT } from "@/lib/auth-redirect";
 import { useState } from "react";
 import { toast } from "sonner";
 import { MailCheck } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { friendlyAuthError } from "@/lib/auth-errors";
+import { callGateway, gatewayProblem } from "@/lib/auth-gateway";
 import { AuthShell, PrimaryButton, TextField } from "@/components/auth-ui";
 
 export const Route = createFileRoute("/forgot-password")({
@@ -17,7 +17,6 @@ function ForgotPasswordPage() {
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
-  const [multiple, setMultiple] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,36 +25,19 @@ function ForgotPasswordPage() {
     setError(undefined);
     setLoading(true);
 
-    // One email can have up to 3 accounts. Turn the typed email/username into the account
-    // email(s) to send the link to (a username picks exactly one account).
-    let targets: string[] = [];
-    const looksLikeEmail = value.includes("@") && !value.startsWith("@");
-    const lookup = await supabase.rpc("get_reset_emails", { p_identifier: value });
-    if (!lookup.error && lookup.data) targets = lookup.data;
-    // Fall back to the old behaviour if the lookup isn't available yet.
-    if (lookup.error && looksLikeEmail) targets = [value];
-    if (!looksLikeEmail && targets.length === 0) {
-      // Unknown username: answer the same as a known one (don't reveal which exist).
-      setLoading(false);
-      setSent(true);
-      return;
-    }
-    if (looksLikeEmail && targets.length === 0) targets = [value];
-
-    let failed: Parameters<typeof friendlyAuthError>[0];
-    for (const target of targets) {
-      const { error: err } = await supabase.auth.resetPasswordForEmail(target, {
-        redirectTo: authRedirect("/reset-password", NATIVE_RESET_REDIRECT),
-      });
-      if (err) failed = err;
-    }
+    // The server finds the account(s), sends the link, and answers the same whether or not
+    // anything matched, so nobody can use this form to find out who has an account.
+    const r = await callGateway("request_reset", {
+      identifier: value,
+      redirect_to: authRedirect("/reset-password", NATIVE_RESET_REDIRECT),
+    });
     setLoading(false);
-    if (failed) {
-      setError(friendlyAuthError(failed));
-      toast.error(friendlyAuthError(failed));
+    if (!r.ok) {
+      const msg = gatewayProblem(r, "Couldn't send the reset link. Please try again.");
+      setError(msg);
+      toast.error(msg);
       return;
     }
-    setMultiple(targets.length > 1);
     setSent(true);
   };
 
@@ -75,14 +57,9 @@ function ForgotPasswordPage() {
           <p className="font-semibold">Check your inbox</p>
           <p className="text-sm text-muted-foreground">
             If an account exists for <span className="text-foreground">{email.trim()}</span>, a
-            reset link is on its way.
+            reset link is on its way. If that email has more than one account you'll get one link
+            per account; enter a username instead to reset just one.
           </p>
-          {multiple && (
-            <p className="text-xs text-muted-foreground">
-              This email has more than one account, so you'll get one link per account. To reset
-              only one, go back and enter that account's username instead.
-            </p>
-          )}
         </div>
       ) : (
         <form onSubmit={submit} className="space-y-4" noValidate>

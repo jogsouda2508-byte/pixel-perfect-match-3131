@@ -1,0 +1,3740 @@
+diff --git a/docs/AUDIT-2026-11.md b/docs/AUDIT-2026-11.md
+index 81b705f..cdd4c87 100644
+--- a/docs/AUDIT-2026-11.md
++++ b/docs/AUDIT-2026-11.md
+@@ -20,8 +20,8 @@ Supabase project, a browser, or an Android device.
+ | # | Severity | Finding | Status |
+ | --- | --- | --- | --- |
+ | S1 | **Critical** | `get_login_email(username)`, `get_login_emails`, `get_reset_emails` are executable by **anon**. Anyone with the public anon key can turn a username into that account's real email address. **Verified.** (`20261102000000_multi_account_per_email.sql`) | Open: Phase 4 |
+-| S2 | **High** | `chat-media` bucket is `public = true` with an open `SELECT` policy: private DM photos/videos/files are readable by anyone who has the URL. (`20261030000000_chat_whatsapp.sql`) | Open: Phase 4 |
+-| S3 | High | `chat-media` has a size limit but **no `allowed_mime_types`**, so any file type (HTML, SVG, APK) can be hosted from your Supabase domain. Other buckets are restricted. | Open: Phase 4 |
++| S2 | **High** | `chat-media` bucket is `public = true` with an open `SELECT` policy: private DM photos/videos/files are readable by anyone who has the URL. (`20261030000000_chat_whatsapp.sql`) | **Fixed in code**, not yet deployed: `20261116000000_private_chat_media.sql` + signed URLs. See `docs/CHAT-MEDIA-SECURITY.md` |
++| S3 | High | `chat-media` has a size limit but **no `allowed_mime_types`**, so any file type (HTML, SVG, APK) can be hosted from your Supabase domain. Other buckets are restricted. | **Fixed in code**, not yet deployed: same migration (allow-list of types) |
+ | S4 | Medium | The only rate limit found in the migrations is on `reports` (searched for `rate_limit`). Nothing found for signup, username/email lookups (S1), messages, follows or uploads. | Open: Phase 4 |
+ | S5 | Medium | Avatar upload validates type and size (good) but uploads the **original file as-is**: full resolution, and any EXIF metadata (incl. GPS location from phone photos) lands in a **public** bucket. The upload code is also duplicated (`lib/social.ts`, `routes/onboarding.tsx`). | Open: Phase 2 |
+ | S6 | Low | `supabase/.temp/` (project ref, versions) is committed; `android/app/google-services.json` Firebase key should be restricted by package + SHA-1 in Google Cloud. Not a secret leak, but hygiene. | Open |
+diff --git a/docs/CHAT-MEDIA-SECURITY.md b/docs/CHAT-MEDIA-SECURITY.md
+new file mode 100644
+index 0000000..2a02fbe
+--- /dev/null
++++ b/docs/CHAT-MEDIA-SECURITY.md
+@@ -0,0 +1,79 @@
++# Private chat media
++
++Only the people in a conversation can read its messages, photos, files and voice messages.
++
++## What was wrong
++
++* The `chat-media` and `voice` storage buckets were **public**. Anyone holding a file's address
++  (signed in or not) could open it, and the address was stored in plain text in every message.
++* `chat-media` accepted **any file type**, including HTML, SVG and APK files.
++* `send_chat_message` / `send_voice_message` only checked that the address *contained* the sender's
++  folder, so a foreign address with that text inside was accepted.
++
++Messages themselves were already protected correctly (row level security: members only, no direct
++media columns, no direct edits); that is now covered by automated tests so it stays that way.
++
++## What changed
++
++| Where | Change |
++| --- | --- |
++| `supabase/migrations/20261116000000_private_chat_media.sql` | Both buckets private. Public read rules removed. New read rule `can_read_chat_media`: *you uploaded it, or it is attached to a message in a conversation you belong to* (leave a group and you lose access). `chat-media` accepts only photos, video, audio, PDFs and common documents. Uploads must be a plain file name in your own folder. The two send functions now check strictly (`chat_media_path`). Nothing is moved or deleted. |
++| `src/lib/chat-media.ts` | Turns a stored address into a **signed URL** (valid 1 hour, cached, refreshed on failure). Refuses any address that is not one of our chat files. File-type allow-list. |
++| `src/components/chat-media-img.tsx`, `chat-parts.tsx`, `voice-recorder.tsx` | Photos, quoted photos, the full-screen viewer, file links and voice playback all go through signing. |
++| `src/lib/chat-extras.ts`, `src/routes/chat.$id.tsx` | Unsafe files (SVG, HTML, scripts, programs) are refused before anything is uploaded. The document picker lists only allowed extensions. |
++| `src/lib/auth.tsx` | Signed links are forgotten on sign-out. |
++| `supabase/tests/replay/chat_media.assert.sql` | Database tests (run by CI's migration replay). |
++| `src/test/chat-media*.test.ts(x)`, `chat-upload-safety.test.ts` | App tests. |
++
++Existing messages keep their stored value, which still has the old `.../object/public/<bucket>/...`
++shape. The app reads the path out of it and signs that, so **no data migration is needed**.
++
++## Rollout order (important)
++
++The new app works with the public *and* the private database. An **old** app cannot show chat photos
++or play voice messages once the buckets are private. So:
++
++1. Merge and deploy the new app (web, then the Android build).
++2. Wait until people have updated (or accept that old installs lose chat media until they do).
++3. Run `20261116000000_private_chat_media.sql` in the Supabase SQL Editor. It is safe to run twice.
++4. Run the checks below.
++
++If something goes wrong after step 3, the quickest way back is to set the buckets to public again in
++the dashboard (Storage → bucket → Edit) and re-create the old "public read" policy; the new app keeps
++working either way. This is a manual step; the migration does not do it for you.
++
++## Checks after step 3 (read-only)
++
++* Open a conversation: photos, files and voice messages still load; a photo's `src` starts with
++  `https://<project>.supabase.co/storage/v1/object/sign/`.
++* Take a photo's old public address (`.../object/public/chat-media/...`) and open it in a private
++  window: it must **not** show the picture.
++* A signed link for a photo, opened while signed out, works until it expires (one hour). That is how
++  signed links behave; see the limits below.
++* Look for old risky files that were uploaded before the type list existed (they stay readable only
++  by the people in their chat, but you may want to remove them):
++
++  ```sql
++  select name, metadata->>'mimetype' as type
++  from storage.objects
++  where bucket_id = 'chat-media'
++    and (metadata->>'mimetype') in ('image/svg+xml', 'text/html', 'application/vnd.android.package-archive');
++  ```
++
++## Limits to know about
++
++* A signed link is a key: while it lasts (1 hour), anyone who is *given* it can open that one file.
++  Participants can also save, screenshot or forward what they can see. Private storage stops
++  strangers, not members.
++* Shared **posts** and stories keep using their own public media buckets (public posts are public).
++* The type list is enforced by the bucket for new uploads. Files uploaded earlier are not rewritten.
++* Signed links are unique per request, so the browser/CDN can't share one cached copy between
++  people. The app keeps a one-hour in-memory cache to avoid asking again while scrolling.
++* This change does not add upload rate limiting (a separate item in the audit).
++
++## Running the tests
++
++```
++npm test                                      # app tests
++PGHOST=localhost PGUSER=postgres sh supabase/tests/replay/run.sh   # replays every migration, then the *.assert.sql tests
++```
+diff --git a/sabzone-chat-security.patch b/sabzone-chat-security.patch
+new file mode 100644
+index 0000000..5703756
+--- /dev/null
++++ b/sabzone-chat-security.patch
+@@ -0,0 +1,1867 @@
++diff --git a/docs/AUDIT-2026-11.md b/docs/AUDIT-2026-11.md
++index 81b705f..cdd4c87 100644
++--- a/docs/AUDIT-2026-11.md
+++++ b/docs/AUDIT-2026-11.md
++@@ -20,8 +20,8 @@ Supabase project, a browser, or an Android device.
++ | # | Severity | Finding | Status |
++ | --- | --- | --- | --- |
++ | S1 | **Critical** | `get_login_email(username)`, `get_login_emails`, `get_reset_emails` are executable by **anon**. Anyone with the public anon key can turn a username into that account's real email address. **Verified.** (`20261102000000_multi_account_per_email.sql`) | Open: Phase 4 |
++-| S2 | **High** | `chat-media` bucket is `public = true` with an open `SELECT` policy: private DM photos/videos/files are readable by anyone who has the URL. (`20261030000000_chat_whatsapp.sql`) | Open: Phase 4 |
++-| S3 | High | `chat-media` has a size limit but **no `allowed_mime_types`**, so any file type (HTML, SVG, APK) can be hosted from your Supabase domain. Other buckets are restricted. | Open: Phase 4 |
+++| S2 | **High** | `chat-media` bucket is `public = true` with an open `SELECT` policy: private DM photos/videos/files are readable by anyone who has the URL. (`20261030000000_chat_whatsapp.sql`) | **Fixed in code**, not yet deployed: `20261116000000_private_chat_media.sql` + signed URLs. See `docs/CHAT-MEDIA-SECURITY.md` |
+++| S3 | High | `chat-media` has a size limit but **no `allowed_mime_types`**, so any file type (HTML, SVG, APK) can be hosted from your Supabase domain. Other buckets are restricted. | **Fixed in code**, not yet deployed: same migration (allow-list of types) |
++ | S4 | Medium | The only rate limit found in the migrations is on `reports` (searched for `rate_limit`). Nothing found for signup, username/email lookups (S1), messages, follows or uploads. | Open: Phase 4 |
++ | S5 | Medium | Avatar upload validates type and size (good) but uploads the **original file as-is**: full resolution, and any EXIF metadata (incl. GPS location from phone photos) lands in a **public** bucket. The upload code is also duplicated (`lib/social.ts`, `routes/onboarding.tsx`). | Open: Phase 2 |
++ | S6 | Low | `supabase/.temp/` (project ref, versions) is committed; `android/app/google-services.json` Firebase key should be restricted by package + SHA-1 in Google Cloud. Not a secret leak, but hygiene. | Open |
++diff --git a/docs/CHAT-MEDIA-SECURITY.md b/docs/CHAT-MEDIA-SECURITY.md
++new file mode 100644
++index 0000000..2a02fbe
++--- /dev/null
+++++ b/docs/CHAT-MEDIA-SECURITY.md
++@@ -0,0 +1,79 @@
+++# Private chat media
+++
+++Only the people in a conversation can read its messages, photos, files and voice messages.
+++
+++## What was wrong
+++
+++* The `chat-media` and `voice` storage buckets were **public**. Anyone holding a file's address
+++  (signed in or not) could open it, and the address was stored in plain text in every message.
+++* `chat-media` accepted **any file type**, including HTML, SVG and APK files.
+++* `send_chat_message` / `send_voice_message` only checked that the address *contained* the sender's
+++  folder, so a foreign address with that text inside was accepted.
+++
+++Messages themselves were already protected correctly (row level security: members only, no direct
+++media columns, no direct edits); that is now covered by automated tests so it stays that way.
+++
+++## What changed
+++
+++| Where | Change |
+++| --- | --- |
+++| `supabase/migrations/20261116000000_private_chat_media.sql` | Both buckets private. Public read rules removed. New read rule `can_read_chat_media`: *you uploaded it, or it is attached to a message in a conversation you belong to* (leave a group and you lose access). `chat-media` accepts only photos, video, audio, PDFs and common documents. Uploads must be a plain file name in your own folder. The two send functions now check strictly (`chat_media_path`). Nothing is moved or deleted. |
+++| `src/lib/chat-media.ts` | Turns a stored address into a **signed URL** (valid 1 hour, cached, refreshed on failure). Refuses any address that is not one of our chat files. File-type allow-list. |
+++| `src/components/chat-media-img.tsx`, `chat-parts.tsx`, `voice-recorder.tsx` | Photos, quoted photos, the full-screen viewer, file links and voice playback all go through signing. |
+++| `src/lib/chat-extras.ts`, `src/routes/chat.$id.tsx` | Unsafe files (SVG, HTML, scripts, programs) are refused before anything is uploaded. The document picker lists only allowed extensions. |
+++| `src/lib/auth.tsx` | Signed links are forgotten on sign-out. |
+++| `supabase/tests/replay/chat_media.assert.sql` | Database tests (run by CI's migration replay). |
+++| `src/test/chat-media*.test.ts(x)`, `chat-upload-safety.test.ts` | App tests. |
+++
+++Existing messages keep their stored value, which still has the old `.../object/public/<bucket>/...`
+++shape. The app reads the path out of it and signs that, so **no data migration is needed**.
+++
+++## Rollout order (important)
+++
+++The new app works with the public *and* the private database. An **old** app cannot show chat photos
+++or play voice messages once the buckets are private. So:
+++
+++1. Merge and deploy the new app (web, then the Android build).
+++2. Wait until people have updated (or accept that old installs lose chat media until they do).
+++3. Run `20261116000000_private_chat_media.sql` in the Supabase SQL Editor. It is safe to run twice.
+++4. Run the checks below.
+++
+++If something goes wrong after step 3, the quickest way back is to set the buckets to public again in
+++the dashboard (Storage → bucket → Edit) and re-create the old "public read" policy; the new app keeps
+++working either way. This is a manual step; the migration does not do it for you.
+++
+++## Checks after step 3 (read-only)
+++
+++* Open a conversation: photos, files and voice messages still load; a photo's `src` starts with
+++  `https://<project>.supabase.co/storage/v1/object/sign/`.
+++* Take a photo's old public address (`.../object/public/chat-media/...`) and open it in a private
+++  window: it must **not** show the picture.
+++* A signed link for a photo, opened while signed out, works until it expires (one hour). That is how
+++  signed links behave; see the limits below.
+++* Look for old risky files that were uploaded before the type list existed (they stay readable only
+++  by the people in their chat, but you may want to remove them):
+++
+++  ```sql
+++  select name, metadata->>'mimetype' as type
+++  from storage.objects
+++  where bucket_id = 'chat-media'
+++    and (metadata->>'mimetype') in ('image/svg+xml', 'text/html', 'application/vnd.android.package-archive');
+++  ```
+++
+++## Limits to know about
+++
+++* A signed link is a key: while it lasts (1 hour), anyone who is *given* it can open that one file.
+++  Participants can also save, screenshot or forward what they can see. Private storage stops
+++  strangers, not members.
+++* Shared **posts** and stories keep using their own public media buckets (public posts are public).
+++* The type list is enforced by the bucket for new uploads. Files uploaded earlier are not rewritten.
+++* Signed links are unique per request, so the browser/CDN can't share one cached copy between
+++  people. The app keeps a one-hour in-memory cache to avoid asking again while scrolling.
+++* This change does not add upload rate limiting (a separate item in the audit).
+++
+++## Running the tests
+++
+++```
+++npm test                                      # app tests
+++PGHOST=localhost PGUSER=postgres sh supabase/tests/replay/run.sh   # replays every migration, then the *.assert.sql tests
+++```
++diff --git a/src/components/chat-media-img.tsx b/src/components/chat-media-img.tsx
++new file mode 100644
++index 0000000..92274df
++--- /dev/null
+++++ b/src/components/chat-media-img.tsx
++@@ -0,0 +1,51 @@
+++import { useEffect, useState, type ReactNode } from "react";
+++import { useChatMediaUrl } from "@/lib/chat-media";
+++
+++/**
+++ * A chat photo from private storage. Shows an empty box while the signed link is fetched, asks for
+++ * a fresh link once if the browser rejects the old one, and shows `fallback` (default: nothing) if
+++ * the file can't be opened.
+++ */
+++export function ChatMediaImg({
+++  url,
+++  alt,
+++  className,
+++  loading = "lazy",
+++  fallback = null,
+++}: {
+++  url: string;
+++  alt: string;
+++  className?: string;
+++  loading?: "lazy" | "eager";
+++  fallback?: ReactNode;
+++}) {
+++  const media = useChatMediaUrl(url);
+++  const [retried, setRetried] = useState(false);
+++  const [broken, setBroken] = useState(false);
+++  useEffect(() => {
+++    setRetried(false);
+++    setBroken(false);
+++  }, [url]);
+++
+++  if (media.status === "error" || broken) return <>{fallback}</>;
+++  if (!media.src)
+++    return (
+++      <span aria-hidden="true" className={`${className ?? ""} block animate-pulse bg-black/10`} />
+++    );
+++  return (
+++    <img
+++      src={media.src}
+++      alt={alt}
+++      loading={loading}
+++      draggable={false}
+++      className={className}
+++      onError={() => {
+++        if (retried) return setBroken(true);
+++        setRetried(true);
+++        void media.refresh().then((ok) => {
+++          if (!ok) setBroken(true);
+++        });
+++      }}
+++    />
+++  );
+++}
++diff --git a/src/components/chat-parts.tsx b/src/components/chat-parts.tsx
++index 70beb6b..a55127d 100644
++--- a/src/components/chat-parts.tsx
+++++ b/src/components/chat-parts.tsx
++@@ -12,7 +12,9 @@ import {
++   X,
++ } from "lucide-react";
++ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+++import { ChatMediaImg } from "@/components/chat-media-img";
++ import type { MessageReactionRow, MessageRow } from "@/integrations/supabase/types";
+++import { useChatMediaUrl } from "@/lib/chat-media";
++ import { formatFileSize, quotePreview, type ReactionGroup } from "@/lib/chat-extras";
++ 
++ export function DayPill({ label }: { label: string }) {
++@@ -97,12 +99,7 @@ export function ReplyQuote({
++         </span>
++       </span>
++       {quoted?.image_url && (
++-        <img
++-          src={quoted.image_url}
++-          alt=""
++-          loading="lazy"
++-          className="h-12 w-12 shrink-0 object-cover"
++-        />
+++        <ChatMediaImg url={quoted.image_url} alt="" className="h-12 w-12 shrink-0 object-cover" />
++       )}
++     </button>
++   );
++@@ -123,27 +120,23 @@ export function ImageBody({
++   /** time + ticks drawn over the bottom-right corner */
++   overlay?: ReactNode;
++ }) {
++-  const [broken, setBroken] = useState(false);
++   const ratio = width && height ? Math.min(1.6, Math.max(0.7, width / height)) : 1;
++   return (
++     <div
++       className="relative w-[min(14.5rem,62vw)] max-w-full overflow-hidden rounded-md bg-black/10 sm:w-[min(16.5rem,70vw)]"
++       style={{ aspectRatio: String(ratio) }}
++     >
++-      {broken ? (
++-        <div className="grid h-full w-full place-items-center text-xs text-[var(--wa-meta)]">
++-          Photo unavailable
++-        </div>
++-      ) : (
++-        <img
++-          src={url}
++-          alt="Photo"
++-          loading="lazy"
++-          draggable={false}
++-          onError={() => setBroken(true)}
++-          className="h-full w-full select-none object-cover"
++-        />
++-      )}
+++      {/* the photo comes from private storage: it is fetched through a short-lived signed link */}
+++      <ChatMediaImg
+++        url={url}
+++        alt="Photo"
+++        className="h-full w-full select-none object-cover"
+++        fallback={
+++          <div className="grid h-full w-full place-items-center text-xs text-[var(--wa-meta)]">
+++            Photo unavailable
+++          </div>
+++        }
+++      />
++       {uploading && (
++         <span className="absolute inset-0 grid place-items-center bg-black/35">
++           <Loader2 className="h-7 w-7 animate-spin text-white" aria-label="Uploading" />
++@@ -169,9 +162,22 @@ export function FileBody({
++ }) {
++   const label = name || "Document";
++   const ext = label.includes(".") ? (label.split(".").pop() ?? "").toUpperCase().slice(0, 5) : "";
+++  // private storage: the link is signed (and set to save under the file's own name)
+++  const media = useChatMediaUrl(url, { download: label });
+++  if (media.status === "error") {
+++    return (
+++      <div className="flex w-[min(14.5rem,62vw)] max-w-full items-center gap-2.5 rounded-md bg-[var(--wa-quote)] p-2.5 text-[13px] italic text-[var(--wa-meta)] sm:w-[min(16.5rem,70vw)]">
+++        <FileText className="h-5 w-5 shrink-0" aria-hidden="true" />
+++        File unavailable
+++      </div>
+++    );
+++  }
++   return (
++     <a
++-      href={url}
+++      {...(media.src ? { href: media.src } : { "aria-disabled": true })}
+++      onClick={(e) => {
+++        if (!media.src) e.preventDefault();
+++      }}
++       target="_blank"
++       rel="noopener noreferrer"
++       download={label}
++@@ -301,7 +307,13 @@ export function ImageLightbox({ url, onClose }: { url: string; onClose: () => vo
++       >
++         <X className="h-6 w-6" aria-hidden="true" />
++       </button>
++-      <img src={url} alt="Photo" className="max-h-full max-w-full object-contain" />
+++      <ChatMediaImg
+++        url={url}
+++        alt="Photo"
+++        loading="eager"
+++        className="max-h-full max-w-full object-contain"
+++        fallback={<p className="text-sm text-white/80">Photo unavailable</p>}
+++      />
++     </div>,
++     document.body,
++   );
++@@ -533,7 +545,7 @@ export function ReplyBar({
++           </span>
++         </span>
++         {quoted.image_url && (
++-          <img src={quoted.image_url} alt="" className="h-11 w-11 shrink-0 object-cover" />
+++          <ChatMediaImg url={quoted.image_url} alt="" className="h-11 w-11 shrink-0 object-cover" />
++         )}
++       </div>
++       <button
++diff --git a/src/components/voice-recorder.tsx b/src/components/voice-recorder.tsx
++index 5af7c7c..3cd3ee8 100644
++--- a/src/components/voice-recorder.tsx
+++++ b/src/components/voice-recorder.tsx
++@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
++ import { toast } from "sonner";
++ import { Mic, Pause, Play, Trash2 } from "lucide-react";
++ import { Avatar } from "@/components/ediraa";
+++import { useChatMediaUrl } from "@/lib/chat-media";
++ import {
++   formatClock,
++   MIC_DENIED_MESSAGE,
++@@ -246,6 +247,8 @@ export function VoiceBubble({
++   footer?: ReactNode;
++ }) {
++   const audioRef = useRef<HTMLAudioElement>(null);
+++  // private storage: the recording is played from a short-lived signed link
+++  const media = useChatMediaUrl(url);
++   const [isPlaying, setIsPlaying] = useState(false);
++   const [progress, setProgress] = useState(0);
++   const [failed, setFailed] = useState(false);
++@@ -281,7 +284,7 @@ export function VoiceBubble({
++ 
++   const toggle = () => {
++     const a = audioRef.current;
++-    if (!a) return;
+++    if (!a || !media.src) return;
++     if (isPlaying) {
++       a.pause();
++       return;
++@@ -292,6 +295,15 @@ export function VoiceBubble({
++     setFailed(false);
++     void a.play().catch(() => setFailed(true));
++   };
+++  // The signed link only lasts an hour. If playback fails, get a fresh one once and try again.
+++  const retried = useRef(false);
+++  const onAudioError = () => {
+++    if (retried.current) return setFailed(true);
+++    retried.current = true;
+++    void media.refresh().then((ok) => {
+++      if (!ok) setFailed(true);
+++    });
+++  };
++   const seek = (e: React.MouseEvent<HTMLDivElement>) => {
++     const a = audioRef.current;
++     if (!a) return;
++@@ -313,7 +325,7 @@ export function VoiceBubble({
++     <div className="flex w-[min(15.5rem,66vw)] max-w-full items-center gap-1.5 py-0.5 sm:w-[min(17rem,72vw)] sm:gap-2">
++       <audio
++         ref={audioRef}
++-        src={url}
+++        {...(media.src ? { src: media.src } : {})}
++         preload="none"
++         onPlay={() => {
++           setIsPlaying(true);
++@@ -326,7 +338,7 @@ export function VoiceBubble({
++           if (audioRef.current) audioRef.current.currentTime = 0;
++         }}
++         onTimeUpdate={(e) => setProgress(Math.min(1, e.currentTarget.currentTime / total))}
++-        onError={() => setFailed(true)}
+++        onError={onAudioError}
++       />
++       <button
++         type="button"
++@@ -367,7 +379,9 @@ export function VoiceBubble({
++         </div>
++         <div className="mt-0.5 flex items-center justify-between gap-2 text-[10px] leading-none text-[var(--wa-meta)] sm:text-[11px]">
++           <span className="tabular-nums">
++-            {failed ? "Couldn't play" : formatClock(isPlaying ? progress * total : total)}
+++            {failed || media.status === "error"
+++              ? "Couldn't play"
+++              : formatClock(isPlaying ? progress * total : total)}
++           </span>
++           {footer}
++         </div>
++diff --git a/src/lib/auth.tsx b/src/lib/auth.tsx
++index 6df7dae..8ec6dd0 100644
++--- a/src/lib/auth.tsx
+++++ b/src/lib/auth.tsx
++@@ -1,3 +1,4 @@
+++import { clearSignedUrlCache } from "@/lib/chat-media";
++ import {
++   createContext,
++   useCallback,
++@@ -10,7 +11,12 @@ import {
++ import type { Session, User } from "@supabase/supabase-js";
++ import { supabase } from "@/integrations/supabase/client";
++ import type { Profile } from "@/integrations/supabase/types";
++-import { authRedirect, isNativeApp, NATIVE_AUTH_REDIRECT, NATIVE_RESET_REDIRECT } from "@/lib/auth-redirect";
+++import {
+++  authRedirect,
+++  isNativeApp,
+++  NATIVE_AUTH_REDIRECT,
+++  NATIVE_RESET_REDIRECT,
+++} from "@/lib/auth-redirect";
++ import { removePushOnLogout } from "@/lib/push";
++ import { friendlyAuthError } from "@/lib/auth-errors";
++ 
++@@ -262,6 +268,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
++     // it runs first; it never throws and never blocks logging out).
++     await removePushOnLogout();
++     await supabase.auth.signOut();
+++    clearSignedUrlCache(); // signed chat-media links belong to the person who just signed out
++     setProfile(null);
++   }, []);
++ 
++diff --git a/src/lib/chat-extras.ts b/src/lib/chat-extras.ts
++index e3097e1..4b50231 100644
++--- a/src/lib/chat-extras.ts
+++++ b/src/lib/chat-extras.ts
++@@ -1,3 +1,4 @@
+++import { resolveChatFile, UNSUPPORTED_FILE_MESSAGE } from "@/lib/chat-media";
++ import type { SupabaseClient } from "@supabase/supabase-js";
++ import { supabase } from "@/integrations/supabase/client";
++ import { isMissingFunctionError } from "@/lib/db-errors";
++@@ -114,7 +115,9 @@ export async function prepareImage(file: File): Promise<PreparedImage> {
++       .replace(/[^a-z0-9]/gi, "");
++     return { blob: file, ...size, ext: ext || "jpg" };
++   };
++-  if (file.type === "image/gif" || file.type === "image/svg+xml") return original();
+++  // SVG can carry scripts, so it is never sent (the storage bucket refuses it too)
+++  if (file.type === "image/svg+xml") throw new Error(UNSUPPORTED_FILE_MESSAGE);
+++  if (file.type === "image/gif") return original();
++   try {
++     const bitmap = await createImageBitmap(file);
++     const scale = Math.min(1, IMAGE_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
++@@ -171,6 +174,8 @@ async function upload(userId: string, blob: Blob, ext: string, contentType: stri
++     if (/bucket not found/i.test(error.message ?? "")) throw new Error(MIGRATION_HINT);
++     throw new Error("Couldn't upload that file. Please try again.");
++   }
+++  // The bucket is private, so this address cannot be opened by itself. It is only the name the
+++  // message stores for the file; the app signs it (lib/chat-media.ts) when someone views it.
++   const { data } = supabase.storage.from("chat-media").getPublicUrl(path);
++   return { path, url: data.publicUrl };
++ }
++@@ -242,13 +247,10 @@ export async function sendFileMessage(
++   args: SendArgs & { userId: string; file: File },
++ ): Promise<MessageRow> {
++   if (args.file.size > MEDIA_MAX_BYTES) throw new Error("Files must be 15 MB or smaller.");
++-  const ext = args.file.name.includes(".") ? (args.file.name.split(".").pop() ?? "bin") : "bin";
++-  const { path, url } = await upload(
++-    args.userId,
++-    args.file,
++-    ext,
++-    args.file.type || "application/octet-stream",
++-  );
+++  // only photos, videos, audio, PDFs and common documents; never SVG, HTML, scripts or programs
+++  const kind = resolveChatFile(args.file);
+++  if (!kind) throw new Error(UNSUPPORTED_FILE_MESSAGE);
+++  const { path, url } = await upload(args.userId, args.file, kind.ext, kind.mime);
++   try {
++     return await callSend({
++       ...args,
++diff --git a/src/lib/chat-media.ts b/src/lib/chat-media.ts
++new file mode 100644
++index 0000000..e9aa442
++--- /dev/null
+++++ b/src/lib/chat-media.ts
++@@ -0,0 +1,251 @@
+++import { useCallback, useEffect, useRef, useState } from "react";
+++import { supabase } from "@/integrations/supabase/client";
+++
+++/**
+++ * Chat photos, files and voice messages live in PRIVATE storage buckets. The database stores an
+++ * address for each file; this module turns that address into a short-lived signed URL, which
+++ * Supabase only hands out to people allowed to read the file (the other members of the
+++ * conversation, and the person who sent it).
+++ *
+++ * The stored address is just an identifier: it still has the old ".../object/public/<bucket>/..."
+++ * shape, so old messages keep working and the app works before AND after the database update.
+++ */
+++
+++export type ChatMediaBucket = "chat-media" | "voice";
+++export type ChatMediaRef = { bucket: ChatMediaBucket; path: string };
+++
+++const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+++// <uuid>/<file name>: the same shape the database accepts (chat_media_path in the migration).
+++const PATH = `${UUID}/[A-Za-z0-9_-][A-Za-z0-9._-]{0,119}`;
+++const ADDRESS = new RegExp(
+++  `^https?://[^/?#]+/storage/v1/object/(?:public|sign|authenticated)/(chat-media|voice)/(${PATH})(?:\\?[^#]*)?$`,
+++);
+++
+++/** The bucket and path inside a stored address, or null if it is anything else. Strict on purpose. */
+++export function parseChatMediaRef(value: string | null | undefined): ChatMediaRef | null {
+++  if (!value || value.length > 1000) return null;
+++  const m = ADDRESS.exec(value);
+++  return m ? { bucket: m[1] as ChatMediaBucket, path: m[2]! } : null;
+++}
+++
+++/** A picture or recording that only exists on this device (shown while it uploads). */
+++export function isLocalMediaUrl(value: string | null | undefined): boolean {
+++  return !!value && /^(blob:|data:(image|audio|video)\/)/i.test(value);
+++}
+++
+++// ---------------------------------------------------------------------------------------------
+++// Signing, with a small cache so scrolling a chat does not ask again for every photo.
+++// ---------------------------------------------------------------------------------------------
+++
+++/** How long a signed link works. A link is a key: anyone holding it can open the file until then. */
+++export const SIGNED_URL_TTL_SECONDS = 3600;
+++/** A cached link with less than this left is not reused for something newly shown. */
+++export const REFRESH_MARGIN_MS = 5 * 60_000;
+++
+++const cache = new Map<string, { url: string; expiresAt: number }>();
+++const inFlight = new Map<string, Promise<string>>();
+++
+++const keyOf = (ref: ChatMediaRef, download?: string) =>
+++  `${ref.bucket}/${ref.path}${download ? `#dl=${download}` : ""}`;
+++
+++/** A link we already have and can still use, without asking the server. */
+++export function peekSignedUrl(
+++  ref: ChatMediaRef,
+++  download?: string,
+++  now = Date.now(),
+++): string | null {
+++  const hit = cache.get(keyOf(ref, download));
+++  return hit && hit.expiresAt - now > REFRESH_MARGIN_MS ? hit.url : null;
+++}
+++
+++/** Forget every link (on sign-out, so the next person on this device starts clean). */
+++export function clearSignedUrlCache() {
+++  cache.clear();
+++  inFlight.clear();
+++}
+++
+++/**
+++ * A signed link for one file. Fails (rejects) when the file is not there or this person may not
+++ * read it. `download` makes the link save the file under that name instead of opening it inline.
+++ */
+++export async function getSignedChatMediaUrl(
+++  ref: ChatMediaRef,
+++  opts: { download?: string; force?: boolean } = {},
+++): Promise<string> {
+++  const key = keyOf(ref, opts.download);
+++  if (!opts.force) {
+++    const hit = peekSignedUrl(ref, opts.download);
+++    if (hit) return hit;
+++    const pending = inFlight.get(key);
+++    if (pending) return pending;
+++  }
+++  const request = (async () => {
+++    const { data, error } = await supabase.storage
+++      .from(ref.bucket)
+++      .createSignedUrl(
+++        ref.path,
+++        SIGNED_URL_TTL_SECONDS,
+++        opts.download ? { download: opts.download } : undefined,
+++      );
+++    if (error || !data?.signedUrl) {
+++      throw new Error("This file isn't available.");
+++    }
+++    cache.set(key, { url: data.signedUrl, expiresAt: Date.now() + SIGNED_URL_TTL_SECONDS * 1000 });
+++    return data.signedUrl;
+++  })().finally(() => {
+++    if (inFlight.get(key) === request) inFlight.delete(key);
+++  });
+++  inFlight.set(key, request);
+++  return request;
+++}
+++
+++export type ChatMediaState = {
+++  /** What to put in src / href. Undefined until it is ready. */
+++  src: string | undefined;
+++  status: "idle" | "loading" | "ready" | "error";
+++  /**
+++   * Gets a fresh link (for when the browser says the old one stopped working). Resolves true if
+++   * a new link is now in `src`.
+++   */
+++  refresh: () => Promise<boolean>;
+++};
+++
+++function initialState(value: string | null | undefined, download?: string) {
+++  if (!value) return { status: "idle" as const, src: undefined };
+++  if (isLocalMediaUrl(value)) return { status: "ready" as const, src: value };
+++  const ref = parseChatMediaRef(value);
+++  if (!ref) return { status: "error" as const, src: undefined };
+++  const hit = peekSignedUrl(ref, download);
+++  return hit
+++    ? { status: "ready" as const, src: hit }
+++    : { status: "loading" as const, src: undefined };
+++}
+++
+++/**
+++ * Turns a stored chat media address into something a browser can open.
+++ *  - a local blob:/data: preview is used as is;
+++ *  - an address that is not one of our chat files is refused (status "error"): the app never loads
+++ *    arbitrary addresses that came from message data;
+++ *  - everything else is signed.
+++ */
+++export function useChatMediaUrl(
+++  value: string | null | undefined,
+++  opts: { download?: string } = {},
+++): ChatMediaState {
+++  const download = opts.download;
+++  const [state, setState] = useState(() => initialState(value, download));
+++  const alive = useRef(true);
+++  useEffect(() => {
+++    alive.current = true;
+++    return () => {
+++      alive.current = false;
+++    };
+++  }, []);
+++
+++  useEffect(() => {
+++    let cancelled = false;
+++    const next = initialState(value, download);
+++    setState(next);
+++    if (next.status !== "loading") return;
+++    const ref = parseChatMediaRef(value)!;
+++    getSignedChatMediaUrl(ref, download ? { download } : {}).then(
+++      (src) => {
+++        if (!cancelled) setState({ status: "ready", src });
+++      },
+++      () => {
+++        if (!cancelled) setState({ status: "error", src: undefined });
+++      },
+++    );
+++    return () => {
+++      cancelled = true;
+++    };
+++  }, [value, download]);
+++
+++  const refresh = useCallback(async () => {
+++    const ref = parseChatMediaRef(value);
+++    if (!ref) return false;
+++    try {
+++      const src = await getSignedChatMediaUrl(ref, {
+++        ...(download ? { download } : {}),
+++        force: true,
+++      });
+++      if (alive.current) setState({ status: "ready", src });
+++      return true;
+++    } catch {
+++      if (alive.current) setState({ status: "error", src: undefined });
+++      return false;
+++    }
+++  }, [value, download]);
+++
+++  return { src: state.src, status: state.status, refresh };
+++}
+++
+++// ---------------------------------------------------------------------------------------------
+++// What may be sent as a file. The storage bucket enforces the same list.
+++// ---------------------------------------------------------------------------------------------
+++
+++const FILE_TYPES: Record<string, string> = {
+++  pdf: "application/pdf",
+++  txt: "text/plain",
+++  csv: "text/csv",
+++  rtf: "application/rtf",
+++  json: "application/json",
+++  zip: "application/zip",
+++  rar: "application/vnd.rar",
+++  doc: "application/msword",
+++  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+++  xls: "application/vnd.ms-excel",
+++  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+++  ppt: "application/vnd.ms-powerpoint",
+++  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+++  mp4: "video/mp4",
+++  webm: "video/webm",
+++  mov: "video/quicktime",
+++  mp3: "audio/mpeg",
+++  m4a: "audio/mp4",
+++  ogg: "audio/ogg",
+++  jpg: "image/jpeg",
+++  jpeg: "image/jpeg",
+++  png: "image/png",
+++  webp: "image/webp",
+++  gif: "image/gif",
+++  heic: "image/heic",
+++  heif: "image/heif",
+++};
+++
+++// Other spellings browsers use for the same things.
+++const MIME_ALIASES = new Set([
+++  "text/rtf",
+++  "application/x-zip-compressed",
+++  "application/x-rar-compressed",
+++  "audio/webm",
+++]);
+++const ALLOWED_MIMES = new Set<string>([...Object.values(FILE_TYPES), ...MIME_ALIASES]);
+++
+++/** The `accept` list for the file picker. */
+++export const CHAT_FILE_ACCEPT = Object.keys(FILE_TYPES)
+++  .filter((e) => !["jpg", "jpeg", "png", "webp", "gif", "heic", "heif"].includes(e))
+++  .map((e) => `.${e}`)
+++  .join(",");
+++
+++export type ChatFileKind = { ext: string; mime: string };
+++
+++/**
+++ * Checks a file the person picked and says how to store it, or null if it is not allowed
+++ * (SVG, HTML, scripts, programs, installers and anything unknown).
+++ */
+++export function resolveChatFile(file: Pick<File, "name" | "type">): ChatFileKind | null {
+++  const dot = file.name.lastIndexOf(".");
+++  const ext = dot >= 0 ? file.name.slice(dot + 1).toLowerCase() : "";
+++  const byExt = FILE_TYPES[ext];
+++  if (!byExt) return null;
+++  const declared = (file.type || "").toLowerCase();
+++  // Some systems report nothing, or a generic type, for rar / docx / csv: the extension decides.
+++  // But a file that SAYS it is something else (e.g. a .png that is really image/svg+xml) is refused.
+++  if (declared && declared !== "application/octet-stream" && !ALLOWED_MIMES.has(declared))
+++    return null;
+++  return { ext, mime: byExt };
+++}
+++
+++export const UNSUPPORTED_FILE_MESSAGE =
+++  "That type of file can't be sent here. You can send photos, videos, audio, PDFs and common documents.";
++diff --git a/src/routes/chat.$id.tsx b/src/routes/chat.$id.tsx
++index d5affe0..fdb5784 100644
++--- a/src/routes/chat.$id.tsx
+++++ b/src/routes/chat.$id.tsx
++@@ -1,4 +1,5 @@
++ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+++import { CHAT_FILE_ACCEPT, resolveChatFile, UNSUPPORTED_FILE_MESSAGE } from "@/lib/chat-media";
++ import {
++   lazy,
++   Suspense,
++@@ -446,6 +447,11 @@ function ConversationDetail({ id }: { id: string }) {
++       setScreenError("Files must be 15 MB or smaller.");
++       return;
++     }
+++    // only photos, videos, audio, PDFs and common documents (never SVG, HTML, scripts, programs)
+++    if (!resolveChatFile(file)) {
+++      setScreenError(UNSUPPORTED_FILE_MESSAGE);
+++      return;
+++    }
++     const pendingId = `pending-${crypto.randomUUID()}`;
++     const localUrl = URL.createObjectURL(file);
++     setMessages((current) => [
++@@ -502,9 +508,16 @@ function ConversationDetail({ id }: { id: string }) {
++     const files = Array.from(event.target.files ?? []);
++     event.target.value = "";
++     if (!files.length) return;
++-    const photos = files.filter((f) => f.type.startsWith("image/")).slice(0, 10);
+++    // SVG is left out: it can carry scripts (the storage bucket refuses it as well)
+++    const photos = files
+++      .filter((f) => f.type.startsWith("image/") && f.type !== "image/svg+xml")
+++      .slice(0, 10);
++     if (!photos.length) {
++-      setScreenError("Please choose a photo. Use the document option for other files.");
+++      setScreenError(
+++        files.some((f) => f.type === "image/svg+xml")
+++          ? UNSUPPORTED_FILE_MESSAGE
+++          : "Please choose a photo. Use the document option for other files.",
+++      );
++       return;
++     }
++     setScreenError("");
++@@ -1082,7 +1095,7 @@ function ConversationDetail({ id }: { id: string }) {
++             multiple
++             hidden
++             aria-label="Choose a document"
++-            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.json,.rtf,application/*,text/*"
+++            accept={CHAT_FILE_ACCEPT}
++             onChange={onDocumentsChosen}
++           />
++           <form onSubmit={submitMessage} className="flex items-end gap-2 px-2 pb-2 pt-1.5">
++diff --git a/src/test/chat-media-components.test.tsx b/src/test/chat-media-components.test.tsx
++new file mode 100644
++index 0000000..1b39196
++--- /dev/null
+++++ b/src/test/chat-media-components.test.tsx
++@@ -0,0 +1,176 @@
+++import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+++import { beforeEach, describe, expect, it, vi } from "vitest";
+++
+++const { createSignedUrl } = vi.hoisted(() => ({ createSignedUrl: vi.fn() }));
+++vi.mock("@/integrations/supabase/client", () => ({
+++  supabase: { storage: { from: () => ({ createSignedUrl }) } },
+++}));
+++
+++import { FileBody, ImageBody, ImageLightbox, ReplyQuote } from "@/components/chat-parts";
+++import { VoiceBubble } from "@/components/voice-recorder";
+++import { clearSignedUrlCache } from "@/lib/chat-media";
+++import type { MessageRow } from "@/integrations/supabase/types";
+++
+++const UID = "00000000-0000-4000-8000-00000000000a";
+++const HOST = "https://proj.supabase.co/storage/v1/object/public";
+++const photo = `${HOST}/chat-media/${UID}/11111111-1111-4111-8111-111111111111.jpg`;
+++const doc = `${HOST}/chat-media/${UID}/22222222-2222-4222-8222-222222222222.pdf`;
+++const voice = `${HOST}/voice/${UID}/33333333-3333-4333-8333-333333333333.webm`;
+++
+++let n = 0;
+++beforeEach(() => {
+++  clearSignedUrlCache();
+++  n = 0;
+++  createSignedUrl.mockReset();
+++  createSignedUrl.mockImplementation(
+++    async (path: string, _ttl: number, opts?: { download?: string }) => ({
+++      data: {
+++        signedUrl: `https://signed.test/${path}?token=t${++n}${opts?.download ? `&dl=${opts.download}` : ""}`,
+++      },
+++      error: null,
+++    }),
+++  );
+++});
+++
+++describe("photos in a chat bubble", () => {
+++  it("are loaded from a signed link, never from the stored address", async () => {
+++    render(<ImageBody url={photo} width={100} height={100} />);
+++    const img = await screen.findByAltText("Photo");
+++    expect(img.getAttribute("src")).toMatch(/^https:\/\/signed\.test\//);
+++    expect(img.getAttribute("src")).not.toContain("/object/public/");
+++  });
+++
+++  it("show a placeholder while the link is being fetched", async () => {
+++    let release: (v: unknown) => void = () => undefined;
+++    createSignedUrl.mockImplementationOnce(() => new Promise((r) => (release = r)));
+++    render(<ImageBody url={photo} width={100} height={100} />);
+++    expect(screen.queryByAltText("Photo")).toBeNull();
+++    release({ data: { signedUrl: "https://signed.test/x" }, error: null });
+++    expect(await screen.findByAltText("Photo")).toBeInTheDocument();
+++  });
+++
+++  it("show a local preview straight away while a photo uploads (nothing is signed)", () => {
+++    render(<ImageBody url="blob:http://localhost/preview" uploading />);
+++    expect(screen.getByAltText("Photo").getAttribute("src")).toBe("blob:http://localhost/preview");
+++    expect(createSignedUrl).not.toHaveBeenCalled();
+++  });
+++
+++  it("say so when the person is not allowed to open the photo", async () => {
+++    createSignedUrl.mockResolvedValue({ data: null, error: { message: "denied" } });
+++    render(<ImageBody url={photo} />);
+++    expect(await screen.findByText("Photo unavailable")).toBeInTheDocument();
+++    expect(screen.queryByAltText("Photo")).toBeNull();
+++  });
+++
+++  it("refuse an address that is not one of our files, and never ask the server about it", () => {
+++    render(<ImageBody url="https://evil.example/tracker.gif" />);
+++    expect(screen.getByText("Photo unavailable")).toBeInTheDocument();
+++    expect(createSignedUrl).not.toHaveBeenCalled();
+++  });
+++
+++  it("get ONE fresh link if the browser rejects the first, then give up", async () => {
+++    render(<ImageBody url={photo} />);
+++    const first = await screen.findByAltText("Photo");
+++    expect(first.getAttribute("src")).toContain("token=t1");
+++    fireEvent.error(first);
+++    await waitFor(() =>
+++      expect(screen.getByAltText("Photo").getAttribute("src")).toContain("token=t2"),
+++    );
+++    fireEvent.error(screen.getByAltText("Photo"));
+++    expect(await screen.findByText("Photo unavailable")).toBeInTheDocument();
+++    expect(createSignedUrl).toHaveBeenCalledTimes(2);
+++  });
+++
+++  it("open full screen from a signed link too", async () => {
+++    render(<ImageLightbox url={photo} onClose={() => undefined} />);
+++    const img = await screen.findByAltText("Photo");
+++    expect(img.getAttribute("src")).toMatch(/^https:\/\/signed\.test\//);
+++  });
+++});
+++
+++describe("quoted photos in a reply", () => {
+++  it("use a signed link as well", async () => {
+++    const quoted = { id: "m1", body: "📷 Photo", image_url: photo } as unknown as MessageRow;
+++    const { container } = render(
+++      <ReplyQuote quoted={quoted} name="Anna" color="#000" onJump={() => undefined} />,
+++    );
+++    await waitFor(() =>
+++      expect(container.querySelector("img")?.getAttribute("src")).toMatch(/signed\.test/),
+++    );
+++  });
+++});
+++
+++describe("documents", () => {
+++  it("link to a signed save-as address under the file's own name", async () => {
+++    render(<FileBody url={doc} name="plan.pdf" size={1000} />);
+++    const link = await screen.findByRole("link", { name: "Open plan.pdf" });
+++    await waitFor(() => expect(link.getAttribute("href")).toMatch(/^https:\/\/signed\.test\//));
+++    expect(link.getAttribute("href")).toContain("dl=plan.pdf");
+++    expect(createSignedUrl).toHaveBeenCalledWith(
+++      `${UID}/22222222-2222-4222-8222-222222222222.pdf`,
+++      3600,
+++      {
+++        download: "plan.pdf",
+++      },
+++    );
+++  });
+++
+++  it("cannot be opened until the link is ready", async () => {
+++    let release: (v: unknown) => void = () => undefined;
+++    createSignedUrl.mockImplementationOnce(() => new Promise((r) => (release = r)));
+++    render(<FileBody url={doc} name="plan.pdf" size={1} />);
+++    const link = screen.getByLabelText("Open plan.pdf");
+++    expect(link.getAttribute("href")).toBeNull();
+++    expect(link.getAttribute("aria-disabled")).toBe("true");
+++    release({ data: { signedUrl: "https://signed.test/ok" }, error: null });
+++    await waitFor(() =>
+++      expect(screen.getByLabelText("Open plan.pdf").getAttribute("href")).toBe(
+++        "https://signed.test/ok",
+++      ),
+++    );
+++  });
+++
+++  it("say so when the file can't be opened", async () => {
+++    createSignedUrl.mockResolvedValue({ data: null, error: { message: "denied" } });
+++    render(<FileBody url={doc} name="plan.pdf" size={1} />);
+++    expect(await screen.findByText("File unavailable")).toBeInTheDocument();
+++    expect(screen.queryByRole("link")).toBeNull();
+++  });
+++
+++  it("use the local file while it uploads", () => {
+++    render(<FileBody url="blob:http://localhost/doc" name="plan.pdf" size={1} />);
+++    expect(screen.getByLabelText("Open plan.pdf").getAttribute("href")).toBe(
+++      "blob:http://localhost/doc",
+++    );
+++  });
+++});
+++
+++describe("voice messages", () => {
+++  it("play from a signed link", async () => {
+++    const { container } = render(<VoiceBubble url={voice} seconds={4} own={false} />);
+++    await waitFor(() =>
+++      expect(container.querySelector("audio")?.getAttribute("src")).toMatch(
+++        /^https:\/\/signed\.test\/.*33333333/,
+++      ),
+++    );
+++  });
+++
+++  it("say they can't be played when the file can't be opened", async () => {
+++    createSignedUrl.mockResolvedValue({ data: null, error: { message: "denied" } });
+++    render(<VoiceBubble url={voice} seconds={4} own={false} />);
+++    expect(await screen.findByText("Couldn't play")).toBeInTheDocument();
+++  });
+++
+++  it("ask for a new link once if playback fails (the old one may have run out)", async () => {
+++    const { container } = render(<VoiceBubble url={voice} seconds={4} own={false} />);
+++    await waitFor(() =>
+++      expect(container.querySelector("audio")?.getAttribute("src")).toContain("token=t1"),
+++    );
+++    fireEvent.error(container.querySelector("audio")!);
+++    await waitFor(() =>
+++      expect(container.querySelector("audio")?.getAttribute("src")).toContain("token=t2"),
+++    );
+++    fireEvent.error(container.querySelector("audio")!);
+++    expect(await screen.findByText("Couldn't play")).toBeInTheDocument();
+++  });
+++});
++diff --git a/src/test/chat-media.test.ts b/src/test/chat-media.test.ts
++new file mode 100644
++index 0000000..8e7849e
++--- /dev/null
+++++ b/src/test/chat-media.test.ts
++@@ -0,0 +1,242 @@
+++import { renderHook, waitFor, act } from "@testing-library/react";
+++import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+++
+++const { createSignedUrl, from } = vi.hoisted(() => {
+++  const createSignedUrl = vi.fn();
+++  return { createSignedUrl, from: vi.fn(() => ({ createSignedUrl })) };
+++});
+++vi.mock("@/integrations/supabase/client", () => ({ supabase: { storage: { from } } }));
+++
+++import {
+++  CHAT_FILE_ACCEPT,
+++  clearSignedUrlCache,
+++  getSignedChatMediaUrl,
+++  isLocalMediaUrl,
+++  parseChatMediaRef,
+++  REFRESH_MARGIN_MS,
+++  resolveChatFile,
+++  SIGNED_URL_TTL_SECONDS,
+++  useChatMediaUrl,
+++} from "@/lib/chat-media";
+++
+++const UID = "00000000-0000-4000-8000-00000000000a";
+++const FILE = "11111111-1111-4111-8111-111111111111.jpg";
+++const HOST = "https://proj.supabase.co/storage/v1/object";
+++const stored = (bucket = "chat-media", file = FILE) => `${HOST}/public/${bucket}/${UID}/${file}`;
+++
+++let counter = 0;
+++beforeEach(() => {
+++  clearSignedUrlCache();
+++  counter = 0;
+++  from.mockClear();
+++  createSignedUrl.mockReset();
+++  createSignedUrl.mockImplementation(async (path: string) => ({
+++    data: { signedUrl: `https://signed.test/${path}?token=t${++counter}` },
+++    error: null,
+++  }));
+++});
+++afterEach(() => vi.useRealTimers());
+++
+++describe("parseChatMediaRef: only our own chat files are recognised", () => {
+++  it("reads the bucket and path from the addresses the app has always stored", () => {
+++    expect(parseChatMediaRef(stored())).toEqual({ bucket: "chat-media", path: `${UID}/${FILE}` });
+++    expect(parseChatMediaRef(stored("voice", "a.webm"))).toEqual({
+++      bucket: "voice",
+++      path: `${UID}/a.webm`,
+++    });
+++    expect(parseChatMediaRef(`${HOST}/sign/chat-media/${UID}/${FILE}?token=abc`)?.path).toBe(
+++      `${UID}/${FILE}`,
+++    );
+++    expect(parseChatMediaRef(`${HOST}/authenticated/chat-media/${UID}/${FILE}`)?.bucket).toBe(
+++      "chat-media",
+++    );
+++  });
+++
+++  it.each([
+++    ["null", null],
+++    ["empty", ""],
+++    ["an address on another site", `https://evil.example/photo.jpg`],
+++    ["a look-alike that only contains the path", `https://evil.example/?u=${stored()}`],
+++    ["a different bucket", `${HOST}/public/avatars/${UID}/${FILE}`],
+++    ["a dot-dot path", `${HOST}/public/chat-media/${UID}/../${UID}/${FILE}`],
+++    ["a dot-dot file name", `${HOST}/public/chat-media/${UID}/..`],
+++    ["an upper-case id", `${HOST}/public/chat-media/${UID.toUpperCase()}/${FILE}`],
+++    ["something that is not an id", `${HOST}/public/chat-media/someone/${FILE}`],
+++    ["a space in the name", `${HOST}/public/chat-media/${UID}/a b.jpg`],
+++    ["an extra folder", `${HOST}/public/chat-media/${UID}/x/${FILE}`],
+++    ["a bare path", `${UID}/${FILE}`],
+++    ["a javascript address", "javascript:alert(1)"],
+++    ["an over-long value", stored("chat-media", "a".repeat(1100))],
+++  ])("refuses %s", (_name, value) => {
+++    expect(parseChatMediaRef(value as string | null)).toBeNull();
+++  });
+++
+++  it("knows a preview that only exists on this device", () => {
+++    expect(isLocalMediaUrl("blob:http://localhost/abc")).toBe(true);
+++    expect(isLocalMediaUrl("data:image/png;base64,AAAA")).toBe(true);
+++    expect(isLocalMediaUrl("data:text/html;base64,AAAA")).toBe(false);
+++    expect(isLocalMediaUrl("https://x/y.jpg")).toBe(false);
+++    expect(isLocalMediaUrl(null)).toBe(false);
+++  });
+++});
+++
+++describe("getSignedChatMediaUrl", () => {
+++  const ref = { bucket: "chat-media" as const, path: `${UID}/${FILE}` };
+++
+++  it("asks for a link that lasts an hour, from the right bucket", async () => {
+++    const url = await getSignedChatMediaUrl(ref);
+++    expect(url).toBe(`https://signed.test/${UID}/${FILE}?token=t1`);
+++    expect(from).toHaveBeenCalledWith("chat-media");
+++    expect(createSignedUrl).toHaveBeenCalledWith(
+++      `${UID}/${FILE}`,
+++      SIGNED_URL_TTL_SECONDS,
+++      undefined,
+++    );
+++    expect(SIGNED_URL_TTL_SECONDS).toBe(3600);
+++  });
+++
+++  it("reuses a link instead of asking again, and shares one request between simultaneous callers", async () => {
+++    const [a, b] = await Promise.all([getSignedChatMediaUrl(ref), getSignedChatMediaUrl(ref)]);
+++    expect(a).toBe(b);
+++    await getSignedChatMediaUrl(ref);
+++    expect(createSignedUrl).toHaveBeenCalledTimes(1);
+++  });
+++
+++  it("gets a fresh link when the old one is about to run out", async () => {
+++    vi.useFakeTimers();
+++    await getSignedChatMediaUrl(ref);
+++    vi.advanceTimersByTime(SIGNED_URL_TTL_SECONDS * 1000 - REFRESH_MARGIN_MS - 1000);
+++    await getSignedChatMediaUrl(ref);
+++    expect(createSignedUrl).toHaveBeenCalledTimes(1); // still comfortably valid
+++    vi.advanceTimersByTime(2000);
+++    await getSignedChatMediaUrl(ref);
+++    expect(createSignedUrl).toHaveBeenCalledTimes(2);
+++  });
+++
+++  it("can be told to skip the cache", async () => {
+++    await getSignedChatMediaUrl(ref);
+++    await getSignedChatMediaUrl(ref, { force: true });
+++    expect(createSignedUrl).toHaveBeenCalledTimes(2);
+++  });
+++
+++  it("makes a save-as link under the file's own name, kept apart from the inline link", async () => {
+++    await getSignedChatMediaUrl(ref);
+++    await getSignedChatMediaUrl(ref, { download: "plan.pdf" });
+++    expect(createSignedUrl).toHaveBeenLastCalledWith(`${UID}/${FILE}`, 3600, {
+++      download: "plan.pdf",
+++    });
+++    expect(createSignedUrl).toHaveBeenCalledTimes(2);
+++  });
+++
+++  it("fails clearly when the server will not hand out a link, and does not remember the failure", async () => {
+++    createSignedUrl.mockResolvedValueOnce({ data: null, error: { message: "Object not found" } });
+++    await expect(getSignedChatMediaUrl(ref)).rejects.toThrow(/isn't available/);
+++    await expect(getSignedChatMediaUrl(ref)).resolves.toContain("https://signed.test/");
+++  });
+++
+++  it("forgets every link on sign-out", async () => {
+++    await getSignedChatMediaUrl(ref);
+++    clearSignedUrlCache();
+++    await getSignedChatMediaUrl(ref);
+++    expect(createSignedUrl).toHaveBeenCalledTimes(2);
+++  });
+++});
+++
+++describe("useChatMediaUrl", () => {
+++  it("uses a local preview as it is, without asking the server", () => {
+++    const { result } = renderHook(() => useChatMediaUrl("blob:http://localhost/abc"));
+++    expect(result.current).toMatchObject({ status: "ready", src: "blob:http://localhost/abc" });
+++    expect(createSignedUrl).not.toHaveBeenCalled();
+++  });
+++
+++  it("is idle with no value", () => {
+++    const { result } = renderHook(() => useChatMediaUrl(null));
+++    expect(result.current.status).toBe("idle");
+++    expect(result.current.src).toBeUndefined();
+++  });
+++
+++  it("refuses an address that is not one of our chat files, without asking the server", () => {
+++    const { result } = renderHook(() => useChatMediaUrl("https://evil.example/track.gif"));
+++    expect(result.current.status).toBe("error");
+++    expect(result.current.src).toBeUndefined();
+++    expect(createSignedUrl).not.toHaveBeenCalled();
+++  });
+++
+++  it("signs a stored address", async () => {
+++    const { result } = renderHook(() => useChatMediaUrl(stored()));
+++    expect(result.current.status).toBe("loading");
+++    expect(result.current.src).toBeUndefined();
+++    await waitFor(() => expect(result.current.status).toBe("ready"));
+++    expect(result.current.src).toBe(`https://signed.test/${UID}/${FILE}?token=t1`);
+++  });
+++
+++  it("reports an error when the file cannot be opened", async () => {
+++    createSignedUrl.mockResolvedValue({ data: null, error: { message: "denied" } });
+++    const { result } = renderHook(() => useChatMediaUrl(stored()));
+++    await waitFor(() => expect(result.current.status).toBe("error"));
+++  });
+++
+++  it("refresh() swaps in a new link", async () => {
+++    const { result } = renderHook(() => useChatMediaUrl(stored()));
+++    await waitFor(() => expect(result.current.status).toBe("ready"));
+++    let ok = false;
+++    await act(async () => {
+++      ok = await result.current.refresh();
+++    });
+++    expect(ok).toBe(true);
+++    expect(result.current.src).toBe(`https://signed.test/${UID}/${FILE}?token=t2`);
+++  });
+++});
+++
+++describe("resolveChatFile: what may be sent as a file", () => {
+++  it.each([
+++    ["plan.pdf", "", "application/pdf"],
+++    ["PLAN.PDF", "application/pdf", "application/pdf"],
+++    ["notes.txt", "text/plain", "text/plain"],
+++    ["sheet.xlsx", "", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+++    [
+++      "report.docx",
+++      "application/octet-stream",
+++      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+++    ],
+++    ["clip.mp4", "video/mp4", "video/mp4"],
+++    ["clip.mov", "video/quicktime", "video/quicktime"],
+++    ["bundle.rar", "application/x-rar-compressed", "application/vnd.rar"],
+++    ["bundle.zip", "application/x-zip-compressed", "application/zip"],
+++    ["song.mp3", "audio/mpeg", "audio/mpeg"],
+++  ])("accepts %s (%s)", (name, type, mime) => {
+++    expect(resolveChatFile({ name, type })).toEqual({
+++      ext: name.split(".").pop()!.toLowerCase(),
+++      mime,
+++    });
+++  });
+++
+++  it.each([
+++    ["page.html", "text/html"],
+++    ["page.htm", ""],
+++    ["logo.svg", "image/svg+xml"],
+++    ["logo.svg", ""],
+++    ["app.apk", "application/vnd.android.package-archive"],
+++    ["setup.exe", "application/x-msdownload"],
+++    ["run.js", "text/javascript"],
+++    ["run.sh", ""],
+++    ["macro.xlsm", ""],
+++    ["archive.tar.gz", ""],
+++    ["no-extension", ""],
+++  ])("refuses %s (%s)", (name, type) => {
+++    expect(resolveChatFile({ name, type })).toBeNull();
+++  });
+++
+++  it("refuses a file that is named like a document but says it is something else", () => {
+++    expect(resolveChatFile({ name: "photo.png", type: "image/svg+xml" })).toBeNull();
+++    expect(resolveChatFile({ name: "report.pdf", type: "text/html" })).toBeNull();
+++  });
+++
+++  it("offers only safe extensions in the file picker", () => {
+++    const list = CHAT_FILE_ACCEPT.split(",");
+++    expect(list).toEqual(expect.arrayContaining([".pdf", ".docx", ".mp4", ".zip"]));
+++    for (const bad of [".svg", ".html", ".htm", ".js", ".exe", ".apk", ".sh"])
+++      expect(list).not.toContain(bad);
+++    expect(CHAT_FILE_ACCEPT).not.toMatch(/\*/);
+++  });
+++});
++diff --git a/src/test/chat-upload-safety.test.ts b/src/test/chat-upload-safety.test.ts
++new file mode 100644
++index 0000000..eed2ea6
++--- /dev/null
+++++ b/src/test/chat-upload-safety.test.ts
++@@ -0,0 +1,84 @@
+++import { beforeEach, describe, expect, it, vi } from "vitest";
+++
+++const { upload, remove, getPublicUrl, rpc } = vi.hoisted(() => ({
+++  upload: vi.fn(),
+++  remove: vi.fn(),
+++  getPublicUrl: vi.fn(),
+++  rpc: vi.fn(),
+++}));
+++vi.mock("@/integrations/supabase/client", () => ({
+++  supabase: { storage: { from: () => ({ upload, remove, getPublicUrl }) }, rpc },
+++}));
+++
+++import { prepareImage, sendFileMessage } from "@/lib/chat-extras";
+++import { UNSUPPORTED_FILE_MESSAGE } from "@/lib/chat-media";
+++
+++const UID = "00000000-0000-4000-8000-00000000000a";
+++const file = (name: string, type = "", body = "x") => new File([body], name, { type });
+++
+++beforeEach(() => {
+++  upload.mockReset().mockResolvedValue({ error: null });
+++  remove.mockReset().mockResolvedValue({ error: null });
+++  getPublicUrl.mockReset().mockImplementation((p: string) => ({
+++    data: { publicUrl: `https://proj.supabase.co/storage/v1/object/public/chat-media/${p}` },
+++  }));
+++  rpc.mockReset().mockResolvedValue({ data: { id: "m1" }, error: null });
+++});
+++
+++describe("sending a file", () => {
+++  it.each([
+++    ["page.html", "text/html"],
+++    ["logo.svg", "image/svg+xml"],
+++    ["app.apk", "application/vnd.android.package-archive"],
+++    ["setup.exe", ""],
+++    ["run.js", "text/javascript"],
+++    ["sneaky.png", "image/svg+xml"],
+++  ])("refuses %s without uploading anything", async (name, type) => {
+++    await expect(
+++      sendFileMessage({ conversationId: "c1", userId: UID, file: file(name, type) }),
+++    ).rejects.toThrow(UNSUPPORTED_FILE_MESSAGE);
+++    expect(upload).not.toHaveBeenCalled();
+++    expect(rpc).not.toHaveBeenCalled();
+++  });
+++
+++  it("uploads a PDF into the sender's own folder with a safe name and the right type", async () => {
+++    await sendFileMessage({ conversationId: "c1", userId: UID, file: file("Plan v2.PDF", "") });
+++    expect(upload).toHaveBeenCalledTimes(1);
+++    const [path, , options] = upload.mock.calls[0]!;
+++    expect(path).toMatch(new RegExp(`^${UID}/[0-9a-f-]{36}\\.pdf$`));
+++    expect(options).toMatchObject({ contentType: "application/pdf", upsert: false });
+++    expect(rpc).toHaveBeenCalledWith(
+++      "send_chat_message",
+++      expect.objectContaining({
+++        p_conversation: "c1",
+++        p_file_name: "Plan v2.PDF",
+++        p_file_url: expect.stringContaining(`/chat-media/${UID}/`),
+++      }),
+++    );
+++  });
+++
+++  it("does not trust the file name's extension for the stored type", async () => {
+++    await sendFileMessage({
+++      conversationId: "c1",
+++      userId: UID,
+++      file: file("clip.mp4", "application/octet-stream"),
+++    });
+++    expect(upload.mock.calls[0]![2]).toMatchObject({ contentType: "video/mp4" });
+++  });
+++
+++  it("removes the upload again if the message can't be sent", async () => {
+++    rpc.mockResolvedValue({ data: null, error: { message: "not_allowed" } });
+++    await expect(
+++      sendFileMessage({ conversationId: "c1", userId: UID, file: file("a.pdf") }),
+++    ).rejects.toBeTruthy();
+++    expect(remove).toHaveBeenCalledWith([expect.stringMatching(new RegExp(`^${UID}/`))]);
+++  });
+++});
+++
+++describe("sending a photo", () => {
+++  it("never sends an SVG (it can carry scripts)", async () => {
+++    await expect(
+++      prepareImage(file("logo.svg", "image/svg+xml", "<svg onload=alert(1)/>")),
+++    ).rejects.toThrow(UNSUPPORTED_FILE_MESSAGE);
+++  });
+++});
++diff --git a/src/test/chat-whatsapp.test.tsx b/src/test/chat-whatsapp.test.tsx
++index 2022f17..9d3be91 100644
++--- a/src/test/chat-whatsapp.test.tsx
+++++ b/src/test/chat-whatsapp.test.tsx
++@@ -318,7 +318,12 @@ describe("bubble parts", () => {
++ 
++   it("a voice message shows its length, the time and a play button", () => {
++     render(
++-      <VoiceBubble url="https://x/y.webm" seconds={4} own={false} footer={<span>8:15 pm</span>} />,
+++      <VoiceBubble
+++        url="blob:http://localhost/voice-1"
+++        seconds={4}
+++        own={false}
+++        footer={<span>8:15 pm</span>}
+++      />,
++     );
++     expect(screen.getByText("0:04")).toBeInTheDocument();
++     expect(screen.getByText("8:15 pm")).toBeInTheDocument();
++diff --git a/supabase/migrations/20261116000000_private_chat_media.sql b/supabase/migrations/20261116000000_private_chat_media.sql
++new file mode 100644
++index 0000000..1c86044
++--- /dev/null
+++++ b/supabase/migrations/20261116000000_private_chat_media.sql
++@@ -0,0 +1,302 @@
+++-- =====================================================================
+++-- Private chat media: only the people in a conversation can read its photos, files and voice
+++-- messages.
+++--
+++-- BEFORE this migration the "chat-media" and "voice" buckets were PUBLIC: anyone who had (or
+++-- guessed / was forwarded) a file's URL could open it, signed in or not.
+++--
+++-- AFTER it:
+++--   * both buckets are private (no public URLs work);
+++--   * the storage read rule is "you uploaded it, or it is attached to a message in a conversation
+++--     you are a member of" (can_read_chat_media). Someone who leaves a group loses access;
+++--   * the app opens files through short-lived SIGNED URLs, which Supabase only hands out to people
+++--     who pass that rule;
+++--   * chat-media only accepts photos, videos, audio, PDFs and common documents (no SVG / HTML /
+++--     scripts / APKs), and uploads must have a plain file name inside the uploader's own folder;
+++--   * send_chat_message / send_voice_message only accept a file that really is in the sender's
+++--     own folder (the old check was a loose "contains" test that also accepted foreign addresses).
+++--
+++-- Nothing is deleted or moved. Old messages keep their stored value (a public-style address of the
+++-- form  .../storage/v1/object/public/chat-media/<user id>/<file>); the app reads the path out of it
+++-- and signs it. Safe to run more than once.
+++--
+++-- ROLLOUT ORDER (see docs/CHAT-MEDIA-SECURITY.md): deploy the new app first, THEN run this.
+++-- The new app works against the old (public) and the new (private) database, but an old app
+++-- cannot show chat photos once the buckets are private.
+++-- =====================================================================
+++
+++-- ---------------------------------------------------------------------
+++-- 1. Read the storage path out of a stored value (strict).
+++--    Accepts  <user id>/<file>  or a full  http(s)://host/storage/v1/object/{public|sign|authenticated}/<bucket>/<user id>/<file>[?query]
+++--    Returns NULL for anything else: other buckets, other hosts' look-alikes, "..", odd characters.
+++-- ---------------------------------------------------------------------
+++create or replace function public.chat_media_path(p_bucket text, p_value text)
+++returns text
+++language sql
+++immutable
+++parallel safe
+++as $$
+++  select (regexp_match(
+++    p_value,
+++    '^(?:https?://[^/?#]+/storage/v1/object/(?:public|sign|authenticated)/' || p_bucket || '/)?'
+++    || '([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[A-Za-z0-9_-][A-Za-z0-9._-]{0,119})'
+++    || '(?:\?[^#]*)?$'
+++  ))[1]
+++$$;
+++
+++revoke all on function public.chat_media_path(text, text) from public;
+++grant execute on function public.chat_media_path(text, text) to anon, authenticated, service_role;
+++
+++-- Lookups by file path stay fast as chats grow.
+++create index if not exists messages_chat_image_path_idx
+++  on public.messages (public.chat_media_path('chat-media', image_url)) where image_url is not null;
+++create index if not exists messages_chat_file_path_idx
+++  on public.messages (public.chat_media_path('chat-media', file_url)) where file_url is not null;
+++create index if not exists messages_chat_voice_path_idx
+++  on public.messages (public.chat_media_path('voice', audio_url)) where audio_url is not null;
+++
+++-- ---------------------------------------------------------------------
+++-- 2. Who may read a stored file.
+++-- ---------------------------------------------------------------------
+++create or replace function public.can_read_chat_media(p_bucket text, p_name text)
+++returns boolean
+++language sql
+++stable
+++security definer
+++set search_path = public
+++as $$
+++  select auth.uid() is not null
+++     and p_bucket in ('chat-media', 'voice')
+++     and public.chat_media_path(p_bucket, p_name) is not null
+++     and (
+++       -- my own upload (so I can see it before it is sent, and manage it)
+++       split_part(p_name, '/', 1) = auth.uid()::text
+++       -- or it is attached to a message, sent by its uploader, in a conversation I belong to
+++       or exists (
+++         select 1
+++         from public.messages m
+++         where m.sender_id::text = split_part(p_name, '/', 1)
+++           and (
+++             (p_bucket = 'chat-media'
+++               and (public.chat_media_path('chat-media', m.image_url) = p_name
+++                 or public.chat_media_path('chat-media', m.file_url) = p_name))
+++             or (p_bucket = 'voice'
+++               and public.chat_media_path('voice', m.audio_url) = p_name)
+++           )
+++           and public.is_conversation_member(m.conversation_id)
+++       )
+++     )
+++$$;
+++
+++revoke all on function public.can_read_chat_media(text, text) from public, anon;
+++grant execute on function public.can_read_chat_media(text, text) to authenticated;
+++
+++-- ---------------------------------------------------------------------
+++-- 3. Buckets: private, and chat-media only takes safe file types.
+++-- ---------------------------------------------------------------------
+++insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+++values (
+++  'chat-media', 'chat-media', false, 15728640,
+++  array[
+++    -- photos
+++    'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif',
+++    -- video and audio
+++    'video/mp4', 'video/webm', 'video/quicktime',
+++    'audio/mpeg', 'audio/mp4', 'audio/webm', 'audio/ogg',
+++    -- documents
+++    'application/pdf', 'text/plain', 'text/csv', 'application/rtf', 'text/rtf', 'application/json',
+++    'application/zip', 'application/x-zip-compressed', 'application/vnd.rar', 'application/x-rar-compressed',
+++    'application/msword',
+++    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+++    'application/vnd.ms-excel',
+++    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+++    'application/vnd.ms-powerpoint',
+++    'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+++  ]
+++)
+++on conflict (id) do update
+++  set public = false,
+++      file_size_limit = 15728640,
+++      allowed_mime_types = excluded.allowed_mime_types;
+++
+++-- the voice bucket keeps its size limit and audio-only types; it just stops being public
+++update storage.buckets set public = false where id = 'voice';
+++
+++-- ---------------------------------------------------------------------
+++-- 4. Storage rules. The two public-read rules are removed (that is what exposed everything).
+++-- ---------------------------------------------------------------------
+++drop policy if exists "chat_media_public_read" on storage.objects;
+++drop policy if exists "chat_media_participant_read" on storage.objects;
+++create policy "chat_media_participant_read"
+++  on storage.objects for select to authenticated
+++  using (bucket_id = 'chat-media' and public.can_read_chat_media('chat-media', name));
+++
+++drop policy if exists "voice_public_read" on storage.objects;
+++drop policy if exists "voice_participant_read" on storage.objects;
+++create policy "voice_participant_read"
+++  on storage.objects for select to authenticated
+++  using (bucket_id = 'voice' and public.can_read_chat_media('voice', name));
+++
+++-- Uploads: only into my own folder, and only with a plain  <uuid>.<ext>-style file name.
+++drop policy if exists "chat_media_insert_own_folder" on storage.objects;
+++create policy "chat_media_insert_own_folder"
+++  on storage.objects for insert to authenticated
+++  with check (
+++    bucket_id = 'chat-media'
+++    and public.chat_media_path('chat-media', name) is not null
+++    and (storage.foldername(name))[1] = auth.uid()::text
+++  );
+++
+++drop policy if exists "voice_insert_own_folder" on storage.objects;
+++create policy "voice_insert_own_folder"
+++  on storage.objects for insert to authenticated
+++  with check (
+++    bucket_id = 'voice'
+++    and public.chat_media_path('voice', name) is not null
+++    and (storage.foldername(name))[1] = auth.uid()::text
+++  );
+++-- (the existing "...delete_own_folder" rules stay as they are; there is no UPDATE rule, so a file
+++--  cannot be swapped for another after it has been sent)
+++
+++-- ---------------------------------------------------------------------
+++-- 5. Sending: the attached file must be in the SENDER'S OWN folder, checked strictly.
+++--    Same functions as 20261030000000_chat_whatsapp.sql and 20261028000001_voice_messages.sql;
+++--    only the media checks changed.
+++-- ---------------------------------------------------------------------
+++create or replace function public.send_chat_message(
+++  p_conversation uuid,
+++  p_body text,
+++  p_reply_to uuid default null,
+++  p_image_url text default null,
+++  p_image_w integer default null,
+++  p_image_h integer default null,
+++  p_file_url text default null,
+++  p_file_name text default null,
+++  p_file_size integer default null
+++)
+++returns public.messages
+++language plpgsql
+++security definer
+++set search_path = public
+++as $$
+++declare
+++  v_me    uuid := auth.uid();
+++  v_row   public.messages;
+++  v_body  text := btrim(coalesce(p_body, ''));
+++begin
+++  if v_me is null then
+++    raise exception 'not_authenticated';
+++  end if;
+++
+++  if p_conversation is null or not public.is_conversation_member(p_conversation) then
+++    raise exception 'not_allowed';
+++  end if;
+++
+++  -- a reply must point at a message of the SAME conversation
+++  if p_reply_to is not null and not exists (
+++    select 1 from public.messages m
+++    where m.id = p_reply_to and m.conversation_id = p_conversation
+++  ) then
+++    raise exception 'invalid_reply';
+++  end if;
+++
+++  -- media must be a file this person uploaded into their own folder
+++  if p_image_url is not null and (
+++       char_length(p_image_url) > 1000
+++       or split_part(coalesce(public.chat_media_path('chat-media', p_image_url), ''), '/', 1) <> v_me::text
+++     ) then
+++    raise exception 'invalid_media';
+++  end if;
+++  if p_file_url is not null and (
+++       char_length(p_file_url) > 1000
+++       or split_part(coalesce(public.chat_media_path('chat-media', p_file_url), ''), '/', 1) <> v_me::text
+++     ) then
+++    raise exception 'invalid_media';
+++  end if;
+++  if p_image_url is not null and p_file_url is not null then
+++    raise exception 'invalid_media';
+++  end if;
+++
+++  if v_body = '' then
+++    if p_image_url is not null then
+++      v_body := E'\U0001F4F7 Photo';
+++    elsif p_file_url is not null then
+++      v_body := E'\U0001F4C4 ' || left(coalesce(nullif(btrim(p_file_name), ''), 'Document'), 100);
+++    end if;
+++  end if;
+++
+++  if char_length(v_body) < 1 or char_length(v_body) > 2000 then
+++    raise exception 'invalid_message';
+++  end if;
+++
+++  insert into public.messages (
+++    conversation_id, sender_id, body, reply_to_id,
+++    image_url, image_w, image_h, file_url, file_name, file_size
+++  )
+++  values (
+++    p_conversation, v_me, v_body, p_reply_to,
+++    p_image_url,
+++    case when p_image_w between 1 and 20000 then p_image_w end,
+++    case when p_image_h between 1 and 20000 then p_image_h end,
+++    p_file_url,
+++    left(nullif(btrim(p_file_name), ''), 200),
+++    case when p_file_size between 0 and 2147483647 then p_file_size end
+++  )
+++  returning * into v_row;
+++
+++  return v_row;
+++end;
+++$$;
+++
+++revoke all on function public.send_chat_message(uuid, text, uuid, text, integer, integer, text, text, integer)
+++  from public, anon;
+++grant execute on function public.send_chat_message(uuid, text, uuid, text, integer, integer, text, text, integer)
+++  to authenticated;
+++
+++create or replace function public.send_voice_message(
+++  p_conversation uuid,
+++  p_url text,
+++  p_seconds integer
+++)
+++returns public.messages
+++language plpgsql
+++security definer
+++set search_path = public
+++as $$
+++declare
+++  v_me  uuid := auth.uid();
+++  v_row public.messages;
+++begin
+++  if v_me is null then
+++    raise exception 'not_authenticated';
+++  end if;
+++
+++  -- Same rule as the normal message insert policy: members only.
+++  if p_conversation is null or not public.is_conversation_member(p_conversation) then
+++    raise exception 'not_allowed';
+++  end if;
+++
+++  if p_seconds is null or p_seconds < 1 or p_seconds > 600 then
+++    raise exception 'invalid_duration';
+++  end if;
+++
+++  -- The file must be one this person uploaded into their own folder of the voice bucket.
+++  if p_url is null
+++     or char_length(p_url) > 1000
+++     or split_part(coalesce(public.chat_media_path('voice', p_url), ''), '/', 1) <> v_me::text then
+++    raise exception 'invalid_audio';
+++  end if;
+++
+++  insert into public.messages (conversation_id, sender_id, body, audio_url, audio_seconds)
+++  values (p_conversation, v_me, 'Voice message', p_url, p_seconds)
+++  returning * into v_row;
+++
+++  return v_row;
+++end;
+++$$;
+++
+++revoke all on function public.send_voice_message(uuid, text, integer) from public, anon;
+++grant execute on function public.send_voice_message(uuid, text, integer) to authenticated;
+++
+++-- Ask the API layer to reload (harmless if nothing is listening).
+++notify pgrst, 'reload schema';
++diff --git a/supabase/tests/replay/00_supabase_stub.sql b/supabase/tests/replay/00_supabase_stub.sql
++index 61cc801..9d6ed0e 100644
++--- a/supabase/tests/replay/00_supabase_stub.sql
+++++ b/supabase/tests/replay/00_supabase_stub.sql
++@@ -24,3 +24,7 @@ create schema extensions; create schema net;
++ create function net.http_post(url text, body jsonb default '{}', params jsonb default '{}', headers jsonb default '{}', timeout_milliseconds int default 1000) returns bigint language sql as $$ select 1::bigint $$;
++ grant usage on schema public, auth, storage to anon, authenticated, service_role;
++ grant execute on function auth.uid() to anon, authenticated;
+++-- Like real Supabase: the API roles hold table privileges on storage.objects and row level security
+++-- decides who actually sees or changes a row.
+++grant select, insert, update, delete on storage.objects to anon, authenticated, service_role;
+++grant select on storage.buckets to anon, authenticated, service_role;
++diff --git a/supabase/tests/replay/chat_media.assert.sql b/supabase/tests/replay/chat_media.assert.sql
++new file mode 100644
++index 0000000..aa7d79d
++--- /dev/null
+++++ b/supabase/tests/replay/chat_media.assert.sql
++@@ -0,0 +1,271 @@
+++-- Private chat: who can read messages and chat media, enforced with ASSERT.
+++-- Runs inside one transaction and rolls back. Uses the real migrations replayed by run.sh.
+++begin;
+++
+++insert into auth.users (id, email, raw_user_meta_data) values
+++  ('00000000-0000-0000-0000-00000000000a', 'a@test.local', '{"username":"anna","full_name":"Anna"}'),
+++  ('00000000-0000-0000-0000-00000000000b', 'b@test.local', '{"username":"bela","full_name":"Bela"}'),
+++  ('00000000-0000-0000-0000-00000000000c', 'c@test.local', '{"username":"chen","full_name":"Chen"}'),
+++  ('00000000-0000-0000-0000-00000000000d', 'd@test.local', '{"username":"dara","full_name":"Dara"}');
+++
+++-- conv1 = Anna + Bela.  conv2 = Chen + Dara.  Chen is an OUTSIDER to conv1.
+++insert into public.conversations (id) values
+++  ('c0000000-0000-4000-8000-000000000001'), ('c0000000-0000-4000-8000-000000000002');
+++insert into public.conversation_participants (conversation_id, user_id) values
+++  ('c0000000-0000-4000-8000-000000000001', '00000000-0000-0000-0000-00000000000a'),
+++  ('c0000000-0000-4000-8000-000000000001', '00000000-0000-0000-0000-00000000000b'),
+++  ('c0000000-0000-4000-8000-000000000002', '00000000-0000-0000-0000-00000000000c'),
+++  ('c0000000-0000-4000-8000-000000000002', '00000000-0000-0000-0000-00000000000d');
+++
+++-- files already sitting in storage (as the service would have stored them)
+++insert into storage.objects (bucket_id, name, owner) values
+++  ('chat-media', '00000000-0000-0000-0000-00000000000a/11111111-1111-1111-1111-111111111111.jpg', '00000000-0000-0000-0000-00000000000a'), -- photo, will be sent in conv1
+++  ('chat-media', '00000000-0000-0000-0000-00000000000a/22222222-2222-2222-2222-222222222222.pdf', '00000000-0000-0000-0000-00000000000a'), -- document, will be sent in conv1
+++  ('chat-media', '00000000-0000-0000-0000-00000000000a/33333333-3333-3333-3333-333333333333.jpg', '00000000-0000-0000-0000-00000000000a'), -- uploaded, NEVER sent
+++  ('voice',      '00000000-0000-0000-0000-00000000000a/44444444-4444-4444-4444-444444444444.webm','00000000-0000-0000-0000-00000000000a'), -- voice note, will be sent in conv1
+++  ('chat-media', '00000000-0000-0000-0000-00000000000c/55555555-5555-5555-5555-555555555555.png', '00000000-0000-0000-0000-00000000000c'), -- Chen's photo, sent in conv2
+++  ('chat-media', '00000000-0000-0000-0000-00000000000b/66666666-6666-6666-6666-666666666666.jpg', '00000000-0000-0000-0000-00000000000b'); -- Bela's, never sent
+++
+++-- a test helper: runs a statement as the CURRENT role and returns the error text (or 'ok')
+++create function public.zz_err(q text) returns text language plpgsql as $$
+++begin execute q; return 'ok'; exception when others then return sqlerrm; end $$;
+++
+++-- ===== 1. configuration ==========================================================================
+++do $$
+++declare v_mimes text[];
+++begin
+++  assert (select public from storage.buckets where id = 'chat-media') = false, 'chat-media must be private';
+++  assert (select public from storage.buckets where id = 'voice') = false,      'voice must be private';
+++
+++  select allowed_mime_types into v_mimes from storage.buckets where id = 'chat-media';
+++  assert 'image/jpeg' = any (v_mimes) and 'application/pdf' = any (v_mimes) and 'video/mp4' = any (v_mimes),
+++    'normal photos, PDFs and videos are allowed';
+++  assert not ('image/svg+xml' = any (v_mimes)),                         'SVG (can carry scripts) is not allowed';
+++  assert not ('text/html' = any (v_mimes)),                             'HTML is not allowed';
+++  assert not ('application/vnd.android.package-archive' = any (v_mimes)), 'APKs are not allowed';
+++  assert not ('application/x-msdownload' = any (v_mimes)),              'programs are not allowed';
+++
+++  assert not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects'
+++                       and policyname in ('chat_media_public_read', 'voice_public_read')),
+++    'the public read rules are gone';
+++  assert not exists (select 1 from pg_policies
+++                      where schemaname = 'storage' and tablename = 'objects' and cmd in ('SELECT', 'ALL')
+++                        and (roles && array['public', 'anon']::name[])
+++                        and (coalesce(qual, '') ~ '(chat-media|voice)')),
+++    'no rule lets signed-out visitors read chat media';
+++end $$;
+++
+++-- ===== 2. the path reader =========================================================================
+++do $$
+++declare a text := '00000000-0000-0000-0000-00000000000a';
+++begin
+++  assert public.chat_media_path('chat-media', a || '/x1.jpg') = a || '/x1.jpg',                       'bare path';
+++  assert public.chat_media_path('chat-media', 'https://p.supabase.co/storage/v1/object/public/chat-media/' || a || '/x1.jpg') = a || '/x1.jpg', 'public-style address';
+++  assert public.chat_media_path('chat-media', 'https://p.supabase.co/storage/v1/object/sign/chat-media/' || a || '/x1.jpg?token=abc') = a || '/x1.jpg', 'signed address with a query';
+++  assert public.chat_media_path('chat-media', 'https://p.supabase.co/storage/v1/object/public/voice/' || a || '/x1.jpg') is null,        'other bucket';
+++  assert public.chat_media_path('voice', 'https://p.supabase.co/storage/v1/object/public/voice/' || a || '/x.webm') = a || '/x.webm',  'voice bucket';
+++  assert public.chat_media_path('chat-media', 'https://evil.example/?u=/storage/v1/object/public/chat-media/' || a || '/x1.jpg') is null, 'look-alike address';
+++  assert public.chat_media_path('chat-media', 'https://p.supabase.co/storage/v1/object/public/chat-media/' || a || '/../x.jpg') is null, 'dot-dot';
+++  assert public.chat_media_path('chat-media', a || '/..') is null,                                   'dot-dot file';
+++  assert public.chat_media_path('chat-media', a || '/.hidden') is null,                              'leading dot';
+++  assert public.chat_media_path('chat-media', upper(a) || '/x.jpg') is null,                         'upper-case id';
+++  assert public.chat_media_path('chat-media', 'not-a-uuid/x.jpg') is null,                           'not an id';
+++  assert public.chat_media_path('chat-media', a || '/a b.jpg') is null,                              'space in name';
+++  assert public.chat_media_path('chat-media', a || '/x.jpg/y') is null,                              'extra folder';
+++  assert public.chat_media_path('chat-media', null) is null,                                         'null';
+++end $$;
+++
+++-- ===== 3. sending (Anna, member of conv1) ==========================================================
+++select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', true);
+++set local role authenticated;
+++do $$
+++declare
+++  a    text := '00000000-0000-0000-0000-00000000000a';
+++  b    text := '00000000-0000-0000-0000-00000000000b';
+++  c1   uuid := 'c0000000-0000-4000-8000-000000000001';
+++  base text := 'https://p.supabase.co/storage/v1/object/public/';
+++begin
+++  -- the three normal ways to attach something succeed
+++  perform public.send_chat_message(c1, '', null, base || 'chat-media/' || a || '/11111111-1111-1111-1111-111111111111.jpg', 100, 100);
+++  perform public.send_chat_message(c1, 'the file', null, null, null, null, a || '/22222222-2222-2222-2222-222222222222.pdf', 'plan.pdf', 1000);
+++  perform public.send_voice_message(c1, base || 'voice/' || a || '/44444444-4444-4444-4444-444444444444.webm', 5);
+++  perform public.send_chat_message(c1, 'plain text hello');
+++
+++  -- and the bad ones are refused
+++  assert public.zz_err(format($q$select public.send_chat_message(%L,'',null,%L)$q$, c1,
+++      'https://evil.example/?u=/storage/v1/object/public/chat-media/' || a || '/11111111-1111-1111-1111-111111111111.jpg')) = 'invalid_media', 'foreign address';
+++  assert public.zz_err(format($q$select public.send_chat_message(%L,'',null,%L)$q$, c1,
+++      base || 'chat-media/' || b || '/66666666-6666-6666-6666-666666666666.jpg')) = 'invalid_media', 'someone else''s file';
+++  assert public.zz_err(format($q$select public.send_chat_message(%L,'',null,%L)$q$, c1,
+++      base || 'chat-media/' || a || '/../' || b || '/66666666-6666-6666-6666-666666666666.jpg')) = 'invalid_media', 'dot-dot trick';
+++  assert public.zz_err(format($q$select public.send_chat_message(%L,'',null,%L)$q$, c1,
+++      base || 'voice/' || a || '/44444444-4444-4444-4444-444444444444.webm')) = 'invalid_media', 'voice file as a photo';
+++  assert public.zz_err(format($q$select public.send_chat_message(%L,'x',null,%L,null,null,%L)$q$, c1,
+++      a || '/11111111-1111-1111-1111-111111111111.jpg', a || '/22222222-2222-2222-2222-222222222222.pdf')) = 'invalid_media', 'photo and file together';
+++  assert public.zz_err(format($q$select public.send_voice_message(%L,%L,5)$q$, c1,
+++      base || 'chat-media/' || a || '/11111111-1111-1111-1111-111111111111.jpg')) = 'invalid_audio', 'photo as a voice note';
+++  assert public.zz_err(format($q$select public.send_voice_message(%L,%L,5)$q$, c1,
+++      base || 'voice/' || b || '/44444444-4444-4444-4444-444444444444.webm')) = 'invalid_audio', 'someone else''s voice note';
+++end $$;
+++reset role;
+++
+++-- Chen sends a photo in conv2
+++select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000c', true);
+++set local role authenticated;
+++do $$ begin
+++  perform public.send_chat_message('c0000000-0000-4000-8000-000000000002', '', null,
+++    '00000000-0000-0000-0000-00000000000c/55555555-5555-5555-5555-555555555555.png', 50, 50);
+++end $$;
+++reset role;
+++
+++-- ===== 4. who can read the files ====================================================================
+++-- Bela (member of conv1): the 3 attachments Anna sent, but not Anna's unsent upload
+++select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', true);
+++set local role authenticated;
+++do $$
+++declare a text := '00000000-0000-0000-0000-00000000000a';
+++begin
+++  assert (select count(*) from storage.objects where name in (
+++      a || '/11111111-1111-1111-1111-111111111111.jpg', a || '/22222222-2222-2222-2222-222222222222.pdf',
+++      a || '/44444444-4444-4444-4444-444444444444.webm')) = 3,                   'a member can read what was sent to the chat';
+++  assert (select count(*) from storage.objects where name = a || '/33333333-3333-3333-3333-333333333333.jpg') = 0,
+++    'a member cannot read a file that was uploaded but never sent';
+++  assert public.can_read_chat_media('chat-media', a || '/44444444-4444-4444-4444-444444444444.webm') = false,
+++    'a voice file is not readable as chat-media';
+++  assert (select count(*) from storage.objects where name like '%55555555%') = 0, 'a member cannot read another chat''s file';
+++end $$;
+++reset role;
+++
+++-- Chen (outsider to conv1): nothing of Anna's, but his own and his own chat's
+++select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000c', true);
+++set local role authenticated;
+++do $$
+++declare a text := '00000000-0000-0000-0000-00000000000a';
+++begin
+++  assert (select count(*) from storage.objects where name like a || '/%') = 0, 'an outsider reads none of Anna''s files';
+++  assert (select count(*) from storage.objects where name like '%55555555%') = 1, 'Chen reads his own photo';
+++  assert public.can_read_chat_media('chat-media', a || '/11111111-1111-1111-1111-111111111111.jpg') = false, 'can_read says no to an outsider';
+++end $$;
+++reset role;
+++
+++-- Dara (member of conv2 only): Chen's photo yes, Anna's no
+++select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000d', true);
+++set local role authenticated;
+++do $$ begin
+++  assert (select count(*) from storage.objects where name like '%55555555%') = 1,                    'the other member of conv2 reads Chen''s photo';
+++  assert (select count(*) from storage.objects where name like '00000000-0000-0000-0000-00000000000a/%') = 0, 'but none of conv1''s';
+++end $$;
+++reset role;
+++
+++-- Anna (owner): everything of hers, including the unsent upload
+++select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', true);
+++set local role authenticated;
+++do $$ begin
+++  assert (select count(*) from storage.objects where name like '00000000-0000-0000-0000-00000000000a/%') = 4, 'the owner reads all her uploads';
+++end $$;
+++reset role;
+++
+++-- a signed-out visitor
+++set local role anon;
+++do $$ begin
+++  assert (select count(*) from storage.objects) = 0, 'signed-out visitors read nothing';
+++  assert public.zz_err($q$select public.can_read_chat_media('chat-media','x')$q$) like '%permission denied%', 'signed-out visitors cannot even ask';
+++end $$;
+++reset role;
+++
+++-- ===== 5. uploads and deletes =======================================================================
+++select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', true);
+++set local role authenticated;
+++do $$
+++declare a text := '00000000-0000-0000-0000-00000000000a'; b text := '00000000-0000-0000-0000-00000000000b';
+++begin
+++  assert public.zz_err(format($q$insert into storage.objects (bucket_id,name,owner) values ('chat-media',%L,%L)$q$,
+++    a || '/77777777-7777-7777-7777-777777777777.jpg', a)) = 'ok',                                   'upload into my own folder';
+++  assert public.zz_err(format($q$insert into storage.objects (bucket_id,name,owner) values ('chat-media',%L,%L)$q$,
+++    b || '/88888888-8888-8888-8888-888888888888.jpg', a)) like '%row-level security%',              'not into someone else''s folder';
+++  assert public.zz_err(format($q$insert into storage.objects (bucket_id,name,owner) values ('chat-media',%L,%L)$q$,
+++    a || '/../' || b || '/x.jpg', a)) like '%row-level security%',                                  'not with a dot-dot name';
+++  assert public.zz_err(format($q$insert into storage.objects (bucket_id,name,owner) values ('chat-media',%L,%L)$q$,
+++    a || '/two words.jpg', a)) like '%row-level security%',                                         'not with an odd file name';
+++  assert public.zz_err(format($q$insert into storage.objects (bucket_id,name,owner) values ('voice',%L,%L)$q$,
+++    a || '/99999999-9999-9999-9999-999999999999.webm', a)) = 'ok',                                  'voice upload into my own folder';
+++  assert public.zz_err(format($q$insert into storage.objects (bucket_id,name,owner) values ('voice',%L,%L)$q$,
+++    b || '/99999999-9999-9999-9999-999999999998.webm', a)) like '%row-level security%',             'voice: not into someone else''s folder';
+++  assert public.zz_err($q$update storage.objects set name = name || 'x' where bucket_id = 'chat-media'$q$) = 'ok'
+++     and (select count(*) from storage.objects where name like '%jpgx') = 0,                        'a file cannot be renamed or swapped (no update rule)';
+++end $$;
+++reset role;
+++
+++select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', true);
+++set local role authenticated;
+++do $$
+++declare n int;
+++begin
+++  delete from storage.objects where name like '00000000-0000-0000-0000-00000000000a/%';
+++  get diagnostics n = row_count;
+++  assert n = 0, 'a member cannot delete someone else''s file';
+++end $$;
+++reset role;
+++
+++-- ===== 6. messages: only the people in the conversation =============================================
+++select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000c', true);
+++set local role authenticated;
+++do $$
+++declare
+++  c1 uuid := 'c0000000-0000-4000-8000-000000000001';
+++  m  uuid;
+++begin
+++  assert (select count(*) from public.messages where conversation_id = c1) = 0,                'an outsider reads no messages';
+++  assert (select count(*) from public.conversations where id = c1) = 0,                        'an outsider cannot see the conversation';
+++  assert (select count(*) from public.conversation_participants where conversation_id = c1) = 0, 'an outsider cannot see who is in it';
+++  assert public.zz_err(format($q$insert into public.messages (conversation_id, sender_id, body) values (%L, %L, 'hi')$q$, c1,
+++    '00000000-0000-0000-0000-00000000000c')) like '%row-level security%',                      'an outsider cannot post';
+++  assert public.zz_err(format($q$select public.send_chat_message(%L,'hi')$q$, c1)) = 'not_allowed', 'an outsider cannot post through send_chat_message';
+++  assert public.zz_err(format($q$select public.send_voice_message(%L,%L,5)$q$, c1,
+++    '00000000-0000-0000-0000-00000000000c/44444444-4444-4444-4444-444444444444.webm')) = 'not_allowed', 'nor a voice note';
+++
+++  reset role;
+++  select id into m from public.messages where conversation_id = c1 order by created_at limit 1;
+++  set local role authenticated;
+++  assert public.zz_err(format($q$select public.react_to_message(%L, 'x')$q$, m)) = 'not_allowed',  'an outsider cannot react';
+++  assert public.zz_err(format($q$select public.edit_message(%L, 'hacked')$q$, m)) = 'not_allowed',  'an outsider cannot edit';
+++  assert public.zz_err(format($q$select public.delete_message(%L)$q$, m)) = 'not_allowed',          'an outsider cannot delete';
+++  assert (select count(*) from public.message_reactions where conversation_id = c1) = 0,            'an outsider reads no reactions';
+++end $$;
+++reset role;
+++
+++select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', true);
+++set local role authenticated;
+++do $$
+++declare
+++  c1 uuid := 'c0000000-0000-4000-8000-000000000001';
+++  m  uuid;
+++begin
+++  assert (select count(*) from public.messages where conversation_id = c1) = 4, 'a member reads the conversation';
+++  assert public.zz_err(format($q$insert into public.messages (conversation_id, sender_id, body) values (%L, %L, 'as anna')$q$, c1,
+++    '00000000-0000-0000-0000-00000000000a')) like '%row-level security%',                       'a member cannot post as someone else';
+++  assert public.zz_err(format($q$insert into public.messages (conversation_id, sender_id, body, image_url) values (%L, %L, 'x', 'https://evil.example/x.jpg')$q$, c1,
+++    '00000000-0000-0000-0000-00000000000b')) like '%permission denied%',                        'media columns cannot be set directly';
+++  assert public.zz_err(format($q$update public.messages set body = 'edited' where conversation_id = %L$q$, c1)) like '%permission denied%',
+++    'messages cannot be updated directly';
+++  reset role;
+++  select id into m from public.messages where conversation_id = c1 and sender_id = '00000000-0000-0000-0000-00000000000a' order by created_at limit 1;
+++  set local role authenticated;
+++  assert public.zz_err(format($q$select public.edit_message(%L, 'hacked')$q$, m)) = 'not_allowed', 'a member cannot edit someone else''s message';
+++  assert public.zz_err(format($q$select public.delete_message(%L)$q$, m)) = 'not_allowed',         'a member cannot delete someone else''s message';
+++end $$;
+++reset role;
+++
+++-- ===== 7. leaving the conversation ends access =======================================================
+++delete from public.conversation_participants
+++ where conversation_id = 'c0000000-0000-4000-8000-000000000001'
+++   and user_id = '00000000-0000-0000-0000-00000000000b';
+++select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', true);
+++set local role authenticated;
+++do $$ begin
+++  assert (select count(*) from storage.objects where name like '00000000-0000-0000-0000-00000000000a/%') = 0, 'someone who left can no longer read the media';
+++  assert (select count(*) from public.messages where conversation_id = 'c0000000-0000-4000-8000-000000000001') = 0, 'nor the messages';
+++end $$;
+++reset role;
+++
+++rollback;
+diff --git a/src/components/chat-media-img.tsx b/src/components/chat-media-img.tsx
+new file mode 100644
+index 0000000..92274df
+--- /dev/null
++++ b/src/components/chat-media-img.tsx
+@@ -0,0 +1,51 @@
++import { useEffect, useState, type ReactNode } from "react";
++import { useChatMediaUrl } from "@/lib/chat-media";
++
++/**
++ * A chat photo from private storage. Shows an empty box while the signed link is fetched, asks for
++ * a fresh link once if the browser rejects the old one, and shows `fallback` (default: nothing) if
++ * the file can't be opened.
++ */
++export function ChatMediaImg({
++  url,
++  alt,
++  className,
++  loading = "lazy",
++  fallback = null,
++}: {
++  url: string;
++  alt: string;
++  className?: string;
++  loading?: "lazy" | "eager";
++  fallback?: ReactNode;
++}) {
++  const media = useChatMediaUrl(url);
++  const [retried, setRetried] = useState(false);
++  const [broken, setBroken] = useState(false);
++  useEffect(() => {
++    setRetried(false);
++    setBroken(false);
++  }, [url]);
++
++  if (media.status === "error" || broken) return <>{fallback}</>;
++  if (!media.src)
++    return (
++      <span aria-hidden="true" className={`${className ?? ""} block animate-pulse bg-black/10`} />
++    );
++  return (
++    <img
++      src={media.src}
++      alt={alt}
++      loading={loading}
++      draggable={false}
++      className={className}
++      onError={() => {
++        if (retried) return setBroken(true);
++        setRetried(true);
++        void media.refresh().then((ok) => {
++          if (!ok) setBroken(true);
++        });
++      }}
++    />
++  );
++}
+diff --git a/src/components/chat-parts.tsx b/src/components/chat-parts.tsx
+index 70beb6b..a55127d 100644
+--- a/src/components/chat-parts.tsx
++++ b/src/components/chat-parts.tsx
+@@ -12,7 +12,9 @@ import {
+   X,
+ } from "lucide-react";
+ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
++import { ChatMediaImg } from "@/components/chat-media-img";
+ import type { MessageReactionRow, MessageRow } from "@/integrations/supabase/types";
++import { useChatMediaUrl } from "@/lib/chat-media";
+ import { formatFileSize, quotePreview, type ReactionGroup } from "@/lib/chat-extras";
+ 
+ export function DayPill({ label }: { label: string }) {
+@@ -97,12 +99,7 @@ export function ReplyQuote({
+         </span>
+       </span>
+       {quoted?.image_url && (
+-        <img
+-          src={quoted.image_url}
+-          alt=""
+-          loading="lazy"
+-          className="h-12 w-12 shrink-0 object-cover"
+-        />
++        <ChatMediaImg url={quoted.image_url} alt="" className="h-12 w-12 shrink-0 object-cover" />
+       )}
+     </button>
+   );
+@@ -123,27 +120,23 @@ export function ImageBody({
+   /** time + ticks drawn over the bottom-right corner */
+   overlay?: ReactNode;
+ }) {
+-  const [broken, setBroken] = useState(false);
+   const ratio = width && height ? Math.min(1.6, Math.max(0.7, width / height)) : 1;
+   return (
+     <div
+       className="relative w-[min(14.5rem,62vw)] max-w-full overflow-hidden rounded-md bg-black/10 sm:w-[min(16.5rem,70vw)]"
+       style={{ aspectRatio: String(ratio) }}
+     >
+-      {broken ? (
+-        <div className="grid h-full w-full place-items-center text-xs text-[var(--wa-meta)]">
+-          Photo unavailable
+-        </div>
+-      ) : (
+-        <img
+-          src={url}
+-          alt="Photo"
+-          loading="lazy"
+-          draggable={false}
+-          onError={() => setBroken(true)}
+-          className="h-full w-full select-none object-cover"
+-        />
+-      )}
++      {/* the photo comes from private storage: it is fetched through a short-lived signed link */}
++      <ChatMediaImg
++        url={url}
++        alt="Photo"
++        className="h-full w-full select-none object-cover"
++        fallback={
++          <div className="grid h-full w-full place-items-center text-xs text-[var(--wa-meta)]">
++            Photo unavailable
++          </div>
++        }
++      />
+       {uploading && (
+         <span className="absolute inset-0 grid place-items-center bg-black/35">
+           <Loader2 className="h-7 w-7 animate-spin text-white" aria-label="Uploading" />
+@@ -169,9 +162,22 @@ export function FileBody({
+ }) {
+   const label = name || "Document";
+   const ext = label.includes(".") ? (label.split(".").pop() ?? "").toUpperCase().slice(0, 5) : "";
++  // private storage: the link is signed (and set to save under the file's own name)
++  const media = useChatMediaUrl(url, { download: label });
++  if (media.status === "error") {
++    return (
++      <div className="flex w-[min(14.5rem,62vw)] max-w-full items-center gap-2.5 rounded-md bg-[var(--wa-quote)] p-2.5 text-[13px] italic text-[var(--wa-meta)] sm:w-[min(16.5rem,70vw)]">
++        <FileText className="h-5 w-5 shrink-0" aria-hidden="true" />
++        File unavailable
++      </div>
++    );
++  }
+   return (
+     <a
+-      href={url}
++      {...(media.src ? { href: media.src } : { "aria-disabled": true })}
++      onClick={(e) => {
++        if (!media.src) e.preventDefault();
++      }}
+       target="_blank"
+       rel="noopener noreferrer"
+       download={label}
+@@ -301,7 +307,13 @@ export function ImageLightbox({ url, onClose }: { url: string; onClose: () => vo
+       >
+         <X className="h-6 w-6" aria-hidden="true" />
+       </button>
+-      <img src={url} alt="Photo" className="max-h-full max-w-full object-contain" />
++      <ChatMediaImg
++        url={url}
++        alt="Photo"
++        loading="eager"
++        className="max-h-full max-w-full object-contain"
++        fallback={<p className="text-sm text-white/80">Photo unavailable</p>}
++      />
+     </div>,
+     document.body,
+   );
+@@ -533,7 +545,7 @@ export function ReplyBar({
+           </span>
+         </span>
+         {quoted.image_url && (
+-          <img src={quoted.image_url} alt="" className="h-11 w-11 shrink-0 object-cover" />
++          <ChatMediaImg url={quoted.image_url} alt="" className="h-11 w-11 shrink-0 object-cover" />
+         )}
+       </div>
+       <button
+diff --git a/src/components/voice-recorder.tsx b/src/components/voice-recorder.tsx
+index 5af7c7c..3cd3ee8 100644
+--- a/src/components/voice-recorder.tsx
++++ b/src/components/voice-recorder.tsx
+@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+ import { toast } from "sonner";
+ import { Mic, Pause, Play, Trash2 } from "lucide-react";
+ import { Avatar } from "@/components/ediraa";
++import { useChatMediaUrl } from "@/lib/chat-media";
+ import {
+   formatClock,
+   MIC_DENIED_MESSAGE,
+@@ -246,6 +247,8 @@ export function VoiceBubble({
+   footer?: ReactNode;
+ }) {
+   const audioRef = useRef<HTMLAudioElement>(null);
++  // private storage: the recording is played from a short-lived signed link
++  const media = useChatMediaUrl(url);
+   const [isPlaying, setIsPlaying] = useState(false);
+   const [progress, setProgress] = useState(0);
+   const [failed, setFailed] = useState(false);
+@@ -281,7 +284,7 @@ export function VoiceBubble({
+ 
+   const toggle = () => {
+     const a = audioRef.current;
+-    if (!a) return;
++    if (!a || !media.src) return;
+     if (isPlaying) {
+       a.pause();
+       return;
+@@ -292,6 +295,15 @@ export function VoiceBubble({
+     setFailed(false);
+     void a.play().catch(() => setFailed(true));
+   };
++  // The signed link only lasts an hour. If playback fails, get a fresh one once and try again.
++  const retried = useRef(false);
++  const onAudioError = () => {
++    if (retried.current) return setFailed(true);
++    retried.current = true;
++    void media.refresh().then((ok) => {
++      if (!ok) setFailed(true);
++    });
++  };
+   const seek = (e: React.MouseEvent<HTMLDivElement>) => {
+     const a = audioRef.current;
+     if (!a) return;
+@@ -313,7 +325,7 @@ export function VoiceBubble({
+     <div className="flex w-[min(15.5rem,66vw)] max-w-full items-center gap-1.5 py-0.5 sm:w-[min(17rem,72vw)] sm:gap-2">
+       <audio
+         ref={audioRef}
+-        src={url}
++        {...(media.src ? { src: media.src } : {})}
+         preload="none"
+         onPlay={() => {
+           setIsPlaying(true);
+@@ -326,7 +338,7 @@ export function VoiceBubble({
+           if (audioRef.current) audioRef.current.currentTime = 0;
+         }}
+         onTimeUpdate={(e) => setProgress(Math.min(1, e.currentTarget.currentTime / total))}
+-        onError={() => setFailed(true)}
++        onError={onAudioError}
+       />
+       <button
+         type="button"
+@@ -367,7 +379,9 @@ export function VoiceBubble({
+         </div>
+         <div className="mt-0.5 flex items-center justify-between gap-2 text-[10px] leading-none text-[var(--wa-meta)] sm:text-[11px]">
+           <span className="tabular-nums">
+-            {failed ? "Couldn't play" : formatClock(isPlaying ? progress * total : total)}
++            {failed || media.status === "error"
++              ? "Couldn't play"
++              : formatClock(isPlaying ? progress * total : total)}
+           </span>
+           {footer}
+         </div>
+diff --git a/src/lib/auth.tsx b/src/lib/auth.tsx
+index 6df7dae..8ec6dd0 100644
+--- a/src/lib/auth.tsx
++++ b/src/lib/auth.tsx
+@@ -1,3 +1,4 @@
++import { clearSignedUrlCache } from "@/lib/chat-media";
+ import {
+   createContext,
+   useCallback,
+@@ -10,7 +11,12 @@ import {
+ import type { Session, User } from "@supabase/supabase-js";
+ import { supabase } from "@/integrations/supabase/client";
+ import type { Profile } from "@/integrations/supabase/types";
+-import { authRedirect, isNativeApp, NATIVE_AUTH_REDIRECT, NATIVE_RESET_REDIRECT } from "@/lib/auth-redirect";
++import {
++  authRedirect,
++  isNativeApp,
++  NATIVE_AUTH_REDIRECT,
++  NATIVE_RESET_REDIRECT,
++} from "@/lib/auth-redirect";
+ import { removePushOnLogout } from "@/lib/push";
+ import { friendlyAuthError } from "@/lib/auth-errors";
+ 
+@@ -262,6 +268,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
+     // it runs first; it never throws and never blocks logging out).
+     await removePushOnLogout();
+     await supabase.auth.signOut();
++    clearSignedUrlCache(); // signed chat-media links belong to the person who just signed out
+     setProfile(null);
+   }, []);
+ 
+diff --git a/src/lib/chat-extras.ts b/src/lib/chat-extras.ts
+index e3097e1..4b50231 100644
+--- a/src/lib/chat-extras.ts
++++ b/src/lib/chat-extras.ts
+@@ -1,3 +1,4 @@
++import { resolveChatFile, UNSUPPORTED_FILE_MESSAGE } from "@/lib/chat-media";
+ import type { SupabaseClient } from "@supabase/supabase-js";
+ import { supabase } from "@/integrations/supabase/client";
+ import { isMissingFunctionError } from "@/lib/db-errors";
+@@ -114,7 +115,9 @@ export async function prepareImage(file: File): Promise<PreparedImage> {
+       .replace(/[^a-z0-9]/gi, "");
+     return { blob: file, ...size, ext: ext || "jpg" };
+   };
+-  if (file.type === "image/gif" || file.type === "image/svg+xml") return original();
++  // SVG can carry scripts, so it is never sent (the storage bucket refuses it too)
++  if (file.type === "image/svg+xml") throw new Error(UNSUPPORTED_FILE_MESSAGE);
++  if (file.type === "image/gif") return original();
+   try {
+     const bitmap = await createImageBitmap(file);
+     const scale = Math.min(1, IMAGE_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+@@ -171,6 +174,8 @@ async function upload(userId: string, blob: Blob, ext: string, contentType: stri
+     if (/bucket not found/i.test(error.message ?? "")) throw new Error(MIGRATION_HINT);
+     throw new Error("Couldn't upload that file. Please try again.");
+   }
++  // The bucket is private, so this address cannot be opened by itself. It is only the name the
++  // message stores for the file; the app signs it (lib/chat-media.ts) when someone views it.
+   const { data } = supabase.storage.from("chat-media").getPublicUrl(path);
+   return { path, url: data.publicUrl };
+ }
+@@ -242,13 +247,10 @@ export async function sendFileMessage(
+   args: SendArgs & { userId: string; file: File },
+ ): Promise<MessageRow> {
+   if (args.file.size > MEDIA_MAX_BYTES) throw new Error("Files must be 15 MB or smaller.");
+-  const ext = args.file.name.includes(".") ? (args.file.name.split(".").pop() ?? "bin") : "bin";
+-  const { path, url } = await upload(
+-    args.userId,
+-    args.file,
+-    ext,
+-    args.file.type || "application/octet-stream",
+-  );
++  // only photos, videos, audio, PDFs and common documents; never SVG, HTML, scripts or programs
++  const kind = resolveChatFile(args.file);
++  if (!kind) throw new Error(UNSUPPORTED_FILE_MESSAGE);
++  const { path, url } = await upload(args.userId, args.file, kind.ext, kind.mime);
+   try {
+     return await callSend({
+       ...args,
+diff --git a/src/lib/chat-media.ts b/src/lib/chat-media.ts
+new file mode 100644
+index 0000000..e9aa442
+--- /dev/null
++++ b/src/lib/chat-media.ts
+@@ -0,0 +1,251 @@
++import { useCallback, useEffect, useRef, useState } from "react";
++import { supabase } from "@/integrations/supabase/client";
++
++/**
++ * Chat photos, files and voice messages live in PRIVATE storage buckets. The database stores an
++ * address for each file; this module turns that address into a short-lived signed URL, which
++ * Supabase only hands out to people allowed to read the file (the other members of the
++ * conversation, and the person who sent it).
++ *
++ * The stored address is just an identifier: it still has the old ".../object/public/<bucket>/..."
++ * shape, so old messages keep working and the app works before AND after the database update.
++ */
++
++export type ChatMediaBucket = "chat-media" | "voice";
++export type ChatMediaRef = { bucket: ChatMediaBucket; path: string };
++
++const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
++// <uuid>/<file name>: the same shape the database accepts (chat_media_path in the migration).
++const PATH = `${UUID}/[A-Za-z0-9_-][A-Za-z0-9._-]{0,119}`;
++const ADDRESS = new RegExp(
++  `^https?://[^/?#]+/storage/v1/object/(?:public|sign|authenticated)/(chat-media|voice)/(${PATH})(?:\\?[^#]*)?$`,
++);
++
++/** The bucket and path inside a stored address, or null if it is anything else. Strict on purpose. */
++export function parseChatMediaRef(value: string | null | undefined): ChatMediaRef | null {
++  if (!value || value.length > 1000) return null;
++  const m = ADDRESS.exec(value);
++  return m ? { bucket: m[1] as ChatMediaBucket, path: m[2]! } : null;
++}
++
++/** A picture or recording that only exists on this device (shown while it uploads). */
++export function isLocalMediaUrl(value: string | null | undefined): boolean {
++  return !!value && /^(blob:|data:(image|audio|video)\/)/i.test(value);
++}
++
++// ---------------------------------------------------------------------------------------------
++// Signing, with a small cache so scrolling a chat does not ask again for every photo.
++// ---------------------------------------------------------------------------------------------
++
++/** How long a signed link works. A link is a key: anyone holding it can open the file until then. */
++export const SIGNED_URL_TTL_SECONDS = 3600;
++/** A cached link with less than this left is not reused for something newly shown. */
++export const REFRESH_MARGIN_MS = 5 * 60_000;
++
++const cache = new Map<string, { url: string; expiresAt: number }>();
++const inFlight = new Map<string, Promise<string>>();
++
++const keyOf = (ref: ChatMediaRef, download?: string) =>
++  `${ref.bucket}/${ref.path}${download ? `#dl=${download}` : ""}`;
++
++/** A link we already have and can still use, without asking the server. */
++export function peekSignedUrl(
++  ref: ChatMediaRef,
++  download?: string,
++  now = Date.now(),
++): string | null {
++  const hit = cache.get(keyOf(ref, download));
++  return hit && hit.expiresAt - now > REFRESH_MARGIN_MS ? hit.url : null;
++}
++
++/** Forget every link (on sign-out, so the next person on this device starts clean). */
++export function clearSignedUrlCache() {
++  cache.clear();
++  inFlight.clear();
++}
++
++/**
++ * A signed link for one file. Fails (rejects) when the file is not there or this person may not
++ * read it. `download` makes the link save the file under that name instead of opening it inline.
++ */
++export async function getSignedChatMediaUrl(
++  ref: ChatMediaRef,
++  opts: { download?: string; force?: boolean } = {},
++): Promise<string> {
++  const key = keyOf(ref, opts.download);
++  if (!opts.force) {
++    const hit = peekSignedUrl(ref, opts.download);
++    if (hit) return hit;
++    const pending = inFlight.get(key);
++    if (pending) return pending;
++  }
++  const request = (async () => {
++    const { data, error } = await supabase.storage
++      .from(ref.bucket)
++      .createSignedUrl(
++        ref.path,
++        SIGNED_URL_TTL_SECONDS,
++        opts.download ? { download: opts.download } : undefined,
++      );
++    if (error || !data?.signedUrl) {
++      throw new Error("This file isn't available.");
++    }
++    cache.set(key, { url: data.signedUrl, expiresAt: Date.now() + SIGNED_URL_TTL_SECONDS * 1000 });
++    return data.signedUrl;
++  })().finally(() => {
++    if (inFlight.get(key) === request) inFlight.delete(key);
++  });
++  inFlight.set(key, request);
++  return request;
++}
++
++export type ChatMediaState = {
++  /** What to put in src / href. Undefined until it is ready. */
++  src: string | undefined;
++  status: "idle" | "loading" | "ready" | "error";
++  /**
++   * Gets a fresh link (for when the browser says the old one stopped working). Resolves true if
++   * a new link is now in `src`.
++   */
++  refresh: () => Promise<boolean>;
++};
++
++function initialState(value: string | null | undefined, download?: string) {
++  if (!value) return { status: "idle" as const, src: undefined };
++  if (isLocalMediaUrl(value)) return { status: "ready" as const, src: value };
++  const ref = parseChatMediaRef(value);
++  if (!ref) return { status: "error" as const, src: undefined };
++  const hit = peekSignedUrl(ref, download);
++  return hit
++    ? { status: "ready" as const, src: hit }
++    : { status: "loading" as const, src: undefined };
++}
++
++/**
++ * Turns a stored chat media address into something a browser can open.
++ *  - a local blob:/data: preview is used as is;
++ *  - an address that is not one of our chat files is refused (status "error"): the app never loads
++ *    arbitrary addresses that came from message data;
++ *  - everything else is signed.
++ */
++export function useChatMediaUrl(
++  value: string | null | undefined,
++  opts: { download?: string } = {},
++): ChatMediaState {
++  const download = opts.download;
++  const [state, setState] = useState(() => initialState(value, download));
++  const alive = useRef(true);
++  useEffect(() => {
++    alive.current = true;
++    return () => {
++      alive.current = false;
++    };
++  }, []);
++
++  useEffect(() => {
++    let cancelled = false;
++    const next = initialState(value, download);
++    setState(next);
++    if (next.status !== "loading") return;
++    const ref = parseChatMediaRef(value)!;
++    getSignedChatMediaUrl(ref, download ? { download } : {}).then(
++      (src) => {
++        if (!cancelled) setState({ status: "ready", src });
++      },
++      () => {
++        if (!cancelled) setState({ status: "error", src: undefined });
++      },
++    );
++    return () => {
++      cancelled = true;
++    };
++  }, [value, download]);
++
++  const refresh = useCallback(async () => {
++    const ref = parseChatMediaRef(value);
++    if (!ref) return false;
++    try {
++      const src = await getSignedChatMediaUrl(ref, {
++        ...(download ? { download } : {}),
++        force: true,
++      });
++      if (alive.current) setState({ status: "ready", src });
++      return true;
++    } catch {
++      if (alive.current) setState({ status: "error", src: undefined });
++      return false;
++    }
++  }, [value, download]);
++
++  return { src: state.src, status: state.status, refresh };
++}
++
++// ---------------------------------------------------------------------------------------------
++// What may be sent as a file. The storage bucket enforces the same list.
++// ---------------------------------------------------------------------------------------------
++
++const FILE_TYPES: Record<string, string> = {
++  pdf: "application/pdf",
++  txt: "text/plain",
++  csv: "text/csv",
++  rtf: "application/rtf",
++  json: "application/json",
++  zip: "application/zip",
++  rar: "application/vnd.rar",
++  doc: "application/msword",
++  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
++  xls: "application/vnd.ms-excel",
++  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
++  ppt: "application/vnd.ms-powerpoint",
++  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
++  mp4: "video/mp4",
++  webm: "video/webm",
++  mov: "video/quicktime",
++  mp3: "audio/mpeg",
++  m4a: "audio/mp4",
++  ogg: "audio/ogg",
++  jpg: "image/jpeg",
++  jpeg: "image/jpeg",
++  png: "image/png",
++  webp: "image/webp",
++  gif: "image/gif",
++  heic: "image/heic",
++  heif: "image/heif",
++};
++
++// Other spellings browsers use for the same things.
++const MIME_ALIASES = new Set([
++  "text/rtf",
++  "application/x-zip-compressed",
++  "application/x-rar-compressed",
++  "audio/webm",
++]);
++const ALLOWED_MIMES = new Set<string>([...Object.values(FILE_TYPES), ...MIME_ALIASES]);
++
++/** The `accept` list for the file picker. */
++export const CHAT_FILE_ACCEPT = Object.keys(FILE_TYPES)
++  .filter((e) => !["jpg", "jpeg", "png", "webp", "gif", "heic", "heif"].includes(e))
++  .map((e) => `.${e}`)
++  .join(",");
++
++export type ChatFileKind = { ext: string; mime: string };
++
++/**
++ * Checks a file the person picked and says how to store it, or null if it is not allowed
++ * (SVG, HTML, scripts, programs, installers and anything unknown).
++ */
++export function resolveChatFile(file: Pick<File, "name" | "type">): ChatFileKind | null {
++  const dot = file.name.lastIndexOf(".");
++  const ext = dot >= 0 ? file.name.slice(dot + 1).toLowerCase() : "";
++  const byExt = FILE_TYPES[ext];
++  if (!byExt) return null;
++  const declared = (file.type || "").toLowerCase();
++  // Some systems report nothing, or a generic type, for rar / docx / csv: the extension decides.
++  // But a file that SAYS it is something else (e.g. a .png that is really image/svg+xml) is refused.
++  if (declared && declared !== "application/octet-stream" && !ALLOWED_MIMES.has(declared))
++    return null;
++  return { ext, mime: byExt };
++}
++
++export const UNSUPPORTED_FILE_MESSAGE =
++  "That type of file can't be sent here. You can send photos, videos, audio, PDFs and common documents.";
+diff --git a/src/routes/chat.$id.tsx b/src/routes/chat.$id.tsx
+index d5affe0..fdb5784 100644
+--- a/src/routes/chat.$id.tsx
++++ b/src/routes/chat.$id.tsx
+@@ -1,4 +1,5 @@
+ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
++import { CHAT_FILE_ACCEPT, resolveChatFile, UNSUPPORTED_FILE_MESSAGE } from "@/lib/chat-media";
+ import {
+   lazy,
+   Suspense,
+@@ -446,6 +447,11 @@ function ConversationDetail({ id }: { id: string }) {
+       setScreenError("Files must be 15 MB or smaller.");
+       return;
+     }
++    // only photos, videos, audio, PDFs and common documents (never SVG, HTML, scripts, programs)
++    if (!resolveChatFile(file)) {
++      setScreenError(UNSUPPORTED_FILE_MESSAGE);
++      return;
++    }
+     const pendingId = `pending-${crypto.randomUUID()}`;
+     const localUrl = URL.createObjectURL(file);
+     setMessages((current) => [
+@@ -502,9 +508,16 @@ function ConversationDetail({ id }: { id: string }) {
+     const files = Array.from(event.target.files ?? []);
+     event.target.value = "";
+     if (!files.length) return;
+-    const photos = files.filter((f) => f.type.startsWith("image/")).slice(0, 10);
++    // SVG is left out: it can carry scripts (the storage bucket refuses it as well)
++    const photos = files
++      .filter((f) => f.type.startsWith("image/") && f.type !== "image/svg+xml")
++      .slice(0, 10);
+     if (!photos.length) {
+-      setScreenError("Please choose a photo. Use the document option for other files.");
++      setScreenError(
++        files.some((f) => f.type === "image/svg+xml")
++          ? UNSUPPORTED_FILE_MESSAGE
++          : "Please choose a photo. Use the document option for other files.",
++      );
+       return;
+     }
+     setScreenError("");
+@@ -1082,7 +1095,7 @@ function ConversationDetail({ id }: { id: string }) {
+             multiple
+             hidden
+             aria-label="Choose a document"
+-            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.json,.rtf,application/*,text/*"
++            accept={CHAT_FILE_ACCEPT}
+             onChange={onDocumentsChosen}
+           />
+           <form onSubmit={submitMessage} className="flex items-end gap-2 px-2 pb-2 pt-1.5">
+diff --git a/src/test/chat-media-components.test.tsx b/src/test/chat-media-components.test.tsx
+new file mode 100644
+index 0000000..1b39196
+--- /dev/null
++++ b/src/test/chat-media-components.test.tsx
+@@ -0,0 +1,176 @@
++import { fireEvent, render, screen, waitFor } from "@testing-library/react";
++import { beforeEach, describe, expect, it, vi } from "vitest";
++
++const { createSignedUrl } = vi.hoisted(() => ({ createSignedUrl: vi.fn() }));
++vi.mock("@/integrations/supabase/client", () => ({
++  supabase: { storage: { from: () => ({ createSignedUrl }) } },
++}));
++
++import { FileBody, ImageBody, ImageLightbox, ReplyQuote } from "@/components/chat-parts";
++import { VoiceBubble } from "@/components/voice-recorder";
++import { clearSignedUrlCache } from "@/lib/chat-media";
++import type { MessageRow } from "@/integrations/supabase/types";
++
++const UID = "00000000-0000-4000-8000-00000000000a";
++const HOST = "https://proj.supabase.co/storage/v1/object/public";
++const photo = `${HOST}/chat-media/${UID}/11111111-1111-4111-8111-111111111111.jpg`;
++const doc = `${HOST}/chat-media/${UID}/22222222-2222-4222-8222-222222222222.pdf`;
++const voice = `${HOST}/voice/${UID}/33333333-3333-4333-8333-333333333333.webm`;
++
++let n = 0;
++beforeEach(() => {
++  clearSignedUrlCache();
++  n = 0;
++  createSignedUrl.mockReset();
++  createSignedUrl.mockImplementation(
++    async (path: string, _ttl: number, opts?: { download?: string }) => ({
++      data: {
++        signedUrl: `https://signed.test/${path}?token=t${++n}${opts?.download ? `&dl=${opts.download}` : ""}`,
++      },
++      error: null,
++    }),
++  );
++});
++
++describe("photos in a chat bubble", () => {
++  it("are loaded from a signed link, never from the stored address", async () => {
++    render(<ImageBody url={photo} width={100} height={100} />);
++    const img = await screen.findByAltText("Photo");
++    expect(img.getAttribute("src")).toMatch(/^https:\/\/signed\.test\//);
++    expect(img.getAttribute("src")).not.toContain("/object/public/");
++  });
++
++  it("show a placeholder while the link is being fetched", async () => {
++    let release: (v: unknown) => void = () => undefined;
++    createSignedUrl.mockImplementationOnce(() => new Promise((r) => (release = r)));
++    render(<ImageBody url={photo} width={100} height={100} />);
++    expect(screen.queryByAltText("Photo")).toBeNull();
++    release({ data: { signedUrl: "https://signed.test/x" }, error: null });
++    expect(await screen.findByAltText("Photo")).toBeInTheDocument();
++  });
++
++  it("show a local preview straight away while a photo uploads (nothing is signed)", () => {
++    render(<ImageBody url="blob:http://localhost/preview" uploading />);
++    expect(screen.getByAltText("Photo").getAttribute("src")).toBe("blob:http://localhost/preview");
++    expect(createSignedUrl).not.toHaveBeenCalled();
++  });
++
++  it("say so when the person is not allowed to open the photo", async () => {
++    createSignedUrl.mockResolvedValue({ data: null, error: { message: "denied" } });
++    render(<ImageBody url={photo} />);
++    expect(await screen.findByText("Photo unavailable")).toBeInTheDocument();
++    expect(screen.queryByAltText("Photo")).toBeNull();
++  });
++
++  it("refuse an address that is not one of our files, and never ask the server about it", () => {
++    render(<ImageBody url="https://evil.example/tracker.gif" />);
++    expect(screen.getByText("Photo unavailable")).toBeInTheDocument();
++    expect(createSignedUrl).not.toHaveBeenCalled();
++  });
++
++  it("get ONE fresh link if the browser rejects the first, then give up", async () => {
++    render(<ImageBody url={photo} />);
++    const first = await screen.findByAltText("Photo");
++    expect(first.getAttribute("src")).toContain("token=t1");
++    fireEvent.error(first);
++    await waitFor(() =>
++      expect(screen.getByAltText("Photo").getAttribute("src")).toContain("token=t2"),
++    );
++    fireEvent.error(screen.getByAltText("Photo"));
++    expect(await screen.findByText("Photo unavailable")).toBeInTheDocument();
++    expect(createSignedUrl).toHaveBeenCalledTimes(2);
++  });
++
++  it("open full screen from a signed link too", async () => {
++    render(<ImageLightbox url={photo} onClose={() => undefined} />);
++    const img = await screen.findByAltText("Photo");
++    expect(img.getAttribute("src")).toMatch(/^https:\/\/signed\.test\//);
++  });
++});
++
++describe("quoted photos in a reply", () => {
++  it("use a signed link as well", async () => {
++    const quoted = { id: "m1", body: "📷 Photo", image_url: photo } as unknown as MessageRow;
++    const { container } = render(
++      <ReplyQuote quoted={quoted} name="Anna" color="#000" onJump={() => undefined} />,
++    );
++    await waitFor(() =>
++      expect(container.querySelector("img")?.getAttribute("src")).toMatch(/signed\.test/),
++    );
++  });
++});
++
++describe("documents", () => {
++  it("link to a signed save-as address under the file's own name", async () => {
++    render(<FileBody url={doc} name="plan.pdf" size={1000} />);
++    const link = await screen.findByRole("link", { name: "Open plan.pdf" });
++    await waitFor(() => expect(link.getAttribute("href")).toMatch(/^https:\/\/signed\.test\//));
++    expect(link.getAttribute("href")).toContain("dl=plan.pdf");
++    expect(createSignedUrl).toHaveBeenCalledWith(
++      `${UID}/22222222-2222-4222-8222-222222222222.pdf`,
++      3600,
++      {
++        download: "plan.pdf",
++      },
++    );
++  });
++
++  it("cannot be opened until the link is ready", async () => {
++    let release: (v: unknown) => void = () => undefined;
++    createSignedUrl.mockImplementationOnce(() => new Promise((r) => (release = r)));
++    render(<FileBody url={doc} name="plan.pdf" size={1} />);
++    const link = screen.getByLabelText("Open plan.pdf");
++    expect(link.getAttribute("href")).toBeNull();
++    expect(link.getAttribute("aria-disabled")).toBe("true");
++    release({ data: { signedUrl: "https://signed.test/ok" }, error: null });
++    await waitFor(() =>
++      expect(screen.getByLabelText("Open plan.pdf").getAttribute("href")).toBe(
++        "https://signed.test/ok",
++      ),
++    );
++  });
++
++  it("say so when the file can't be opened", async () => {
++    createSignedUrl.mockResolvedValue({ data: null, error: { message: "denied" } });
++    render(<FileBody url={doc} name="plan.pdf" size={1} />);
++    expect(await screen.findByText("File unavailable")).toBeInTheDocument();
++    expect(screen.queryByRole("link")).toBeNull();
++  });
++
++  it("use the local file while it uploads", () => {
++    render(<FileBody url="blob:http://localhost/doc" name="plan.pdf" size={1} />);
++    expect(screen.getByLabelText("Open plan.pdf").getAttribute("href")).toBe(
++      "blob:http://localhost/doc",
++    );
++  });
++});
++
++describe("voice messages", () => {
++  it("play from a signed link", async () => {
++    const { container } = render(<VoiceBubble url={voice} seconds={4} own={false} />);
++    await waitFor(() =>
++      expect(container.querySelector("audio")?.getAttribute("src")).toMatch(
++        /^https:\/\/signed\.test\/.*33333333/,
++      ),
++    );
++  });
++
++  it("say they can't be played when the file can't be opened", async () => {
++    createSignedUrl.mockResolvedValue({ data: null, error: { message: "denied" } });
++    render(<VoiceBubble url={voice} seconds={4} own={false} />);
++    expect(await screen.findByText("Couldn't play")).toBeInTheDocument();
++  });
++
++  it("ask for a new link once if playback fails (the old one may have run out)", async () => {
++    const { container } = render(<VoiceBubble url={voice} seconds={4} own={false} />);
++    await waitFor(() =>
++      expect(container.querySelector("audio")?.getAttribute("src")).toContain("token=t1"),
++    );
++    fireEvent.error(container.querySelector("audio")!);
++    await waitFor(() =>
++      expect(container.querySelector("audio")?.getAttribute("src")).toContain("token=t2"),
++    );
++    fireEvent.error(container.querySelector("audio")!);
++    expect(await screen.findByText("Couldn't play")).toBeInTheDocument();
++  });
++});
+diff --git a/src/test/chat-media.test.ts b/src/test/chat-media.test.ts
+new file mode 100644
+index 0000000..8e7849e
+--- /dev/null
++++ b/src/test/chat-media.test.ts
+@@ -0,0 +1,242 @@
++import { renderHook, waitFor, act } from "@testing-library/react";
++import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
++
++const { createSignedUrl, from } = vi.hoisted(() => {
++  const createSignedUrl = vi.fn();
++  return { createSignedUrl, from: vi.fn(() => ({ createSignedUrl })) };
++});
++vi.mock("@/integrations/supabase/client", () => ({ supabase: { storage: { from } } }));
++
++import {
++  CHAT_FILE_ACCEPT,
++  clearSignedUrlCache,
++  getSignedChatMediaUrl,
++  isLocalMediaUrl,
++  parseChatMediaRef,
++  REFRESH_MARGIN_MS,
++  resolveChatFile,
++  SIGNED_URL_TTL_SECONDS,
++  useChatMediaUrl,
++} from "@/lib/chat-media";
++
++const UID = "00000000-0000-4000-8000-00000000000a";
++const FILE = "11111111-1111-4111-8111-111111111111.jpg";
++const HOST = "https://proj.supabase.co/storage/v1/object";
++const stored = (bucket = "chat-media", file = FILE) => `${HOST}/public/${bucket}/${UID}/${file}`;
++
++let counter = 0;
++beforeEach(() => {
++  clearSignedUrlCache();
++  counter = 0;
++  from.mockClear();
++  createSignedUrl.mockReset();
++  createSignedUrl.mockImplementation(async (path: string) => ({
++    data: { signedUrl: `https://signed.test/${path}?token=t${++counter}` },
++    error: null,
++  }));
++});
++afterEach(() => vi.useRealTimers());
++
++describe("parseChatMediaRef: only our own chat files are recognised", () => {
++  it("reads the bucket and path from the addresses the app has always stored", () => {
++    expect(parseChatMediaRef(stored())).toEqual({ bucket: "chat-media", path: `${UID}/${FILE}` });
++    expect(parseChatMediaRef(stored("voice", "a.webm"))).toEqual({
++      bucket: "voice",
++      path: `${UID}/a.webm`,
++    });
++    expect(parseChatMediaRef(`${HOST}/sign/chat-media/${UID}/${FILE}?token=abc`)?.path).toBe(
++      `${UID}/${FILE}`,
++    );
++    expect(parseChatMediaRef(`${HOST}/authenticated/chat-media/${UID}/${FILE}`)?.bucket).toBe(
++      "chat-media",
++    );
++  });
++
++  it.each([
++    ["null", null],
++    ["empty", ""],
++    ["an address on another site", `https://evil.example/photo.jpg`],
++    ["a look-alike that only contains the path", `https://evil.example/?u=${stored()}`],
++    ["a different bucket", `${HOST}/public/avatars/${UID}/${FILE}`],
++    ["a dot-dot path", `${HOST}/public/chat-media/${UID}/../${UID}/${FILE}`],
++    ["a dot-dot file name", `${HOST}/public/chat-media/${UID}/..`],
++    ["an upper-case id", `${HOST}/public/chat-media/${UID.toUpperCase()}/${FILE}`],
++    ["something that is not an id", `${HOST}/public/chat-media/someone/${FILE}`],
++    ["a space in the name", `${HOST}/public/chat-media/${UID}/a b.jpg`],
++    ["an extra folder", `${HOST}/public/chat-media/${UID}/x/${FILE}`],
++    ["a bare path", `${UID}/${FILE}`],
++    ["a javascript address", "javascript:alert(1)"],
++    ["an over-long value", stored("chat-media", "a".repeat(1100))],
++  ])("refuses %s", (_name, value) => {
++    expect(parseChatMediaRef(value as string | null)).toBeNull();
++  });
++
++  it("knows a preview that only exists on this device", () => {
++    expect(isLocalMediaUrl("blob:http://localhost/abc")).toBe(true);
++    expect(isLocalMediaUrl("data:image/png;base64,AAAA")).toBe(true);
++    expect(isLocalMediaUrl("data:text/html;base64,AAAA")).toBe(false);
++    expect(isLocalMediaUrl("https://x/y.jpg")).toBe(false);
++    expect(isLocalMediaUrl(null)).toBe(false);
++  });
++});
++
++describe("getSignedChatMediaUrl", () => {
++  const ref = { bucket: "chat-media" as const, path: `${UID}/${FILE}` };
++
++  it("asks for a link that lasts an hour, from the right bucket", async () => {
++    const url = await getSignedChatMediaUrl(ref);
++    expect(url).toBe(`https://signed.test/${UID}/${FILE}?token=t1`);
++    expect(from).toHaveBeenCalledWith("chat-media");
++    expect(createSignedUrl).toHaveBeenCalledWith(
++      `${UID}/${FILE}`,
++      SIGNED_URL_TTL_SECONDS,
++      undefined,
++    );
++    expect(SIGNED_URL_TTL_SECONDS).toBe(3600);
++  });
++
++  it("reuses a link instead of asking again, and shares one request between simultaneous callers", async () => {
++    const [a, b] = await Promise.all([getSignedChatMediaUrl(ref), getSignedChatMediaUrl(ref)]);
++    expect(a).toBe(b);
++    await getSignedChatMediaUrl(ref);
++    expect(createSignedUrl).toHaveBeenCalledTimes(1);
++  });
++
++  it("gets a fresh link when the old one is about to run out", async () => {
++    vi.useFakeTimers();
++    await getSignedChatMediaUrl(ref);
++    vi.advanceTimersByTime(SIGNED_URL_TTL_SECONDS * 1000 - REFRESH_MARGIN_MS - 1000);
++    await getSignedChatMediaUrl(ref);
++    expect(createSignedUrl).toHaveBeenCalledTimes(1); // still comfortably valid
++    vi.advanceTimersByTime(2000);
++    await getSignedChatMediaUrl(ref);
++    expect(createSignedUrl).toHaveBeenCalledTimes(2);
++  });
++
++  it("can be told to skip the cache", async () => {
++    await getSignedChatMediaUrl(ref);
++    await getSignedChatMediaUrl(ref, { force: true });
++    expect(createSignedUrl).toHaveBeenCalledTimes(2);
++  });
++
++  it("makes a save-as link under the file's own name, kept apart from the inline link", async () => {
++    await getSignedChatMediaUrl(ref);
++    await getSignedChatMediaUrl(ref, { download: "plan.pdf" });
++    expect(createSignedUrl).toHaveBeenLastCalledWith(`${UID}/${FILE}`, 3600, {
++      download: "plan.pdf",
++    });
++    expect(createSignedUrl).toHaveBeenCalledTimes(2);
++  });
++
++  it("fails clearly when the server will not hand out a link, and does not remember the failure", async () => {
++    createSignedUrl.mockResolvedValueOnce({ data: null, error: { message: "Object not found" } });
++    await expect(getSignedChatMediaUrl(ref)).rejects.toThrow(/isn't available/);
++    await expect(getSignedChatMediaUrl(ref)).resolves.toContain("https://signed.test/");
++  });
++
++  it("forgets every link on sign-out", async () => {
++    await getSignedChatMediaUrl(ref);
++    clearSignedUrlCache();
++    await getSignedChatMediaUrl(ref);
++    expect(createSignedUrl).toHaveBeenCalledTimes(2);
++  });
++});
++
++describe("useChatMediaUrl", () => {
++  it("uses a local preview as it is, without asking the server", () => {
++    const { result } = renderHook(() => useChatMediaUrl("blob:http://localhost/abc"));
++    expect(result.current).toMatchObject({ status: "ready", src: "blob:http://localhost/abc" });
++    expect(createSignedUrl).not.toHaveBeenCalled();
++  });
++
++  it("is idle with no value", () => {
++    const { result } = renderHook(() => useChatMediaUrl(null));
++    expect(result.current.status).toBe("idle");
++    expect(result.current.src).toBeUndefined();
++  });
++
++  it("refuses an address that is not one of our chat files, without asking the server", () => {
++    const { result } = renderHook(() => useChatMediaUrl("https://evil.example/track.gif"));
++    expect(result.current.status).toBe("error");
++    expect(result.current.src).toBeUndefined();
++    expect(createSignedUrl).not.toHaveBeenCalled();
++  });
++
++  it("signs a stored address", async () => {
++    const { result } = renderHook(() => useChatMediaUrl(stored()));
++    expect(result.current.status).toBe("loading");
++    expect(result.current.src).toBeUndefined();
++    await waitFor(() => expect(result.current.status).toBe("ready"));
++    expect(result.current.src).toBe(`https://signed.test/${UID}/${FILE}?token=t1`);
++  });
++
++  it("reports an error when the file cannot be opened", async () => {
++    createSignedUrl.mockResolvedValue({ data: null, error: { message: "denied" } });
++    const { result } = renderHook(() => useChatMediaUrl(stored()));
++    await waitFor(() => expect(result.current.status).toBe("error"));
++  });
++
++  it("refresh() swaps in a new link", async () => {
++    const { result } = renderHook(() => useChatMediaUrl(stored()));
++    await waitFor(() => expect(result.current.status).toBe("ready"));
++    let ok = false;
++    await act(async () => {
++      ok = await result.current.refresh();
++    });
++    expect(ok).toBe(true);
++    expect(result.current.src).toBe(`https://signed.test/${UID}/${FILE}?token=t2`);
++  });
++});
++
++describe("resolveChatFile: what may be sent as a file", () => {
++  it.each([
++    ["plan.pdf", "", "application/pdf"],
++    ["PLAN.PDF", "application/pdf", "application/pdf"],
++    ["notes.txt", "text/plain", "text/plain"],
++    ["sheet.xlsx", "", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
++    [
++      "report.docx",
++      "application/octet-stream",
++      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
++    ],
++    ["clip.mp4", "video/mp4", "video/mp4"],
++    ["clip.mov", "video/quicktime", "video/quicktime"],
++    ["bundle.rar", "application/x-rar-compressed", "application/vnd.rar"],
++    ["bundle.zip", "application/x-zip-compressed", "application/zip"],
++    ["song.mp3", "audio/mpeg", "audio/mpeg"],
++  ])("accepts %s (%s)", (name, type, mime) => {
++    expect(resolveChatFile({ name, type })).toEqual({
++      ext: name.split(".").pop()!.toLowerCase(),
++      mime,
++    });
++  });
++
++  it.each([
++    ["page.html", "text/html"],
++    ["page.htm", ""],
++    ["logo.svg", "image/svg+xml"],
++    ["logo.svg", ""],
++    ["app.apk", "application/vnd.android.package-archive"],
++    ["setup.exe", "application/x-msdownload"],
++    ["run.js", "text/javascript"],
++    ["run.sh", ""],
++    ["macro.xlsm", ""],
++    ["archive.tar.gz", ""],
++    ["no-extension", ""],
++  ])("refuses %s (%s)", (name, type) => {
++    expect(resolveChatFile({ name, type })).toBeNull();
++  });
++
++  it("refuses a file that is named like a document but says it is something else", () => {
++    expect(resolveChatFile({ name: "photo.png", type: "image/svg+xml" })).toBeNull();
++    expect(resolveChatFile({ name: "report.pdf", type: "text/html" })).toBeNull();
++  });
++
++  it("offers only safe extensions in the file picker", () => {
++    const list = CHAT_FILE_ACCEPT.split(",");
++    expect(list).toEqual(expect.arrayContaining([".pdf", ".docx", ".mp4", ".zip"]));
++    for (const bad of [".svg", ".html", ".htm", ".js", ".exe", ".apk", ".sh"])
++      expect(list).not.toContain(bad);
++    expect(CHAT_FILE_ACCEPT).not.toMatch(/\*/);
++  });
++});
+diff --git a/src/test/chat-upload-safety.test.ts b/src/test/chat-upload-safety.test.ts
+new file mode 100644
+index 0000000..eed2ea6
+--- /dev/null
++++ b/src/test/chat-upload-safety.test.ts
+@@ -0,0 +1,84 @@
++import { beforeEach, describe, expect, it, vi } from "vitest";
++
++const { upload, remove, getPublicUrl, rpc } = vi.hoisted(() => ({
++  upload: vi.fn(),
++  remove: vi.fn(),
++  getPublicUrl: vi.fn(),
++  rpc: vi.fn(),
++}));
++vi.mock("@/integrations/supabase/client", () => ({
++  supabase: { storage: { from: () => ({ upload, remove, getPublicUrl }) }, rpc },
++}));
++
++import { prepareImage, sendFileMessage } from "@/lib/chat-extras";
++import { UNSUPPORTED_FILE_MESSAGE } from "@/lib/chat-media";
++
++const UID = "00000000-0000-4000-8000-00000000000a";
++const file = (name: string, type = "", body = "x") => new File([body], name, { type });
++
++beforeEach(() => {
++  upload.mockReset().mockResolvedValue({ error: null });
++  remove.mockReset().mockResolvedValue({ error: null });
++  getPublicUrl.mockReset().mockImplementation((p: string) => ({
++    data: { publicUrl: `https://proj.supabase.co/storage/v1/object/public/chat-media/${p}` },
++  }));
++  rpc.mockReset().mockResolvedValue({ data: { id: "m1" }, error: null });
++});
++
++describe("sending a file", () => {
++  it.each([
++    ["page.html", "text/html"],
++    ["logo.svg", "image/svg+xml"],
++    ["app.apk", "application/vnd.android.package-archive"],
++    ["setup.exe", ""],
++    ["run.js", "text/javascript"],
++    ["sneaky.png", "image/svg+xml"],
++  ])("refuses %s without uploading anything", async (name, type) => {
++    await expect(
++      sendFileMessage({ conversationId: "c1", userId: UID, file: file(name, type) }),
++    ).rejects.toThrow(UNSUPPORTED_FILE_MESSAGE);
++    expect(upload).not.toHaveBeenCalled();
++    expect(rpc).not.toHaveBeenCalled();
++  });
++
++  it("uploads a PDF into the sender's own folder with a safe name and the right type", async () => {
++    await sendFileMessage({ conversationId: "c1", userId: UID, file: file("Plan v2.PDF", "") });
++    expect(upload).toHaveBeenCalledTimes(1);
++    const [path, , options] = upload.mock.calls[0]!;
++    expect(path).toMatch(new RegExp(`^${UID}/[0-9a-f-]{36}\\.pdf$`));
++    expect(options).toMatchObject({ contentType: "application/pdf", upsert: false });
++    expect(rpc).toHaveBeenCalledWith(
++      "send_chat_message",
++      expect.objectContaining({
++        p_conversation: "c1",
++        p_file_name: "Plan v2.PDF",
++        p_file_url: expect.stringContaining(`/chat-media/${UID}/`),
++      }),
++    );
++  });
++
++  it("does not trust the file name's extension for the stored type", async () => {
++    await sendFileMessage({
++      conversationId: "c1",
++      userId: UID,
++      file: file("clip.mp4", "application/octet-stream"),
++    });
++    expect(upload.mock.calls[0]![2]).toMatchObject({ contentType: "video/mp4" });
++  });
++
++  it("removes the upload again if the message can't be sent", async () => {
++    rpc.mockResolvedValue({ data: null, error: { message: "not_allowed" } });
++    await expect(
++      sendFileMessage({ conversationId: "c1", userId: UID, file: file("a.pdf") }),
++    ).rejects.toBeTruthy();
++    expect(remove).toHaveBeenCalledWith([expect.stringMatching(new RegExp(`^${UID}/`))]);
++  });
++});
++
++describe("sending a photo", () => {
++  it("never sends an SVG (it can carry scripts)", async () => {
++    await expect(
++      prepareImage(file("logo.svg", "image/svg+xml", "<svg onload=alert(1)/>")),
++    ).rejects.toThrow(UNSUPPORTED_FILE_MESSAGE);
++  });
++});
+diff --git a/src/test/chat-whatsapp.test.tsx b/src/test/chat-whatsapp.test.tsx
+index 2022f17..9d3be91 100644
+--- a/src/test/chat-whatsapp.test.tsx
++++ b/src/test/chat-whatsapp.test.tsx
+@@ -318,7 +318,12 @@ describe("bubble parts", () => {
+ 
+   it("a voice message shows its length, the time and a play button", () => {
+     render(
+-      <VoiceBubble url="https://x/y.webm" seconds={4} own={false} footer={<span>8:15 pm</span>} />,
++      <VoiceBubble
++        url="blob:http://localhost/voice-1"
++        seconds={4}
++        own={false}
++        footer={<span>8:15 pm</span>}
++      />,
+     );
+     expect(screen.getByText("0:04")).toBeInTheDocument();
+     expect(screen.getByText("8:15 pm")).toBeInTheDocument();
+diff --git a/supabase/migrations/20261116000000_private_chat_media.sql b/supabase/migrations/20261116000000_private_chat_media.sql
+new file mode 100644
+index 0000000..1c86044
+--- /dev/null
++++ b/supabase/migrations/20261116000000_private_chat_media.sql
+@@ -0,0 +1,302 @@
++-- =====================================================================
++-- Private chat media: only the people in a conversation can read its photos, files and voice
++-- messages.
++--
++-- BEFORE this migration the "chat-media" and "voice" buckets were PUBLIC: anyone who had (or
++-- guessed / was forwarded) a file's URL could open it, signed in or not.
++--
++-- AFTER it:
++--   * both buckets are private (no public URLs work);
++--   * the storage read rule is "you uploaded it, or it is attached to a message in a conversation
++--     you are a member of" (can_read_chat_media). Someone who leaves a group loses access;
++--   * the app opens files through short-lived SIGNED URLs, which Supabase only hands out to people
++--     who pass that rule;
++--   * chat-media only accepts photos, videos, audio, PDFs and common documents (no SVG / HTML /
++--     scripts / APKs), and uploads must have a plain file name inside the uploader's own folder;
++--   * send_chat_message / send_voice_message only accept a file that really is in the sender's
++--     own folder (the old check was a loose "contains" test that also accepted foreign addresses).
++--
++-- Nothing is deleted or moved. Old messages keep their stored value (a public-style address of the
++-- form  .../storage/v1/object/public/chat-media/<user id>/<file>); the app reads the path out of it
++-- and signs it. Safe to run more than once.
++--
++-- ROLLOUT ORDER (see docs/CHAT-MEDIA-SECURITY.md): deploy the new app first, THEN run this.
++-- The new app works against the old (public) and the new (private) database, but an old app
++-- cannot show chat photos once the buckets are private.
++-- =====================================================================
++
++-- ---------------------------------------------------------------------
++-- 1. Read the storage path out of a stored value (strict).
++--    Accepts  <user id>/<file>  or a full  http(s)://host/storage/v1/object/{public|sign|authenticated}/<bucket>/<user id>/<file>[?query]
++--    Returns NULL for anything else: other buckets, other hosts' look-alikes, "..", odd characters.
++-- ---------------------------------------------------------------------
++create or replace function public.chat_media_path(p_bucket text, p_value text)
++returns text
++language sql
++immutable
++parallel safe
++as $$
++  select (regexp_match(
++    p_value,
++    '^(?:https?://[^/?#]+/storage/v1/object/(?:public|sign|authenticated)/' || p_bucket || '/)?'
++    || '([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[A-Za-z0-9_-][A-Za-z0-9._-]{0,119})'
++    || '(?:\?[^#]*)?$'
++  ))[1]
++$$;
++
++revoke all on function public.chat_media_path(text, text) from public;
++grant execute on function public.chat_media_path(text, text) to anon, authenticated, service_role;
++
++-- Lookups by file path stay fast as chats grow.
++create index if not exists messages_chat_image_path_idx
++  on public.messages (public.chat_media_path('chat-media', image_url)) where image_url is not null;
++create index if not exists messages_chat_file_path_idx
++  on public.messages (public.chat_media_path('chat-media', file_url)) where file_url is not null;
++create index if not exists messages_chat_voice_path_idx
++  on public.messages (public.chat_media_path('voice', audio_url)) where audio_url is not null;
++
++-- ---------------------------------------------------------------------
++-- 2. Who may read a stored file.
++-- ---------------------------------------------------------------------
++create or replace function public.can_read_chat_media(p_bucket text, p_name text)
++returns boolean
++language sql
++stable
++security definer
++set search_path = public
++as $$
++  select auth.uid() is not null
++     and p_bucket in ('chat-media', 'voice')
++     and public.chat_media_path(p_bucket, p_name) is not null
++     and (
++       -- my own upload (so I can see it before it is sent, and manage it)
++       split_part(p_name, '/', 1) = auth.uid()::text
++       -- or it is attached to a message, sent by its uploader, in a conversation I belong to
++       or exists (
++         select 1
++         from public.messages m
++         where m.sender_id::text = split_part(p_name, '/', 1)
++           and (
++             (p_bucket = 'chat-media'
++               and (public.chat_media_path('chat-media', m.image_url) = p_name
++                 or public.chat_media_path('chat-media', m.file_url) = p_name))
++             or (p_bucket = 'voice'
++               and public.chat_media_path('voice', m.audio_url) = p_name)
++           )
++           and public.is_conversation_member(m.conversation_id)
++       )
++     )
++$$;
++
++revoke all on function public.can_read_chat_media(text, text) from public, anon;
++grant execute on function public.can_read_chat_media(text, text) to authenticated;
++
++-- ---------------------------------------------------------------------
++-- 3. Buckets: private, and chat-media only takes safe file types.
++-- ---------------------------------------------------------------------
++insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
++values (
++  'chat-media', 'chat-media', false, 15728640,
++  array[
++    -- photos
++    'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif',
++    -- video and audio
++    'video/mp4', 'video/webm', 'video/quicktime',
++    'audio/mpeg', 'audio/mp4', 'audio/webm', 'audio/ogg',
++    -- documents
++    'application/pdf', 'text/plain', 'text/csv', 'application/rtf', 'text/rtf', 'application/json',
++    'application/zip', 'application/x-zip-compressed', 'application/vnd.rar', 'application/x-rar-compressed',
++    'application/msword',
++    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
++    'application/vnd.ms-excel',
++    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
++    'application/vnd.ms-powerpoint',
++    'application/vnd.openxmlformats-officedocument.presentationml.presentation'
++  ]
++)
++on conflict (id) do update
++  set public = false,
++      file_size_limit = 15728640,
++      allowed_mime_types = excluded.allowed_mime_types;
++
++-- the voice bucket keeps its size limit and audio-only types; it just stops being public
++update storage.buckets set public = false where id = 'voice';
++
++-- ---------------------------------------------------------------------
++-- 4. Storage rules. The two public-read rules are removed (that is what exposed everything).
++-- ---------------------------------------------------------------------
++drop policy if exists "chat_media_public_read" on storage.objects;
++drop policy if exists "chat_media_participant_read" on storage.objects;
++create policy "chat_media_participant_read"
++  on storage.objects for select to authenticated
++  using (bucket_id = 'chat-media' and public.can_read_chat_media('chat-media', name));
++
++drop policy if exists "voice_public_read" on storage.objects;
++drop policy if exists "voice_participant_read" on storage.objects;
++create policy "voice_participant_read"
++  on storage.objects for select to authenticated
++  using (bucket_id = 'voice' and public.can_read_chat_media('voice', name));
++
++-- Uploads: only into my own folder, and only with a plain  <uuid>.<ext>-style file name.
++drop policy if exists "chat_media_insert_own_folder" on storage.objects;
++create policy "chat_media_insert_own_folder"
++  on storage.objects for insert to authenticated
++  with check (
++    bucket_id = 'chat-media'
++    and public.chat_media_path('chat-media', name) is not null
++    and (storage.foldername(name))[1] = auth.uid()::text
++  );
++
++drop policy if exists "voice_insert_own_folder" on storage.objects;
++create policy "voice_insert_own_folder"
++  on storage.objects for insert to authenticated
++  with check (
++    bucket_id = 'voice'
++    and public.chat_media_path('voice', name) is not null
++    and (storage.foldername(name))[1] = auth.uid()::text
++  );
++-- (the existing "...delete_own_folder" rules stay as they are; there is no UPDATE rule, so a file
++--  cannot be swapped for another after it has been sent)
++
++-- ---------------------------------------------------------------------
++-- 5. Sending: the attached file must be in the SENDER'S OWN folder, checked strictly.
++--    Same functions as 20261030000000_chat_whatsapp.sql and 20261028000001_voice_messages.sql;
++--    only the media checks changed.
++-- ---------------------------------------------------------------------
++create or replace function public.send_chat_message(
++  p_conversation uuid,
++  p_body text,
++  p_reply_to uuid default null,
++  p_image_url text default null,
++  p_image_w integer default null,
++  p_image_h integer default null,
++  p_file_url text default null,
++  p_file_name text default null,
++  p_file_size integer default null
++)
++returns public.messages
++language plpgsql
++security definer
++set search_path = public
++as $$
++declare
++  v_me    uuid := auth.uid();
++  v_row   public.messages;
++  v_body  text := btrim(coalesce(p_body, ''));
++begin
++  if v_me is null then
++    raise exception 'not_authenticated';
++  end if;
++
++  if p_conversation is null or not public.is_conversation_member(p_conversation) then
++    raise exception 'not_allowed';
++  end if;
++
++  -- a reply must point at a message of the SAME conversation
++  if p_reply_to is not null and not exists (
++    select 1 from public.messages m
++    where m.id = p_reply_to and m.conversation_id = p_conversation
++  ) then
++    raise exception 'invalid_reply';
++  end if;
++
++  -- media must be a file this person uploaded into their own folder
++  if p_image_url is not null and (
++       char_length(p_image_url) > 1000
++       or split_part(coalesce(public.chat_media_path('chat-media', p_image_url), ''), '/', 1) <> v_me::text
++     ) then
++    raise exception 'invalid_media';
++  end if;
++  if p_file_url is not null and (
++       char_length(p_file_url) > 1000
++       or split_part(coalesce(public.chat_media_path('chat-media', p_file_url), ''), '/', 1) <> v_me::text
++     ) then
++    raise exception 'invalid_media';
++  end if;
++  if p_image_url is not null and p_file_url is not null then
++    raise exception 'invalid_media';
++  end if;
++
++  if v_body = '' then
++    if p_image_url is not null then
++      v_body := E'\U0001F4F7 Photo';
++    elsif p_file_url is not null then
++      v_body := E'\U0001F4C4 ' || left(coalesce(nullif(btrim(p_file_name), ''), 'Document'), 100);
++    end if;
++  end if;
++
++  if char_length(v_body) < 1 or char_length(v_body) > 2000 then
++    raise exception 'invalid_message';
++  end if;
++
++  insert into public.messages (
++    conversation_id, sender_id, body, reply_to_id,
++    image_url, image_w, image_h, file_url, file_name, file_size
++  )
++  values (
++    p_conversation, v_me, v_body, p_reply_to,
++    p_image_url,
++    case when p_image_w between 1 and 20000 then p_image_w end,
++    case when p_image_h between 1 and 20000 then p_image_h end,
++    p_file_url,
++    left(nullif(btrim(p_file_name), ''), 200),
++    case when p_file_size between 0 and 2147483647 then p_file_size end
++  )
++  returning * into v_row;
++
++  return v_row;
++end;
++$$;
++
++revoke all on function public.send_chat_message(uuid, text, uuid, text, integer, integer, text, text, integer)
++  from public, anon;
++grant execute on function public.send_chat_message(uuid, text, uuid, text, integer, integer, text, text, integer)
++  to authenticated;
++
++create or replace function public.send_voice_message(
++  p_conversation uuid,
++  p_url text,
++  p_seconds integer
++)
++returns public.messages
++language plpgsql
++security definer
++set search_path = public
++as $$
++declare
++  v_me  uuid := auth.uid();
++  v_row public.messages;
++begin
++  if v_me is null then
++    raise exception 'not_authenticated';
++  end if;
++
++  -- Same rule as the normal message insert policy: members only.
++  if p_conversation is null or not public.is_conversation_member(p_conversation) then
++    raise exception 'not_allowed';
++  end if;
++
++  if p_seconds is null or p_seconds < 1 or p_seconds > 600 then
++    raise exception 'invalid_duration';
++  end if;
++
++  -- The file must be one this person uploaded into their own folder of the voice bucket.
++  if p_url is null
++     or char_length(p_url) > 1000
++     or split_part(coalesce(public.chat_media_path('voice', p_url), ''), '/', 1) <> v_me::text then
++    raise exception 'invalid_audio';
++  end if;
++
++  insert into public.messages (conversation_id, sender_id, body, audio_url, audio_seconds)
++  values (p_conversation, v_me, 'Voice message', p_url, p_seconds)
++  returning * into v_row;
++
++  return v_row;
++end;
++$$;
++
++revoke all on function public.send_voice_message(uuid, text, integer) from public, anon;
++grant execute on function public.send_voice_message(uuid, text, integer) to authenticated;
++
++-- Ask the API layer to reload (harmless if nothing is listening).
++notify pgrst, 'reload schema';
+diff --git a/supabase/tests/replay/00_supabase_stub.sql b/supabase/tests/replay/00_supabase_stub.sql
+index 61cc801..9d6ed0e 100644
+--- a/supabase/tests/replay/00_supabase_stub.sql
++++ b/supabase/tests/replay/00_supabase_stub.sql
+@@ -24,3 +24,7 @@ create schema extensions; create schema net;
+ create function net.http_post(url text, body jsonb default '{}', params jsonb default '{}', headers jsonb default '{}', timeout_milliseconds int default 1000) returns bigint language sql as $$ select 1::bigint $$;
+ grant usage on schema public, auth, storage to anon, authenticated, service_role;
+ grant execute on function auth.uid() to anon, authenticated;
++-- Like real Supabase: the API roles hold table privileges on storage.objects and row level security
++-- decides who actually sees or changes a row.
++grant select, insert, update, delete on storage.objects to anon, authenticated, service_role;
++grant select on storage.buckets to anon, authenticated, service_role;
+diff --git a/supabase/tests/replay/chat_media.assert.sql b/supabase/tests/replay/chat_media.assert.sql
+new file mode 100644
+index 0000000..aa7d79d
+--- /dev/null
++++ b/supabase/tests/replay/chat_media.assert.sql
+@@ -0,0 +1,271 @@
++-- Private chat: who can read messages and chat media, enforced with ASSERT.
++-- Runs inside one transaction and rolls back. Uses the real migrations replayed by run.sh.
++begin;
++
++insert into auth.users (id, email, raw_user_meta_data) values
++  ('00000000-0000-0000-0000-00000000000a', 'a@test.local', '{"username":"anna","full_name":"Anna"}'),
++  ('00000000-0000-0000-0000-00000000000b', 'b@test.local', '{"username":"bela","full_name":"Bela"}'),
++  ('00000000-0000-0000-0000-00000000000c', 'c@test.local', '{"username":"chen","full_name":"Chen"}'),
++  ('00000000-0000-0000-0000-00000000000d', 'd@test.local', '{"username":"dara","full_name":"Dara"}');
++
++-- conv1 = Anna + Bela.  conv2 = Chen + Dara.  Chen is an OUTSIDER to conv1.
++insert into public.conversations (id) values
++  ('c0000000-0000-4000-8000-000000000001'), ('c0000000-0000-4000-8000-000000000002');
++insert into public.conversation_participants (conversation_id, user_id) values
++  ('c0000000-0000-4000-8000-000000000001', '00000000-0000-0000-0000-00000000000a'),
++  ('c0000000-0000-4000-8000-000000000001', '00000000-0000-0000-0000-00000000000b'),
++  ('c0000000-0000-4000-8000-000000000002', '00000000-0000-0000-0000-00000000000c'),
++  ('c0000000-0000-4000-8000-000000000002', '00000000-0000-0000-0000-00000000000d');
++
++-- files already sitting in storage (as the service would have stored them)
++insert into storage.objects (bucket_id, name, owner) values
++  ('chat-media', '00000000-0000-0000-0000-00000000000a/11111111-1111-1111-1111-111111111111.jpg', '00000000-0000-0000-0000-00000000000a'), -- photo, will be sent in conv1
++  ('chat-media', '00000000-0000-0000-0000-00000000000a/22222222-2222-2222-2222-222222222222.pdf', '00000000-0000-0000-0000-00000000000a'), -- document, will be sent in conv1
++  ('chat-media', '00000000-0000-0000-0000-00000000000a/33333333-3333-3333-3333-333333333333.jpg', '00000000-0000-0000-0000-00000000000a'), -- uploaded, NEVER sent
++  ('voice',      '00000000-0000-0000-0000-00000000000a/44444444-4444-4444-4444-444444444444.webm','00000000-0000-0000-0000-00000000000a'), -- voice note, will be sent in conv1
++  ('chat-media', '00000000-0000-0000-0000-00000000000c/55555555-5555-5555-5555-555555555555.png', '00000000-0000-0000-0000-00000000000c'), -- Chen's photo, sent in conv2
++  ('chat-media', '00000000-0000-0000-0000-00000000000b/66666666-6666-6666-6666-666666666666.jpg', '00000000-0000-0000-0000-00000000000b'); -- Bela's, never sent
++
++-- a test helper: runs a statement as the CURRENT role and returns the error text (or 'ok')
++create function public.zz_err(q text) returns text language plpgsql as $$
++begin execute q; return 'ok'; exception when others then return sqlerrm; end $$;
++
++-- ===== 1. configuration ==========================================================================
++do $$
++declare v_mimes text[];
++begin
++  assert (select public from storage.buckets where id = 'chat-media') = false, 'chat-media must be private';
++  assert (select public from storage.buckets where id = 'voice') = false,      'voice must be private';
++
++  select allowed_mime_types into v_mimes from storage.buckets where id = 'chat-media';
++  assert 'image/jpeg' = any (v_mimes) and 'application/pdf' = any (v_mimes) and 'video/mp4' = any (v_mimes),
++    'normal photos, PDFs and videos are allowed';
++  assert not ('image/svg+xml' = any (v_mimes)),                         'SVG (can carry scripts) is not allowed';
++  assert not ('text/html' = any (v_mimes)),                             'HTML is not allowed';
++  assert not ('application/vnd.android.package-archive' = any (v_mimes)), 'APKs are not allowed';
++  assert not ('application/x-msdownload' = any (v_mimes)),              'programs are not allowed';
++
++  assert not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects'
++                       and policyname in ('chat_media_public_read', 'voice_public_read')),
++    'the public read rules are gone';
++  assert not exists (select 1 from pg_policies
++                      where schemaname = 'storage' and tablename = 'objects' and cmd in ('SELECT', 'ALL')
++                        and (roles && array['public', 'anon']::name[])
++                        and (coalesce(qual, '') ~ '(chat-media|voice)')),
++    'no rule lets signed-out visitors read chat media';
++end $$;
++
++-- ===== 2. the path reader =========================================================================
++do $$
++declare a text := '00000000-0000-0000-0000-00000000000a';
++begin
++  assert public.chat_media_path('chat-media', a || '/x1.jpg') = a || '/x1.jpg',                       'bare path';
++  assert public.chat_media_path('chat-media', 'https://p.supabase.co/storage/v1/object/public/chat-media/' || a || '/x1.jpg') = a || '/x1.jpg', 'public-style address';
++  assert public.chat_media_path('chat-media', 'https://p.supabase.co/storage/v1/object/sign/chat-media/' || a || '/x1.jpg?token=abc') = a || '/x1.jpg', 'signed address with a query';
++  assert public.chat_media_path('chat-media', 'https://p.supabase.co/storage/v1/object/public/voice/' || a || '/x1.jpg') is null,        'other bucket';
++  assert public.chat_media_path('voice', 'https://p.supabase.co/storage/v1/object/public/voice/' || a || '/x.webm') = a || '/x.webm',  'voice bucket';
++  assert public.chat_media_path('chat-media', 'https://evil.example/?u=/storage/v1/object/public/chat-media/' || a || '/x1.jpg') is null, 'look-alike address';
++  assert public.chat_media_path('chat-media', 'https://p.supabase.co/storage/v1/object/public/chat-media/' || a || '/../x.jpg') is null, 'dot-dot';
++  assert public.chat_media_path('chat-media', a || '/..') is null,                                   'dot-dot file';
++  assert public.chat_media_path('chat-media', a || '/.hidden') is null,                              'leading dot';
++  assert public.chat_media_path('chat-media', upper(a) || '/x.jpg') is null,                         'upper-case id';
++  assert public.chat_media_path('chat-media', 'not-a-uuid/x.jpg') is null,                           'not an id';
++  assert public.chat_media_path('chat-media', a || '/a b.jpg') is null,                              'space in name';
++  assert public.chat_media_path('chat-media', a || '/x.jpg/y') is null,                              'extra folder';
++  assert public.chat_media_path('chat-media', null) is null,                                         'null';
++end $$;
++
++-- ===== 3. sending (Anna, member of conv1) ==========================================================
++select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', true);
++set local role authenticated;
++do $$
++declare
++  a    text := '00000000-0000-0000-0000-00000000000a';
++  b    text := '00000000-0000-0000-0000-00000000000b';
++  c1   uuid := 'c0000000-0000-4000-8000-000000000001';
++  base text := 'https://p.supabase.co/storage/v1/object/public/';
++begin
++  -- the three normal ways to attach something succeed
++  perform public.send_chat_message(c1, '', null, base || 'chat-media/' || a || '/11111111-1111-1111-1111-111111111111.jpg', 100, 100);
++  perform public.send_chat_message(c1, 'the file', null, null, null, null, a || '/22222222-2222-2222-2222-222222222222.pdf', 'plan.pdf', 1000);
++  perform public.send_voice_message(c1, base || 'voice/' || a || '/44444444-4444-4444-4444-444444444444.webm', 5);
++  perform public.send_chat_message(c1, 'plain text hello');
++
++  -- and the bad ones are refused
++  assert public.zz_err(format($q$select public.send_chat_message(%L,'',null,%L)$q$, c1,
++      'https://evil.example/?u=/storage/v1/object/public/chat-media/' || a || '/11111111-1111-1111-1111-111111111111.jpg')) = 'invalid_media', 'foreign address';
++  assert public.zz_err(format($q$select public.send_chat_message(%L,'',null,%L)$q$, c1,
++      base || 'chat-media/' || b || '/66666666-6666-6666-6666-666666666666.jpg')) = 'invalid_media', 'someone else''s file';
++  assert public.zz_err(format($q$select public.send_chat_message(%L,'',null,%L)$q$, c1,
++      base || 'chat-media/' || a || '/../' || b || '/66666666-6666-6666-6666-666666666666.jpg')) = 'invalid_media', 'dot-dot trick';
++  assert public.zz_err(format($q$select public.send_chat_message(%L,'',null,%L)$q$, c1,
++      base || 'voice/' || a || '/44444444-4444-4444-4444-444444444444.webm')) = 'invalid_media', 'voice file as a photo';
++  assert public.zz_err(format($q$select public.send_chat_message(%L,'x',null,%L,null,null,%L)$q$, c1,
++      a || '/11111111-1111-1111-1111-111111111111.jpg', a || '/22222222-2222-2222-2222-222222222222.pdf')) = 'invalid_media', 'photo and file together';
++  assert public.zz_err(format($q$select public.send_voice_message(%L,%L,5)$q$, c1,
++      base || 'chat-media/' || a || '/11111111-1111-1111-1111-111111111111.jpg')) = 'invalid_audio', 'photo as a voice note';
++  assert public.zz_err(format($q$select public.send_voice_message(%L,%L,5)$q$, c1,
++      base || 'voice/' || b || '/44444444-4444-4444-4444-444444444444.webm')) = 'invalid_audio', 'someone else''s voice note';
++end $$;
++reset role;
++
++-- Chen sends a photo in conv2
++select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000c', true);
++set local role authenticated;
++do $$ begin
++  perform public.send_chat_message('c0000000-0000-4000-8000-000000000002', '', null,
++    '00000000-0000-0000-0000-00000000000c/55555555-5555-5555-5555-555555555555.png', 50, 50);
++end $$;
++reset role;
++
++-- ===== 4. who can read the files ====================================================================
++-- Bela (member of conv1): the 3 attachments Anna sent, but not Anna's unsent upload
++select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', true);
++set local role authenticated;
++do $$
++declare a text := '00000000-0000-0000-0000-00000000000a';
++begin
++  assert (select count(*) from storage.objects where name in (
++      a || '/11111111-1111-1111-1111-111111111111.jpg', a || '/22222222-2222-2222-2222-222222222222.pdf',
++      a || '/44444444-4444-4444-4444-444444444444.webm')) = 3,                   'a member can read what was sent to the chat';
++  assert (select count(*) from storage.objects where name = a || '/33333333-3333-3333-3333-333333333333.jpg') = 0,
++    'a member cannot read a file that was uploaded but never sent';
++  assert public.can_read_chat_media('chat-media', a || '/44444444-4444-4444-4444-444444444444.webm') = false,
++    'a voice file is not readable as chat-media';
++  assert (select count(*) from storage.objects where name like '%55555555%') = 0, 'a member cannot read another chat''s file';
++end $$;
++reset role;
++
++-- Chen (outsider to conv1): nothing of Anna's, but his own and his own chat's
++select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000c', true);
++set local role authenticated;
++do $$
++declare a text := '00000000-0000-0000-0000-00000000000a';
++begin
++  assert (select count(*) from storage.objects where name like a || '/%') = 0, 'an outsider reads none of Anna''s files';
++  assert (select count(*) from storage.objects where name like '%55555555%') = 1, 'Chen reads his own photo';
++  assert public.can_read_chat_media('chat-media', a || '/11111111-1111-1111-1111-111111111111.jpg') = false, 'can_read says no to an outsider';
++end $$;
++reset role;
++
++-- Dara (member of conv2 only): Chen's photo yes, Anna's no
++select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000d', true);
++set local role authenticated;
++do $$ begin
++  assert (select count(*) from storage.objects where name like '%55555555%') = 1,                    'the other member of conv2 reads Chen''s photo';
++  assert (select count(*) from storage.objects where name like '00000000-0000-0000-0000-00000000000a/%') = 0, 'but none of conv1''s';
++end $$;
++reset role;
++
++-- Anna (owner): everything of hers, including the unsent upload
++select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', true);
++set local role authenticated;
++do $$ begin
++  assert (select count(*) from storage.objects where name like '00000000-0000-0000-0000-00000000000a/%') = 4, 'the owner reads all her uploads';
++end $$;
++reset role;
++
++-- a signed-out visitor
++set local role anon;
++do $$ begin
++  assert (select count(*) from storage.objects) = 0, 'signed-out visitors read nothing';
++  assert public.zz_err($q$select public.can_read_chat_media('chat-media','x')$q$) like '%permission denied%', 'signed-out visitors cannot even ask';
++end $$;
++reset role;
++
++-- ===== 5. uploads and deletes =======================================================================
++select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', true);
++set local role authenticated;
++do $$
++declare a text := '00000000-0000-0000-0000-00000000000a'; b text := '00000000-0000-0000-0000-00000000000b';
++begin
++  assert public.zz_err(format($q$insert into storage.objects (bucket_id,name,owner) values ('chat-media',%L,%L)$q$,
++    a || '/77777777-7777-7777-7777-777777777777.jpg', a)) = 'ok',                                   'upload into my own folder';
++  assert public.zz_err(format($q$insert into storage.objects (bucket_id,name,owner) values ('chat-media',%L,%L)$q$,
++    b || '/88888888-8888-8888-8888-888888888888.jpg', a)) like '%row-level security%',              'not into someone else''s folder';
++  assert public.zz_err(format($q$insert into storage.objects (bucket_id,name,owner) values ('chat-media',%L,%L)$q$,
++    a || '/../' || b || '/x.jpg', a)) like '%row-level security%',                                  'not with a dot-dot name';
++  assert public.zz_err(format($q$insert into storage.objects (bucket_id,name,owner) values ('chat-media',%L,%L)$q$,
++    a || '/two words.jpg', a)) like '%row-level security%',                                         'not with an odd file name';
++  assert public.zz_err(format($q$insert into storage.objects (bucket_id,name,owner) values ('voice',%L,%L)$q$,
++    a || '/99999999-9999-9999-9999-999999999999.webm', a)) = 'ok',                                  'voice upload into my own folder';
++  assert public.zz_err(format($q$insert into storage.objects (bucket_id,name,owner) values ('voice',%L,%L)$q$,
++    b || '/99999999-9999-9999-9999-999999999998.webm', a)) like '%row-level security%',             'voice: not into someone else''s folder';
++  assert public.zz_err($q$update storage.objects set name = name || 'x' where bucket_id = 'chat-media'$q$) = 'ok'
++     and (select count(*) from storage.objects where name like '%jpgx') = 0,                        'a file cannot be renamed or swapped (no update rule)';
++end $$;
++reset role;
++
++select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', true);
++set local role authenticated;
++do $$
++declare n int;
++begin
++  delete from storage.objects where name like '00000000-0000-0000-0000-00000000000a/%';
++  get diagnostics n = row_count;
++  assert n = 0, 'a member cannot delete someone else''s file';
++end $$;
++reset role;
++
++-- ===== 6. messages: only the people in the conversation =============================================
++select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000c', true);
++set local role authenticated;
++do $$
++declare
++  c1 uuid := 'c0000000-0000-4000-8000-000000000001';
++  m  uuid;
++begin
++  assert (select count(*) from public.messages where conversation_id = c1) = 0,                'an outsider reads no messages';
++  assert (select count(*) from public.conversations where id = c1) = 0,                        'an outsider cannot see the conversation';
++  assert (select count(*) from public.conversation_participants where conversation_id = c1) = 0, 'an outsider cannot see who is in it';
++  assert public.zz_err(format($q$insert into public.messages (conversation_id, sender_id, body) values (%L, %L, 'hi')$q$, c1,
++    '00000000-0000-0000-0000-00000000000c')) like '%row-level security%',                      'an outsider cannot post';
++  assert public.zz_err(format($q$select public.send_chat_message(%L,'hi')$q$, c1)) = 'not_allowed', 'an outsider cannot post through send_chat_message';
++  assert public.zz_err(format($q$select public.send_voice_message(%L,%L,5)$q$, c1,
++    '00000000-0000-0000-0000-00000000000c/44444444-4444-4444-4444-444444444444.webm')) = 'not_allowed', 'nor a voice note';
++
++  reset role;
++  select id into m from public.messages where conversation_id = c1 order by created_at limit 1;
++  set local role authenticated;
++  assert public.zz_err(format($q$select public.react_to_message(%L, 'x')$q$, m)) = 'not_allowed',  'an outsider cannot react';
++  assert public.zz_err(format($q$select public.edit_message(%L, 'hacked')$q$, m)) = 'not_allowed',  'an outsider cannot edit';
++  assert public.zz_err(format($q$select public.delete_message(%L)$q$, m)) = 'not_allowed',          'an outsider cannot delete';
++  assert (select count(*) from public.message_reactions where conversation_id = c1) = 0,            'an outsider reads no reactions';
++end $$;
++reset role;
++
++select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', true);
++set local role authenticated;
++do $$
++declare
++  c1 uuid := 'c0000000-0000-4000-8000-000000000001';
++  m  uuid;
++begin
++  assert (select count(*) from public.messages where conversation_id = c1) = 4, 'a member reads the conversation';
++  assert public.zz_err(format($q$insert into public.messages (conversation_id, sender_id, body) values (%L, %L, 'as anna')$q$, c1,
++    '00000000-0000-0000-0000-00000000000a')) like '%row-level security%',                       'a member cannot post as someone else';
++  assert public.zz_err(format($q$insert into public.messages (conversation_id, sender_id, body, image_url) values (%L, %L, 'x', 'https://evil.example/x.jpg')$q$, c1,
++    '00000000-0000-0000-0000-00000000000b')) like '%permission denied%',                        'media columns cannot be set directly';
++  assert public.zz_err(format($q$update public.messages set body = 'edited' where conversation_id = %L$q$, c1)) like '%permission denied%',
++    'messages cannot be updated directly';
++  reset role;
++  select id into m from public.messages where conversation_id = c1 and sender_id = '00000000-0000-0000-0000-00000000000a' order by created_at limit 1;
++  set local role authenticated;
++  assert public.zz_err(format($q$select public.edit_message(%L, 'hacked')$q$, m)) = 'not_allowed', 'a member cannot edit someone else''s message';
++  assert public.zz_err(format($q$select public.delete_message(%L)$q$, m)) = 'not_allowed',         'a member cannot delete someone else''s message';
++end $$;
++reset role;
++
++-- ===== 7. leaving the conversation ends access =======================================================
++delete from public.conversation_participants
++ where conversation_id = 'c0000000-0000-4000-8000-000000000001'
++   and user_id = '00000000-0000-0000-0000-00000000000b';
++select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', true);
++set local role authenticated;
++do $$ begin
++  assert (select count(*) from storage.objects where name like '00000000-0000-0000-0000-00000000000a/%') = 0, 'someone who left can no longer read the media';
++  assert (select count(*) from public.messages where conversation_id = 'c0000000-0000-4000-8000-000000000001') = 0, 'nor the messages';
++end $$;
++reset role;
++
++rollback;

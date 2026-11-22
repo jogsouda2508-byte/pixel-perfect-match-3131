@@ -5,13 +5,8 @@ import { BottomSheet } from "@/components/bottom-sheet";
 import { Avatar } from "@/components/ediraa";
 import { useRefreshAfterSafetyChange } from "@/components/user-safety-menu";
 import { useAuth } from "@/lib/auth";
-import {
-  fetchBlocked,
-  fetchMuted,
-  unblockUser,
-  unmuteUser,
-  type SafetyPerson,
-} from "@/lib/safety";
+import { fetchBlocked, fetchMuted, unblockUser, unmuteUser, type SafetyPerson } from "@/lib/safety";
+import { userMessage } from "@/lib/security";
 
 type Kind = "blocked" | "muted";
 
@@ -43,7 +38,7 @@ export function SafetyListsSheet({
       toast.success(`${kind === "blocked" ? "Unblocked" : "Unmuted"} @${p.username}`);
       refresh();
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't do that. Please try again."),
+    onError: (e) => toast.error(userMessage(e, "Couldn't do that. Please try again.")),
   });
 
   const people = list.data ?? [];
@@ -60,14 +55,14 @@ export function SafetyListsSheet({
         <button
           type="button"
           onClick={() => onOpenChange(false)}
-          className="flex min-h-12 w-full items-center justify-center rounded-full bg-gradient-brand text-sm font-semibold text-primary-foreground"
+          className="flex min-h-12 w-full items-center justify-center rounded-full bg-gradient-brand text-sm font-bold text-primary-foreground glow"
         >
           Done
         </button>
       }
     >
       <div className="space-y-3 pb-2">
-        <div role="tablist" className="grid grid-cols-2 gap-1 rounded-full bg-elevated p-1">
+        <div role="tablist" className="grid grid-cols-2 gap-1 rounded-full bg-secondary/70 p-1">
           {(["blocked", "muted"] as const).map((k) => (
             <button
               key={k}
@@ -76,7 +71,9 @@ export function SafetyListsSheet({
               aria-selected={kind === k}
               onClick={() => setKind(k)}
               className={`min-h-9 rounded-full text-sm font-semibold capitalize transition ${
-                kind === k ? "bg-background shadow-sm" : "text-muted-foreground"
+                kind === k
+                  ? "bg-card text-foreground shadow-[0_6px_16px_-8px_rgba(0,0,0,0.8)] ring-1 ring-primary/30"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {k}
@@ -87,12 +84,15 @@ export function SafetyListsSheet({
         {list.isLoading ? (
           <div className="space-y-2" aria-hidden="true">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="h-14 animate-pulse rounded-xl bg-elevated/60" />
+              <div key={i} className="sz-skeleton h-14 rounded-2xl" />
             ))}
           </div>
         ) : list.error ? (
-          <p role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">
-            {list.error instanceof Error ? list.error.message : "Couldn't load that list."}
+          <p
+            role="alert"
+            className="rounded-2xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+          >
+            {userMessage(list.error, "Couldn't load that list.")}
           </p>
         ) : people.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">
@@ -113,7 +113,7 @@ export function SafetyListsSheet({
                     type="button"
                     onClick={() => undo.mutate(p)}
                     disabled={undo.isPending}
-                    className="min-h-9 rounded-full border border-border px-4 text-sm font-semibold hover:bg-elevated disabled:opacity-60"
+                    className="min-h-9 rounded-full border border-border px-4 text-sm font-semibold transition-colors hover:border-primary/40 hover:bg-elevated disabled:opacity-60"
                   >
                     {kind === "blocked" ? "Unblock" : "Unmute"}
                   </button>

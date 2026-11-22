@@ -11,6 +11,7 @@ import {
   type ReportReason,
   type ReportTarget,
 } from "@/lib/safety";
+import { userMessage } from "@/lib/security";
 
 const NOUN: Record<ReportTarget, string> = {
   user: "account",
@@ -53,7 +54,13 @@ export function ReportSheet({
 
   const send = useMutation({
     mutationFn: () =>
-      submitReport(user!.id, { targetType, targetId, targetUserId: targetUserId ?? null, reason: reason!, details }),
+      submitReport(user!.id, {
+        targetType,
+        targetId,
+        targetUserId: targetUserId ?? null,
+        reason: reason!,
+        details,
+      }),
     onSuccess: (result) => {
       toast.success(
         result === "already"
@@ -62,8 +69,7 @@ export function ReportSheet({
       );
       close(false);
     },
-    onError: (e) =>
-      toast.error(e instanceof Error ? e.message : "Couldn't send your report. Please try again."),
+    onError: (e) => toast.error(userMessage(e, "Couldn't send your report. Please try again.")),
   });
 
   return (
@@ -79,20 +85,22 @@ export function ReportSheet({
           type="button"
           onClick={() => send.mutate()}
           disabled={!reason || send.isPending || !user}
-          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-gradient-brand text-sm font-semibold text-primary-foreground disabled:opacity-50"
+          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-gradient-brand text-sm font-bold text-primary-foreground glow disabled:opacity-50 disabled:shadow-none"
         >
           {send.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
           Send report
         </button>
       }
     >
-      <fieldset className="space-y-1 pb-2">
+      <fieldset className="space-y-2 pb-2">
         <legend className="sr-only">Reason</legend>
         {REPORT_REASONS.map((r) => (
           <label
             key={r.value}
-            className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-2.5 transition ${
-              reason === r.value ? "border-primary bg-primary/5" : "border-transparent hover:bg-elevated/60"
+            className={`flex cursor-pointer items-start gap-3 rounded-2xl border px-3.5 py-3 transition ${
+              reason === r.value
+                ? "border-primary/60 bg-primary/10 shadow-[0_8px_24px_-16px_rgba(249,178,51,0.6)]"
+                : "border-border bg-elevated/30 hover:border-primary/30"
             }`}
           >
             <input
@@ -104,14 +112,17 @@ export function ReportSheet({
               className="mt-1 accent-[var(--primary)]"
             />
             <span className="min-w-0">
-              <span className="block text-sm font-medium">{r.label}</span>
+              <span className="block text-sm font-semibold">{r.label}</span>
               <span className="block text-xs text-muted-foreground">{r.hint}</span>
             </span>
           </label>
         ))}
         {reason && (
           <div className="pt-2">
-            <label htmlFor="report-details" className="mb-1 block text-xs font-medium text-muted-foreground">
+            <label
+              htmlFor="report-details"
+              className="mb-1 block text-xs font-medium text-muted-foreground"
+            >
               Anything else we should know? (optional)
             </label>
             <textarea
@@ -119,7 +130,7 @@ export function ReportSheet({
               value={details}
               onChange={(e) => setDetails(e.target.value.slice(0, REPORT_DETAILS_MAX))}
               rows={3}
-              className="w-full rounded-xl border border-border bg-card px-3 py-2 text-sm outline-none focus:border-primary"
+              className="w-full rounded-2xl border border-border bg-elevated/50 px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-primary/60"
             />
             <p className="text-right text-[11px] text-muted-foreground">
               {details.length}/{REPORT_DETAILS_MAX}

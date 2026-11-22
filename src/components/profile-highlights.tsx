@@ -12,6 +12,7 @@ import {
   type HighlightItem,
 } from "@/lib/highlights";
 import { fetchStories, type StoryItem } from "@/lib/social";
+import { userMessage } from "@/lib/security";
 
 // Thick solid grey ring (matches the reference: ring ≈ 3px, white gap ≈ 3px around a 64px photo)
 const RING = "#E4E7EB";
@@ -103,10 +104,7 @@ export function ProfileHighlights({
               aria-label={`Open highlight ${h.title}`}
               className="flex w-full flex-col items-center gap-1.5 focus-visible:outline-none"
             >
-              <span
-                className="rounded-full p-[3px]"
-                style={{ backgroundColor: RING }}
-              >
+              <span className="rounded-full p-[3px]" style={{ backgroundColor: RING }}>
                 <span
                   className="block overflow-hidden rounded-full border-[3px] border-background bg-elevated"
                   style={{ width: SIZE, height: SIZE }}
@@ -122,9 +120,7 @@ export function ProfileHighlights({
         ))}
       </div>
 
-      {creating && (
-        <NewHighlightSheet ownerId={profileId} onClose={() => setCreating(false)} />
-      )}
+      {creating && <NewHighlightSheet ownerId={profileId} onClose={() => setCreating(false)} />}
       {viewing && (
         <HighlightViewer
           highlight={viewing}
@@ -162,7 +158,7 @@ function NewHighlightSheet({ ownerId, onClose }: { ownerId: string; onClose: () 
       toast.success("Highlight added to your profile");
       onClose();
     },
-    onError: (e: Error) => toast.error(e.message || "Couldn't create the highlight."),
+    onError: (e: Error) => toast.error(userMessage(e, "Couldn't create the highlight.")),
   });
 
   useEffect(() => {
@@ -304,7 +300,7 @@ function HighlightViewer({
       toast.success("Highlight deleted");
       onClose();
     },
-    onError: (e: Error) => toast.error(e.message || "Couldn't delete the highlight."),
+    onError: (e: Error) => toast.error(userMessage(e, "Couldn't delete the highlight.")),
   });
 
   useEffect(() => {
@@ -423,7 +419,8 @@ function HighlightViewer({
             playsInline
             onLoadedMetadata={(e) => {
               const v = e.currentTarget;
-              if (Math.abs(v.currentTime - item.segment_start) > 0.3) v.currentTime = item.segment_start;
+              if (Math.abs(v.currentTime - item.segment_start) > 0.3)
+                v.currentTime = item.segment_start;
               void v.play().catch(() => {
                 v.muted = true;
                 void v.play().catch(() => setLoading(false));

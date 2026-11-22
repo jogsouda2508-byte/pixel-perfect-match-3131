@@ -9,6 +9,7 @@ import { startConversation } from "@/lib/chat";
 import { fetchNotes, type NoteView } from "@/lib/notes";
 import { NoteEditorSheet } from "@/components/note-editor";
 import { timeAgo } from "@/lib/time";
+import { userMessage } from "@/lib/security";
 
 /** The little speech bubble that sits above a photo. */
 export function NoteBubble({
@@ -74,7 +75,7 @@ export function NotesTray() {
       const id = await startConversation(n.userId);
       await navigate({ to: "/chat/$id", params: { id } });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Couldn't open the chat.");
+      toast.error(userMessage(e, "Couldn't open the chat."));
     } finally {
       setOpening(null);
     }

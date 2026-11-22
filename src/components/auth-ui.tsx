@@ -17,44 +17,36 @@ export function AuthShell({
   footer?: ReactNode;
 }) {
   return (
-    <main className="relative flex min-h-screen flex-col items-center overflow-hidden px-5 py-10">
-      <svg
-        className="pointer-events-none absolute inset-0 h-full w-full"
-        viewBox="0 0 400 800"
-        preserveAspectRatio="none"
-        aria-hidden
-      >
-        <defs>
-          <linearGradient id="a1" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#8EA2FF" stopOpacity=".55" />
-            <stop offset="1" stopColor="#C9B8FF" stopOpacity="0" />
-          </linearGradient>
-          <linearGradient id="a2" x1="1" y1="1" x2="0" y2="0">
-            <stop offset="0" stopColor="#B79CFF" stopOpacity=".6" />
-            <stop offset="1" stopColor="#9FD3FF" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <path d="M150 0C280 60 260 140 400 160V0Z" fill="url(#a1)" />
-        <path d="M0 800V680C140 780 300 730 400 580V800Z" fill="url(#a2)" />
-      </svg>
+    <main className="relative flex min-h-screen flex-col items-center overflow-hidden px-5 py-10 sm:justify-center">
+      {/* Aurora: two slow, blurred glows behind the card. Decoration only. */}
+      <div
+        className="pointer-events-none absolute -left-24 -top-24 h-80 w-80 rounded-full bg-primary/20 blur-3xl"
+        aria-hidden="true"
+      />
+      <div
+        className="pointer-events-none absolute -bottom-32 -right-24 h-96 w-96 rounded-full bg-violet/20 blur-3xl"
+        aria-hidden="true"
+      />
       <div className="relative w-full max-w-md">
-        <Link to="/" className="mx-auto flex w-fit items-center gap-2" aria-label="SabZone home">
-          <Logo size={56} className="lg:h-16 lg:w-16" />
+        <Link to="/" className="mx-auto flex w-fit items-center gap-2.5" aria-label="SabZone home">
+          <Logo size={48} className="lg:h-14 lg:w-14" />
           <BrandName />
         </Link>
-        <div className="glass-card mt-6 p-6">
-          <h1 className="text-2xl font-bold">{title}</h1>
-          {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
-          <div className="mt-5">{children}</div>
+        <div className="glass-card mt-7 p-6 sm:p-8">
+          <h1 className="text-[1.65rem] font-extrabold leading-tight sm:text-3xl">{title}</h1>
+          {subtitle && (
+            <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{subtitle}</p>
+          )}
+          <div className="mt-6">{children}</div>
         </div>
-        {footer && <div className="mt-5 text-center text-sm text-muted-foreground">{footer}</div>}
+        {footer && <div className="mt-6 text-center text-sm text-muted-foreground">{footer}</div>}
       </div>
     </main>
   );
 }
 
 export const inputClass =
-  "w-full rounded-[14px] border bg-elevated/40 px-4 py-3 text-sm outline-none transition placeholder:text-muted-foreground focus:border-primary";
+  "w-full rounded-2xl border bg-elevated/50 px-4 py-3.5 text-sm outline-none transition placeholder:text-muted-foreground focus:border-primary/70 focus:ring-2 focus:ring-ring/30";
 
 type FieldProps = Omit<ComponentProps<"input">, "className"> & {
   label: string;
@@ -69,7 +61,7 @@ export const TextField = forwardRef<HTMLInputElement, FieldProps>(function TextF
   const fid = id ?? `f-${label.replace(/\W+/g, "-").toLowerCase()}`;
   return (
     <div>
-      <label htmlFor={fid} className="mb-1.5 block text-sm font-medium">
+      <label htmlFor={fid} className="mb-1.5 block text-sm font-semibold">
         {label}
       </label>
       <input
@@ -102,7 +94,7 @@ export function PasswordField({
   const colors = ["bg-destructive", "bg-destructive", "bg-yellow-500", "bg-success"];
   return (
     <div>
-      <label htmlFor={`pw-${label}`} className="mb-1.5 block text-sm font-medium">
+      <label htmlFor={`pw-${label}`} className="mb-1.5 block text-sm font-semibold">
         {label}
       </label>
       <div className="relative">
@@ -155,7 +147,7 @@ export function PrimaryButton({
     <button
       {...rest}
       disabled={disabled || loading}
-      className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-brand py-3.5 font-semibold text-primary-foreground glow transition disabled:cursor-not-allowed disabled:opacity-60"
+      className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-brand py-3.5 text-[0.95rem] font-bold text-primary-foreground glow transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
     >
       {loading && <Loader2 className="h-4 w-4 animate-spin" />}
       {children}
@@ -173,7 +165,7 @@ export function OutlineButton({
     <button
       {...rest}
       disabled={disabled || loading}
-      className="flex w-full items-center justify-center gap-2 rounded-full border border-primary py-3.5 font-semibold text-foreground transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-60"
+      className="flex w-full items-center justify-center gap-2 rounded-2xl border border-input bg-card/60 py-3.5 text-[0.95rem] font-semibold text-foreground transition hover:border-primary/50 hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-60"
     >
       {loading && <Loader2 className="h-4 w-4 animate-spin" />}
       {children}

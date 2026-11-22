@@ -15,6 +15,8 @@ import { toast } from "sonner";
 import type { Audience } from "@/integrations/supabase/types";
 import { useAuth } from "@/lib/auth";
 import { createPost, validateImage } from "@/lib/social";
+import { sanitizeImageFile } from "@/lib/image-sanitize";
+import { inspectAndCleanVideo } from "@/lib/media-sanitize";
 import { createPoll } from "@/lib/polls";
 import {
   createVideoThumbnail,
@@ -162,6 +164,14 @@ export function ComposerLauncher({
       setFileError(problem);
       return;
     }
+    // Look inside the file, not just at its name: refuse anything that isn't a real picture/video.
+    try {
+      if (kind === "image") await sanitizeImageFile(file, 10 * 1024 * 1024);
+      else await inspectAndCleanVideo(file);
+    } catch (error) {
+      setFileError("That file can't be used.");
+      return;
+    }
     if (kind === "video") {
       const durationProblem = validateVideoDuration(duration ?? Number.NaN);
       if (durationProblem) {
@@ -177,7 +187,7 @@ export function ComposerLauncher({
         try {
           setThumbnail(await createVideoThumbnail(videoElement));
         } catch (error) {
-          setFileError(error instanceof Error ? error.message : "Couldn't create a thumbnail.");
+          setFileError("Couldn't create a thumbnail.");
           return;
         }
       }
@@ -360,7 +370,7 @@ export function ComposerLauncher({
           <Button
             type="button"
             variant="outline"
-            className="min-h-11"
+            className="min-h-11 flex-1 rounded-2xl sm:flex-none"
             onClick={() => pick("image")}
           >
             <ImageIcon className="mr-2 h-4 w-4" />
@@ -369,7 +379,7 @@ export function ComposerLauncher({
           <Button
             type="button"
             variant="outline"
-            className="min-h-11"
+            className="min-h-11 flex-1 rounded-2xl sm:flex-none"
             onClick={() => pick("video")}
           >
             <Video className="mr-2 h-4 w-4" />
@@ -402,7 +412,7 @@ export function ComposerLauncher({
           type="button"
           aria-label="Create"
           onClick={startChooser}
-          className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] right-4 z-40 grid h-14 w-14 place-items-center rounded-full shadow-lg focus-visible:ring-2 focus-visible:ring-ring md:hidden"
+          className="fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-4 z-40 grid h-14 w-14 place-items-center rounded-full shadow-lg focus-visible:ring-2 focus-visible:ring-ring md:hidden"
         >
           <Plus className="h-6 w-6" aria-hidden="true" />
         </Button>
@@ -431,7 +441,7 @@ export function ComposerLauncher({
                   setChooserOpen(false);
                   pick("image");
                 }}
-                className="flex min-h-24 flex-col items-center justify-center gap-2 rounded-xl border border-border bg-card p-4 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex min-h-28 flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-elevated/50 p-4 font-semibold transition-colors hover:border-primary/50 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <ImageIcon className="h-6 w-6 text-primary" aria-hidden="true" />
                 Post
@@ -443,7 +453,7 @@ export function ComposerLauncher({
                   setChooserOpen(false);
                   pick("video");
                 }}
-                className="flex min-h-24 flex-col items-center justify-center gap-2 rounded-xl border border-border bg-card p-4 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex min-h-28 flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-elevated/50 p-4 font-semibold transition-colors hover:border-primary/50 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <Video className="h-6 w-6 text-primary" aria-hidden="true" />
                 Video

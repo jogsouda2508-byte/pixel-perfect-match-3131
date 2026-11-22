@@ -54,6 +54,7 @@ import {
   useNow,
 } from "./shared";
 import { communityLink, WhatsAppShare } from "./share-button";
+import { userMessage } from "@/lib/security";
 
 const SCOPES: { key: EventScope; label: string }[] = (
   ["upcoming", "going", "hosting", "past"] as const
@@ -113,7 +114,7 @@ export function EventsTab({ locality, meId }: { locality: string | null; meId: s
     },
     onError: (err, _v, ctx) => {
       ctx?.snap.forEach(([k, d]) => qc.setQueryData(k, d));
-      toast.error(err instanceof Error ? err.message : "Couldn't save your response.");
+      toast.error(userMessage(err, "Couldn't save your response."));
     },
     onSettled: () => void qc.invalidateQueries({ queryKey: ["community", "events"] }),
     onSuccess: (_d, v) => {
@@ -129,7 +130,7 @@ export function EventsTab({ locality, meId }: { locality: string | null; meId: s
       toast.success(v.action === "cancel" ? "Event cancelled" : "Event deleted");
       void qc.invalidateQueries({ queryKey: ["community", "events"] });
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Something went wrong."),
+    onError: (e) => toast.error(userMessage(e, "Something went wrong.")),
   });
 
   return (
@@ -536,7 +537,7 @@ function EventSheet({
       setTried(false);
       onOpenChange(false);
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't create the event."),
+    onError: (e) => toast.error(userMessage(e, "Couldn't create the event.")),
   });
 
   const submit = () => {

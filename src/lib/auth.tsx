@@ -1,3 +1,4 @@
+// TODO: remove once 20261118000001_revoke_email_lookup
 import {
   createContext,
   useCallback,
@@ -5,43 +6,56 @@ import {
   useEffect,
   useMemo,
   useState,
+  useRef,
   type ReactNode,
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Profile } from "@/integrations/supabase/types";
-import { authRedirect, isNativeApp, NATIVE_AUTH_REDIRECT, NATIVE_RESET_REDIRECT } from "@/lib/auth-redirect";
+import { authRedirect, isNativeApp } from "@/lib/auth-redirect";
+import { consumeNativeAuthPending, parseNativeAuthUrl } from "@/lib/native-auth-callback";
 import { removePushOnLogout } from "@/lib/push";
 import { friendlyAuthError } from "@/lib/auth-errors";
+import { callGateway, gatewayProblem, startSession, tokensFrom } from "@/lib/auth-gateway";
 
 type Result = { error: string | null };
 type LoginResult = Result & {
-  /** Set when the account's email isn't verified yet: the email the code was sent to. */
-  verifyEmail?: string;
+  /** Set when the account's email isn't verified yet: the username to enter the code for. */
+  verifyUsername?: string;
+  /** The address the code went to, hidden like j***@g***.com. The real one never reaches the app. */
+  maskedEmail?: string;
 };
 
-const OLD_BAD_LOGIN = "Incorrect email/username or password.";
 const BAD_LOGIN = "Incorrect username or password.";
 type SignUpInput = { email: string; password: string; fullName: string; username: string };
 type SignUpResult = Result & {
   needsVerification: boolean;
-  /** The email the account was really created with (an inbox alias for the 2nd/3rd account on one email). */
-  authEmail?: string;
+  /** Where to enter the 6-digit code: the verify page is opened for this username. */
+  verifyUsername?: string;
+  /** The address the person typed, hidden like j***@g***.com. */
+  maskedEmail?: string;
 };
 
-/** Friendly text for the reasons `plan_signup_email` can refuse a sign-up. */
-function planReasonMessage(reason: string | undefined): string {
-  switch (reason) {
+/** Friendly text for what the sign-up gateway can refuse. */
+function signUpProblem(error: unknown, reason: unknown): string {
+  switch (error) {
     case "username_taken":
       return "This username is already taken. Please choose another one.";
     case "invalid_username":
       return "Username can only use letters, numbers and underscores (3–20 characters).";
     case "invalid_email":
       return "Enter a valid email address.";
-    case "limit_reached":
-      return "This email already has 3 accounts. Use a different email or log in to one of them.";
-    case "unsupported_domain":
-      return "This email provider can't be used for more than one account. Please use a different email (Gmail, Outlook or iCloud work).";
+    case "invalid_name":
+      return "Enter your name (up to 80 characters).";
+    case "weak_password":
+      return reason === "too_short"
+        ? "Password must be at least 8 characters."
+        : reason === "too_long"
+          ? "Password is too long. Use 72 characters or fewer."
+          : reason === "too_similar"
+            ? "Password is too similar to your username or email."
+            : "That password is too easy to guess. Choose a stronger one.";
     default:
       return "Couldn't create the account. Please try again.";
   }
@@ -63,6 +77,8 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
+  const previousUserId = useRef<string | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
@@ -98,32 +114,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (async () => {
       const { App } = await import("@capacitor/app");
       const handle = await App.addListener("appUrlOpen", async ({ url }) => {
-        const isReset = url.startsWith(NATIVE_RESET_REDIRECT);
-        if (!isReset && !url.startsWith(NATIVE_AUTH_REDIRECT)) return;
-        const hash = url.includes("#") ? url.split("#")[1] : (url.split("?")[1] ?? "");
-        const params = new URLSearchParams(hash);
-        const access_token = params.get("access_token");
-        const refresh_token = params.get("refresh_token");
-        const code = new URLSearchParams(url.split("?")[1]?.split("#")[0] ?? "").get("code");
+        // Validate before consuming the pending flag so malformed links cannot use it up.
+        const callback = parseNativeAuthUrl(url);
+        if (!callback || !consumeNativeAuthPending(callback.kind)) return;
+
         try {
-          if (access_token && refresh_token) {
-            await supabase.auth.setSession({ access_token, refresh_token });
-          } else if (code) {
-            await supabase.auth.exchangeCodeForSession(code);
+          if ("accessToken" in callback) {
+            const { error } = await supabase.auth.setSession({
+              access_token: callback.accessToken,
+              refresh_token: callback.refreshToken,
+            });
+            if (error) throw error;
+          } else {
+            const { error } = await supabase.auth.exchangeCodeForSession(callback.code);
+            if (error) throw error;
           }
-        } catch (e) {
-          console.error("Google sign-in callback failed", e);
-        }
-        if (isReset) {
-          // Password-reset email: open the app's reset screen (the session is already set).
-          window.history.pushState({}, "", "/reset-password");
-          window.dispatchEvent(new PopStateEvent("popstate"));
-        }
-        try {
+
+          if (callback.kind === "reset") {
+            window.history.pushState({}, "", "/reset-password");
+            window.dispatchEvent(new PopStateEvent("popstate"));
+          }
+
           const { Browser } = await import("@capacitor/browser");
           await Browser.close();
-        } catch {
-          /* the browser may already be closed */
+        } catch (e) {
+          console.error("Native authentication callback failed", e);
         }
       });
       if (cancelled) handle.remove();
@@ -136,6 +151,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const userId = session?.user.id ?? null;
+
+  useEffect(() => {
+    if (previousUserId.current !== userId) {
+      queryClient.clear();
+      previousUserId.current = userId;
+    }
+  }, [userId, queryClient]);
 
   const fetchProfile = useCallback(async (id: string) => {
     const { data, error } = await supabase.from("profiles").select("*").eq("id", id).maybeSingle();
@@ -172,68 +194,65 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = useCallback<AuthContextValue["signUp"]>(
     async ({ email, password, fullName, username }) => {
-      const realEmail = email.trim();
-      const cleanUsername = username.trim().toLowerCase();
-
-      // Ask the database first: is the username free, is the 3-accounts-per-email limit
-      // reached, and which email should this account use (the real one, or an inbox alias
-      // like you+username@gmail.com when the real one already has an account)?
-      let authEmail = realEmail;
-      const plan = await supabase.rpc("plan_signup_email", {
-        p_email: realEmail,
-        p_username: cleanUsername,
-      });
-      if (!plan.error && plan.data) {
-        if (!plan.data.ok)
-          return { error: planReasonMessage(plan.data.reason), needsVerification: false };
-        if (plan.data.auth_email) authEmail = plan.data.auth_email;
-      }
-
-      const { data, error } = await supabase.auth.signUp({
-        email: authEmail,
+      // The server checks the username, the per-email limits and which address to use, then
+      // creates the account. It answers the same whether or not the email already has accounts.
+      const r = await callGateway("signup", {
+        email: email.trim(),
         password,
-        options: {
-          data: {
-            full_name: fullName.trim(),
-            username: cleanUsername,
-            // the mailbox the person actually typed (used to enforce the 3-account limit)
-            contact_email: realEmail,
-          },
-          emailRedirectTo: authRedirect("/home"),
-        },
+        full_name: fullName.trim(),
+        username: username.trim().toLowerCase(),
+        redirect_to: authRedirect("/home"),
       });
-      if (error) return { error: friendlyAuthError(error), needsVerification: false };
-      // Supabase hides "email already exists" by returning a user with no identities.
-      if (data.user && (data.user.identities?.length ?? 0) === 0)
+      if (!r.ok)
         return {
-          error: "This email is already registered. Try logging in instead.",
+          error: gatewayProblem(r, signUpProblem(r.data["error"], r.data["reason"])),
           needsVerification: false,
         };
-      return { error: null, needsVerification: !data.session, authEmail };
+      const tokens = tokensFrom(r);
+      if (tokens) {
+        // Email confirmation is switched off in this project, so the account is ready now.
+        const started = await startSession(tokens);
+        return { error: started.error, needsVerification: false };
+      }
+      return {
+        error: null,
+        needsVerification: true,
+        verifyUsername: String(r.data["username"] ?? username.trim().toLowerCase()),
+        maskedEmail: String(r.data["masked_email"] ?? ""),
+      };
     },
     [],
   );
 
   const signIn = useCallback<AuthContextValue["signIn"]>(async (identifier, password) => {
     // Log in with the USERNAME only ("susheel_08" or "@susheel_08"). Emails are not accepted,
-    // because one email can now belong to up to 3 different accounts.
+    // because one email can belong to up to 3 different accounts.
     const raw = identifier.trim();
     const username = (raw.startsWith("@") ? raw.slice(1) : raw).toLowerCase();
     if (username.includes("@"))
       return { error: "Please log in with your username, not your email." };
 
-    const { data: email, error: lookupError } = await supabase.rpc("get_login_email", {
-      p_username: username,
-    });
-    if (lookupError) return { error: friendlyAuthError(lookupError) };
-    if (!email) return { error: BAD_LOGIN };
-
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (!error) return { error: null };
-    const message = friendlyAuthError(error);
-    if (error.code === "email_not_confirmed" || message.includes("verify your email"))
-      return { error: message, verifyEmail: email };
-    return { error: message === OLD_BAD_LOGIN ? BAD_LOGIN : message };
+    // The server looks the account up, checks the password and starts the session. The email
+    // address never reaches this device.
+    const r = await callGateway("login", { username, password });
+    const tokens = r.ok ? tokensFrom(r) : null;
+    if (tokens) return startSession(tokens);
+    if (r.status === 403 && r.data["error"] === "email_not_verified")
+      return {
+        error: "Please verify your email first. Check your inbox for the code.",
+        verifyUsername: String(r.data["username"] ?? username),
+        maskedEmail: String(r.data["masked_email"] ?? ""),
+      };
+    if (r.status === 401) {
+      const wait = r.data["retry_after"];
+      return {
+        error:
+          typeof wait === "number" && wait > 0
+            ? `${BAD_LOGIN} Too many tries: wait ${wait < 90 ? `${wait} seconds` : `${Math.round(wait / 60)} minutes`} before trying again.`
+            : BAD_LOGIN,
+      };
+    }
+    return { error: gatewayProblem(r, "Couldn't log in. Please try again.") };
   }, []);
 
   const signInWithGoogle = useCallback<AuthContextValue["signInWithGoogle"]>(async () => {

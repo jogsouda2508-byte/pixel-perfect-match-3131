@@ -12,6 +12,7 @@ import {
   useCloseFriendIds,
 } from "@/lib/close-friends";
 import { fetchFollowList } from "@/lib/social";
+import { userMessage } from "@/lib/security";
 
 /**
  * Choose which of your followers are on your Close Friends list. Every switch saves straight away.
@@ -53,7 +54,7 @@ export function CloseFriendsSheet({
     },
     onError: (e, _v, ctx) => {
       if (ctx) qc.setQueryData(["close-friends", meId], ctx.before);
-      toast.error(e instanceof Error ? e.message : "Couldn't save that. Please try again.");
+      toast.error(userMessage(e, "Couldn't save that. Please try again."));
     },
     onSettled: () => void qc.invalidateQueries({ queryKey: ["close-friends", meId] }),
   });
@@ -105,7 +106,7 @@ export function CloseFriendsSheet({
           </div>
         ) : failed ? (
           <p role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">
-            {failed instanceof Error ? failed.message : "Couldn't load your followers."}
+            {userMessage(failed, "Couldn't load your followers.")}
           </p>
         ) : (followers.data ?? []).length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">

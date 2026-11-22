@@ -24,3 +24,9 @@ create schema extensions; create schema net;
 create function net.http_post(url text, body jsonb default '{}', params jsonb default '{}', headers jsonb default '{}', timeout_milliseconds int default 1000) returns bigint language sql as $$ select 1::bigint $$;
 grant usage on schema public, auth, storage to anon, authenticated, service_role;
 grant execute on function auth.uid() to anon, authenticated;
+-- Sessions + JWT helper (used by delete_my_account's "recent sign-in" check).
+create table auth.sessions (id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade, created_at timestamptz default now());
+create function auth.jwt() returns jsonb language sql stable as
+  $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
+grant execute on function auth.jwt() to anon, authenticated;

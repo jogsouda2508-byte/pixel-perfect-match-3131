@@ -9,6 +9,7 @@ import {
   type StoryMusic,
 } from "@/lib/story-music";
 import { cn } from "@/lib/utils";
+import { userMessage } from "@/lib/security";
 
 const chipTerm = (chip: string) => (chip === "Trending" ? "top hits" : chip);
 
@@ -54,7 +55,7 @@ export function StoryMusicPicker({
           .catch((e: unknown) => {
             if (ctl.signal.aborted) return;
             setResults([]);
-            setError(e instanceof Error ? e.message : "Couldn't load songs.");
+            setError(userMessage(e, "Couldn't load songs."));
             setLoading(false);
           });
       },
@@ -120,14 +121,17 @@ export function StoryMusicPicker({
   };
 
   return (
-    <div className="absolute inset-0 z-[60] flex flex-col justify-end" data-testid="story-music-picker">
+    <div
+      className="absolute inset-0 z-[60] flex flex-col justify-end"
+      data-testid="story-music-picker"
+    >
       <button
         type="button"
         aria-label="Close music"
         onClick={onClose}
         className="absolute inset-0 animate-in bg-black/55 backdrop-blur-[3px] duration-200 fade-in"
       />
-      <div className="relative flex h-[78%] animate-in flex-col rounded-t-[28px] bg-zinc-900/95 text-white shadow-2xl ring-1 ring-white/10 backdrop-blur-xl duration-300 slide-in-from-bottom">
+      <div className="relative flex h-[78%] animate-in flex-col rounded-t-[28px] bg-popover/95 text-white shadow-2xl ring-1 ring-white/10 backdrop-blur-xl duration-300 slide-in-from-bottom">
         <div className="mx-auto mt-2.5 h-1 w-10 rounded-full bg-white/25" />
         <div className="flex items-center justify-between px-5 pb-2 pt-3">
           <h2 className="text-base font-bold tracking-tight">Add music</h2>
@@ -170,7 +174,9 @@ export function StoryMusicPicker({
                   }}
                   className={cn(
                     "shrink-0 rounded-full px-3 py-1 text-[12px] font-semibold transition active:scale-95",
-                    active ? "bg-white text-black" : "bg-white/10 text-white/85 hover:bg-white/15",
+                    active
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-white/10 text-white/85 hover:bg-white/15",
                   )}
                 >
                   {c}
@@ -200,7 +206,7 @@ export function StoryMusicPicker({
               <button
                 type="button"
                 onClick={() => setRetry((n) => n + 1)}
-                className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-black transition active:scale-95"
+                className="rounded-full bg-gradient-brand px-5 py-2 text-sm font-bold text-primary-foreground transition active:scale-95"
               >
                 Try again
               </button>
@@ -249,7 +255,9 @@ export function StoryMusicPicker({
                   aria-label={playing === r.id ? `Pause ${r.name}` : `Play ${r.name}`}
                   className={cn(
                     "grid h-8 w-8 shrink-0 place-items-center rounded-full transition active:scale-90",
-                    playing === r.id ? "bg-white text-black" : "bg-white/10 text-white hover:bg-white/20",
+                    playing === r.id
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-white/10 text-white hover:bg-white/20",
                   )}
                 >
                   {playing === r.id ? (
@@ -263,7 +271,7 @@ export function StoryMusicPicker({
         </div>
         {selected && (
           <div
-            className="absolute inset-0 z-10 flex animate-in flex-col rounded-t-[28px] bg-zinc-900 duration-200 fade-in"
+            className="absolute inset-0 z-10 flex animate-in flex-col rounded-t-[28px] bg-popover duration-200 fade-in"
             data-testid="story-music-length"
           >
             <div className="mx-auto mt-2.5 h-1 w-10 rounded-full bg-white/25" />
@@ -299,9 +307,15 @@ export function StoryMusicPicker({
               </div>
               <div className="shrink-0 text-center">
                 <p className="text-4xl font-bold tabular-nums sm:text-5xl">{seconds}s</p>
-                <p className="mt-1 text-sm text-white/55">The song and your story will last this long</p>
+                <p className="mt-1 text-sm text-white/55">
+                  The song and your story will last this long
+                </p>
               </div>
-              <div className="flex shrink-0 flex-wrap justify-center gap-2" role="radiogroup" aria-label="Song length in seconds">
+              <div
+                className="flex shrink-0 flex-wrap justify-center gap-2"
+                role="radiogroup"
+                aria-label="Song length in seconds"
+              >
                 {MUSIC_SECONDS.map((n) => (
                   <button
                     key={n}
@@ -314,7 +328,9 @@ export function StoryMusicPicker({
                     }}
                     className={cn(
                       "min-w-[56px] rounded-full px-4 py-2 text-sm font-semibold transition active:scale-95",
-                      seconds === n ? "bg-white text-black" : "bg-white/10 text-white/85 hover:bg-white/15",
+                      seconds === n
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-white/10 text-white/85 hover:bg-white/15",
                     )}
                   >
                     {n}s
@@ -326,15 +342,19 @@ export function StoryMusicPicker({
                 onClick={previewLength}
                 className="flex shrink-0 items-center gap-2 rounded-full bg-white/10 px-5 py-2 text-sm font-semibold transition active:scale-95 hover:bg-white/15"
               >
-                {previewing ? <Pause className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 fill-current" />}
+                {previewing ? (
+                  <Pause className="h-4 w-4 fill-current" />
+                ) : (
+                  <Play className="h-4 w-4 fill-current" />
+                )}
                 {previewing ? "Stop" : `Preview ${seconds}s`}
               </button>
             </div>
-            <div className="shrink-0 border-t border-white/5 bg-zinc-900 px-5 pb-[max(env(safe-area-inset-bottom),1rem)] pt-3">
+            <div className="shrink-0 border-t border-white/5 bg-popover px-5 pb-[max(env(safe-area-inset-bottom),1rem)] pt-3">
               <button
                 type="button"
                 onClick={confirmSeconds}
-                className="h-12 w-full rounded-full bg-white text-[15px] font-bold text-black transition active:scale-[0.98]"
+                className="h-12 w-full rounded-full bg-gradient-brand text-[15px] font-bold text-primary-foreground transition active:scale-[0.98]"
               >
                 Done
               </button>

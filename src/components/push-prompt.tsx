@@ -17,6 +17,7 @@ import {
   registerServiceWorker,
   type PushState,
 } from "@/lib/push";
+import { userMessage } from "@/lib/security";
 
 const DISMISS_KEY = "gicco.push-prompt.dismissed-at";
 const DISMISS_DAYS = 14;
@@ -64,7 +65,7 @@ export function usePush() {
       await refresh();
       return result;
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Couldn't turn notifications on.");
+      toast.error(userMessage(e, "Couldn't turn notifications on."));
       await refresh();
       return null;
     } finally {
@@ -78,7 +79,7 @@ export function usePush() {
       await disablePush();
       toast.success("Notifications are off");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Couldn't turn notifications off.");
+      toast.error(userMessage(e, "Couldn't turn notifications off."));
     } finally {
       await refresh();
       setBusy(false);
@@ -157,7 +158,7 @@ export function PushPrompt() {
     <div
       role="region"
       aria-label="Turn on notifications"
-      className="glass-card fixed inset-x-4 bottom-24 z-50 mx-auto flex max-w-md items-start gap-3 p-4 shadow-xl md:bottom-6"
+      className="glass-card fixed inset-x-4 bottom-28 z-50 mx-auto flex max-w-md items-start gap-3 p-4 shadow-xl md:bottom-6"
     >
       <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-brand text-primary-foreground">
         <Bell className="h-5 w-5" />
@@ -186,7 +187,12 @@ export function PushPrompt() {
           </button>
         </div>
       </div>
-      <button type="button" onClick={dismiss} aria-label="Dismiss" className="rounded-full p-1 hover:bg-muted">
+      <button
+        type="button"
+        onClick={dismiss}
+        aria-label="Dismiss"
+        className="rounded-full p-1 hover:bg-muted"
+      >
         <X className="h-4 w-4" />
       </button>
     </div>
@@ -208,9 +214,7 @@ export function PushSettingsCard() {
           disabled={busy}
           onClick={() => void (state === "on" ? turnOff() : turnOn())}
           className={`flex min-h-11 w-full items-center justify-center gap-2 rounded-full px-5 text-sm font-semibold disabled:opacity-60 ${
-            state === "on"
-              ? "border border-border"
-              : "bg-gradient-brand text-primary-foreground"
+            state === "on" ? "border border-border" : "bg-gradient-brand text-primary-foreground"
           }`}
         >
           {busy && <Loader2 className="h-4 w-4 animate-spin" />}

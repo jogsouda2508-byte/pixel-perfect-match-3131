@@ -19,6 +19,7 @@ import {
   type HourDraft,
   type ServiceDraft,
 } from "@/lib/business";
+import { userMessage } from "@/lib/security";
 
 export const Route = createFileRoute("/business-edit")({
   head: () => ({
@@ -172,7 +173,8 @@ function BusinessEditPage() {
       toast.success("Business info saved");
       void navigate({ to: "/business" });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) =>
+      toast.error(userMessage(e, "Couldn't save your changes. Please try again.")),
   });
 
   const set = (patch: Partial<BusinessForm>) => setForm((f) => (f ? { ...f, ...patch } : f));

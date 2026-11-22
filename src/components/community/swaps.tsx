@@ -40,6 +40,7 @@ import {
   PrimaryButton,
   SkeletonList,
 } from "./shared";
+import { userMessage } from "@/lib/security";
 
 export function SwapsTab({ locality, meId }: { locality: string | null; meId: string }) {
   const qc = useQueryClient();
@@ -57,7 +58,7 @@ export function SwapsTab({ locality, meId }: { locality: string | null; meId: st
     mutationFn: (v: { id: string; action: "pause" | "resume" | "delete" }) =>
       v.action === "delete" ? deleteSwap(v.id) : setSwapActive(v.id, v.action === "resume"),
     onSuccess: refresh,
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Something went wrong."),
+    onError: (e) => toast.error(userMessage(e, "Something went wrong.")),
   });
 
   const mine = q.data?.filter((s) => s.is_mine) ?? [];
@@ -281,7 +282,7 @@ function SwapSheet({
       onDone();
       onOpenChange(false);
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't post your skill swap."),
+    onError: (e) => toast.error(userMessage(e, "Couldn't post your skill swap.")),
   });
   const submit = () => {
     setTried(true);

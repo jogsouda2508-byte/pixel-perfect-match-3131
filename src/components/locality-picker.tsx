@@ -34,7 +34,12 @@ export function LocalityPicker({
   return (
     <section className="glass-card space-y-3 p-4" aria-label="Local feed location">
       <div className="flex items-start gap-2">
-        <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+        <span
+          aria-hidden="true"
+          className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary/12 text-primary"
+        >
+          <MapPin className="h-5 w-5" aria-hidden="true" />
+        </span>
         <div className="min-w-0 flex-1 text-sm">
           {active ? (
             <>
@@ -76,7 +81,7 @@ export function LocalityPicker({
           maxLength={80}
           placeholder="Type a city or area"
           aria-label="Locality"
-          className="min-h-11 min-w-0 flex-1 rounded-xl border border-border bg-background px-3 text-sm"
+          className="min-h-11 min-w-0 flex-1 rounded-2xl border border-border bg-elevated/50 px-3.5 text-sm outline-none transition-colors focus:border-primary/60"
         />
         <datalist id="ediraa-localities">
           {localities.data?.map((l) => (
@@ -86,7 +91,7 @@ export function LocalityPicker({
         <button
           type="submit"
           disabled={!draft.trim()}
-          className="min-h-11 shrink-0 rounded-xl bg-gradient-brand px-4 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+          className="min-h-11 shrink-0 rounded-2xl bg-gradient-brand px-4 text-sm font-bold text-primary-foreground glow disabled:opacity-50 disabled:shadow-none"
         >
           Show
         </button>
@@ -102,7 +107,7 @@ export function LocalityPicker({
                 type="button"
                 aria-pressed={on}
                 onClick={() => onSelect(l.locality)}
-                className={`rounded-full px-3 py-1.5 text-xs font-medium ${on ? "bg-gradient-brand text-primary-foreground" : "border border-border bg-card"}`}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold ${on ? "bg-gradient-brand text-primary-foreground glow" : "border border-border bg-elevated/40 transition-colors hover:border-primary/40"}`}
               >
                 {l.locality}
               </button>

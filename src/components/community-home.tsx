@@ -38,21 +38,21 @@ export function CommunityHomeStrip() {
       to="/community"
       search={{ tab: strip.tab }}
       aria-label={`Community: ${strip.title}. ${strip.sub}`}
-      className="glass-card flex items-center gap-3 p-3 transition active:scale-[0.98]"
+      className="glass-card flex items-center gap-3 p-3 transition hover:border-primary/30 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <span
         aria-hidden="true"
         className={cn(
-          "grid h-10 w-10 shrink-0 place-items-center rounded-full",
+          "grid h-11 w-11 shrink-0 place-items-center rounded-2xl",
           strip.kind === "alert"
             ? "bg-brand-accent/15 text-brand-accent"
-            : "bg-primary/10 text-primary",
+            : "bg-primary/15 text-primary",
         )}
       >
         <Icon className="h-5 w-5" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-semibold">{strip.title}</span>
+        <span className="block truncate font-display text-sm font-bold">{strip.title}</span>
         <span className="block truncate text-xs text-muted-foreground">{strip.sub}</span>
       </span>
       <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />

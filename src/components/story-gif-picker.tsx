@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ImageOff, Search, X } from "lucide-react";
 import { GIF_SUGGESTIONS, searchGifs, type GifResult } from "@/lib/story-gifs";
 import { cn } from "@/lib/utils";
+import { userMessage } from "@/lib/security";
 
 // "Trending" has no search word: an empty search asks Giphy for what is trending.
 const chipTerm = (chip: string) => (chip === "Trending" ? "" : chip);
@@ -41,7 +42,7 @@ export function StoryGifPicker({
           .catch((e: unknown) => {
             if (ctl.signal.aborted) return;
             setResults([]);
-            setError(e instanceof Error ? e.message : "Couldn't load GIFs.");
+            setError(userMessage(e, "Couldn't load GIFs."));
             setLoading(false);
           });
       },
@@ -73,7 +74,7 @@ export function StoryGifPicker({
         onClick={onClose}
         className="absolute inset-0 animate-in bg-black/55 backdrop-blur-[3px] duration-200 fade-in"
       />
-      <div className="relative flex h-[78%] animate-in flex-col rounded-t-[28px] bg-zinc-900/95 text-white shadow-2xl ring-1 ring-white/10 backdrop-blur-xl duration-300 slide-in-from-bottom">
+      <div className="relative flex h-[78%] animate-in flex-col rounded-t-[28px] bg-popover/95 text-white shadow-2xl ring-1 ring-white/10 backdrop-blur-xl duration-300 slide-in-from-bottom">
         <div className="mx-auto mt-2.5 h-1 w-10 rounded-full bg-white/25" />
         <div className="flex items-center justify-between px-5 pb-2 pt-3">
           <h2 className="text-base font-bold tracking-tight">Add GIF</h2>
@@ -116,7 +117,9 @@ export function StoryGifPicker({
                   }}
                   className={cn(
                     "shrink-0 rounded-full px-3 py-1 text-[12px] font-semibold transition active:scale-95",
-                    active ? "bg-white text-black" : "bg-white/10 text-white/85 hover:bg-white/15",
+                    active
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-white/10 text-white/85 hover:bg-white/15",
                   )}
                 >
                   {c}
@@ -144,7 +147,7 @@ export function StoryGifPicker({
               <button
                 type="button"
                 onClick={() => setRetry((n) => n + 1)}
-                className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-black transition active:scale-95"
+                className="rounded-full bg-gradient-brand px-5 py-2 text-sm font-bold text-primary-foreground transition active:scale-95"
               >
                 Try again
               </button>

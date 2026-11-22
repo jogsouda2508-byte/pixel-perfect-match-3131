@@ -1,22 +1,45 @@
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Flag, Loader2, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { CornerDownRight, Flag, Loader2, MessageCircle, Trash2 } from "lucide-react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Drawer as DrawerPrimitive } from "vaul";
 import { Avatar } from "@/components/ediraa";
 import { ReportButton } from "@/components/report-sheet";
 import { useAuth } from "@/lib/auth";
-import {
-  addComment,
-  deleteComment,
-  fetchComments,
-  type CommentView,
-} from "@/lib/social";
+import { addComment, deleteComment, fetchComments, type CommentView } from "@/lib/social";
 import { timeAgo } from "@/lib/time";
 
 const QUICK_EMOJIS = ["❤️", "🙌", "🔥", "👏", "😢", "😍", "😮", "😂"];
 const MAX_LENGTH = 300;
+
+/** The text to put in the comment box when someone taps "Reply" on a comment. */
+export function replyDraft(current: string, username: string | null | undefined): string {
+  if (!username) return current;
+  const mention = `@${username} `;
+  if (current.startsWith(mention)) return current;
+  return (mention + current.replace(/^@[\w.]+\s+/, "")).slice(0, MAX_LENGTH);
+}
+
+/**
+ * Comment text with a leading @mention picked out in the brand colour. Replies are written as
+ * "@name text", so a reply reads as a reply. Everything else renders as plain text (never HTML).
+ */
+export function CommentBody({ text, className = "" }: { text: string; className?: string }) {
+  const match = /^(@[\w.]+?)(\s[\s\S]*)?$/.exec(text);
+  return (
+    <p className={`whitespace-pre-line break-words text-sm leading-relaxed ${className}`}>
+      {match ? (
+        <>
+          <span className="sz-mention">{match[1]}</span>
+          {match[2] ?? ""}
+        </>
+      ) : (
+        text
+      )}
+    </p>
+  );
+}
 
 /**
  * Phone-only comments bottom sheet (Instagram style): a handle, a centred "Comments" title,
@@ -39,6 +62,7 @@ export function CommentsSheet({
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
   const key = ["comments", postId];
 
   const list = useQuery({
@@ -83,15 +107,13 @@ export function CommentsSheet({
       shouldScaleBackground={false}
     >
       <DrawerPrimitive.Portal>
-        <DrawerPrimitive.Overlay className="fixed inset-0 z-[60] bg-black/50" />
-        <DrawerPrimitive.Content
-          className="fixed inset-x-0 bottom-0 z-[60] flex h-[72dvh] max-h-[88dvh] flex-col rounded-t-[28px] bg-background text-foreground outline-none"
-        >
+        <DrawerPrimitive.Overlay className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-[2px]" />
+        <DrawerPrimitive.Content className="fixed inset-x-0 bottom-0 z-[60] flex h-[72dvh] max-h-[88dvh] flex-col rounded-t-[32px] border border-b-0 border-border bg-popover/95 text-foreground shadow-[0_-24px_70px_-20px_rgba(0,0,0,0.8)] outline-none backdrop-blur-xl sm:mx-auto sm:max-w-xl">
           <div
             aria-hidden="true"
-            className="mx-auto mt-2.5 h-[3px] w-9 shrink-0 rounded-full bg-muted-foreground/60"
+            className="mx-auto mt-3 h-1 w-10 shrink-0 rounded-full bg-muted-foreground/40"
           />
-          <DrawerPrimitive.Title className="shrink-0 py-3 text-center text-base font-medium">
+          <DrawerPrimitive.Title className="shrink-0 py-3 text-center font-display text-base font-bold">
             Comments
           </DrawerPrimitive.Title>
           <DrawerPrimitive.Description className="sr-only">
@@ -101,21 +123,38 @@ export function CommentsSheet({
           {/* List / empty state */}
           <div className="min-h-0 flex-1 overflow-y-auto px-4">
             {list.isLoading && (
-              <div className="grid h-full place-items-center">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              <div className="space-y-5 pt-2" role="status" aria-label="Loading comments">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="flex items-start gap-3" aria-hidden="true">
+                    <div className="sz-skeleton h-9 w-9 shrink-0 rounded-full" />
+                    <div className="flex-1 space-y-2">
+                      <div className="sz-skeleton h-3 w-24 rounded-full" />
+                      <div className="sz-skeleton h-3 w-4/5 rounded-full" />
+                    </div>
+                  </div>
+                ))}
+                <span className="sr-only">Loading comments…</span>
               </div>
             )}
             {list.isError && (
-              <p className="py-8 text-center text-sm text-destructive">
-                Couldn't load comments.
-              </p>
+              <div className="py-10 text-center">
+                <p className="text-sm text-destructive">Couldn't load comments.</p>
+                <button
+                  type="button"
+                  onClick={() => void list.refetch()}
+                  className="mt-3 rounded-full border border-primary/50 px-4 py-1.5 text-sm font-semibold text-primary hover:bg-primary/10"
+                >
+                  Try again
+                </button>
+              </div>
             )}
             {list.isSuccess && list.data.length === 0 && (
               <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-                <p className="text-2xl font-bold">No comments yet</p>
-                <p className="text-sm text-muted-foreground">
-                  Start the conversation.
-                </p>
+                <span className="mb-1 grid h-14 w-14 place-items-center rounded-2xl bg-primary/12 text-primary">
+                  <MessageCircle className="h-6 w-6" aria-hidden="true" />
+                </span>
+                <p className="font-display text-2xl font-bold">No comments yet</p>
+                <p className="text-sm text-muted-foreground">Start the conversation.</p>
               </div>
             )}
             {list.isSuccess && list.data.length > 0 && (
@@ -127,6 +166,10 @@ export function CommentsSheet({
                     mine={c.author_id === user?.id}
                     onDelete={() => del.mutate(c.id)}
                     onNavigate={() => onOpenChange(false)}
+                    onReply={() => {
+                      setDraft((d) => replyDraft(d, c.author?.username));
+                      inputRef.current?.focus();
+                    }}
                   />
                 ))}
               </ul>
@@ -134,14 +177,14 @@ export function CommentsSheet({
           </div>
 
           {/* Quick emojis */}
-          <div className="flex shrink-0 items-center justify-between border-t border-border px-4 py-2.5">
+          <div className="flex shrink-0 items-center justify-between gap-1 border-t border-border px-3 py-2">
             {QUICK_EMOJIS.map((emoji) => (
               <button
                 key={emoji}
                 type="button"
                 aria-label={`Add ${emoji}`}
                 onClick={() => setDraft((d) => (d + emoji).slice(0, MAX_LENGTH))}
-                className="grid h-9 w-9 place-items-center text-[21px] leading-none active:scale-90"
+                className="grid h-10 w-10 place-items-center rounded-full text-[21px] leading-none transition-transform hover:bg-elevated active:scale-90"
               >
                 {emoji}
               </button>
@@ -161,8 +204,9 @@ export function CommentsSheet({
               name={profile?.full_name || profile?.username}
               size={40}
             />
-            <div className="flex min-w-0 flex-1 items-center rounded-full border border-border pl-4 pr-1.5">
+            <div className="flex min-w-0 flex-1 items-center rounded-full border border-border bg-elevated/50 pl-4 pr-1.5 transition-colors focus-within:border-primary/60">
               <input
+                ref={inputRef}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value.slice(0, MAX_LENGTH))}
                 placeholder="Start the conversation…"
@@ -176,13 +220,9 @@ export function CommentsSheet({
                   type="submit"
                   disabled={add.isPending}
                   aria-label="Send comment"
-                  className="px-3 py-1.5 text-sm font-semibold text-primary disabled:opacity-50"
+                  className="rounded-full bg-gradient-brand px-4 py-1.5 text-sm font-bold text-primary-foreground disabled:opacity-50"
                 >
-                  {add.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    "Post"
-                  )}
+                  {add.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Post"}
                 </button>
               )}
             </div>
@@ -198,11 +238,13 @@ function SheetComment({
   mine,
   onDelete,
   onNavigate,
+  onReply,
 }: {
   comment: CommentView;
   mine: boolean;
   onDelete: () => void;
   onNavigate: () => void;
+  onReply: () => void;
 }) {
   const author = comment.author;
   const name = author?.full_name || author?.username || "SabZone user";
@@ -222,13 +264,22 @@ function SheetComment({
         <span className="shrink-0">{avatar}</span>
       )}
       <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-semibold">
+        <p className="text-[13px] font-bold">
           {name}{" "}
-          <span className="font-normal text-muted-foreground">
-            {timeAgo(comment.created_at)}
-          </span>
+          <span className="font-normal text-muted-foreground">{timeAgo(comment.created_at)}</span>
         </p>
-        <p className="whitespace-pre-line break-words text-sm">{comment.content}</p>
+        <CommentBody text={comment.content} />
+        {!!author?.username && (
+          <button
+            type="button"
+            onClick={onReply}
+            aria-label={`Reply to ${name}`}
+            className="mt-1 inline-flex items-center gap-1 rounded-md py-0.5 text-xs font-semibold text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <CornerDownRight className="h-3 w-3" aria-hidden="true" />
+            Reply
+          </button>
+        )}
       </div>
       {mine && (
         <button

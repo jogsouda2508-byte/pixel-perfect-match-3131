@@ -24,6 +24,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { timeAgo } from "@/lib/time";
+import { userMessage } from "@/lib/security";
 
 export const Route = createFileRoute("/chat/")({
   head: () => ({
@@ -236,7 +237,7 @@ function NewMessageDialog({
       setSearch("");
       navigate({ to: "/chat/$id", params: { id } });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Couldn't start a conversation.");
+      setError(userMessage(cause, "Couldn't start a conversation."));
     } finally {
       setOpeningId(null);
     }
@@ -252,89 +253,89 @@ function NewMessageDialog({
 
   const body = (
     <>
-        <label className="relative block shrink-0">
-          <Search
-            className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground"
-            aria-hidden="true"
-          />
-          <Input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search by name or username"
-            aria-label="Search people"
-            className="min-h-11 pl-10"
-          />
-        </label>
-        <div className="flex shrink-0 gap-2">
-          {(["all", "following"] as const).map((item) => (
-            <Button
-              key={item}
-              type="button"
-              variant={scope === item ? "secondary" : "ghost"}
-              className="min-h-11"
-              onClick={() => setScope(item)}
-            >
-              {item === "all" ? "All people" : "Following"}
-            </Button>
-          ))}
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {people.isLoading && (
-            <div className="space-y-3 py-2" aria-label="Loading people">
-              {[0, 1, 2].map((item) => (
-                <div key={item} className="flex items-center gap-3">
-                  <Skeleton className="h-11 w-11 rounded-full" />
-                  <div className="flex-1 space-y-2">
-                    <Skeleton className="h-4 w-1/3" />
-                    <Skeleton className="h-4 w-1/2" />
-                  </div>
+      <label className="relative block shrink-0">
+        <Search
+          className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground"
+          aria-hidden="true"
+        />
+        <Input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search by name or username"
+          aria-label="Search people"
+          className="min-h-11 pl-10"
+        />
+      </label>
+      <div className="flex shrink-0 gap-2">
+        {(["all", "following"] as const).map((item) => (
+          <Button
+            key={item}
+            type="button"
+            variant={scope === item ? "secondary" : "ghost"}
+            className="min-h-11"
+            onClick={() => setScope(item)}
+          >
+            {item === "all" ? "All people" : "Following"}
+          </Button>
+        ))}
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {people.isLoading && (
+          <div className="space-y-3 py-2" aria-label="Loading people">
+            {[0, 1, 2].map((item) => (
+              <div key={item} className="flex items-center gap-3">
+                <Skeleton className="h-11 w-11 rounded-full" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-1/3" />
+                  <Skeleton className="h-4 w-1/2" />
                 </div>
-              ))}
-            </div>
-          )}
-          {people.isError && (
-            <div className="space-y-3 py-4 text-center" role="alert">
-              <p className="text-sm text-destructive">Couldn't find people.</p>
-              <Button type="button" variant="outline" onClick={() => people.refetch()}>
-                Retry
-              </Button>
-            </div>
-          )}
-          {people.isSuccess && visiblePeople?.length === 0 && (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              {scope === "following" ? "No followed people found." : "No people found."}
-            </p>
-          )}
-          <div className="divide-y divide-border">
-            {visiblePeople?.map((person) => {
-              const name = person.full_name || person.username;
-              const isOpening = openingId === person.id;
-              return (
-                <button
-                  type="button"
-                  key={person.id}
-                  disabled={openingId !== null}
-                  onClick={() => void beginConversation(person.id)}
-                  className="flex min-h-[68px] w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
-                >
-                  <Avatar src={person.avatar_url} name={name} size={44} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold">{name}</span>
-                    <span className="block truncate text-sm text-muted-foreground">
-                      @{person.username}
-                    </span>
-                  </span>
-                  {isOpening && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
-                </button>
-              );
-            })}
+              </div>
+            ))}
           </div>
-          {error && (
-            <p className="py-3 text-sm text-destructive" role="alert">
-              {error}
-            </p>
-          )}
+        )}
+        {people.isError && (
+          <div className="space-y-3 py-4 text-center" role="alert">
+            <p className="text-sm text-destructive">Couldn't find people.</p>
+            <Button type="button" variant="outline" onClick={() => people.refetch()}>
+              Retry
+            </Button>
+          </div>
+        )}
+        {people.isSuccess && visiblePeople?.length === 0 && (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            {scope === "following" ? "No followed people found." : "No people found."}
+          </p>
+        )}
+        <div className="divide-y divide-border">
+          {visiblePeople?.map((person) => {
+            const name = person.full_name || person.username;
+            const isOpening = openingId === person.id;
+            return (
+              <button
+                type="button"
+                key={person.id}
+                disabled={openingId !== null}
+                onClick={() => void beginConversation(person.id)}
+                className="flex min-h-[68px] w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+              >
+                <Avatar src={person.avatar_url} name={name} size={44} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold">{name}</span>
+                  <span className="block truncate text-sm text-muted-foreground">
+                    @{person.username}
+                  </span>
+                </span>
+                {isOpening && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
+              </button>
+            );
+          })}
         </div>
+        {error && (
+          <p className="py-3 text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        )}
+      </div>
     </>
   );
 

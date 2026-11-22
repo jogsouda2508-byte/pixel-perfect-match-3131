@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { createInstrumentedFetch } from "@/lib/telemetry";
 import type { Database } from "./types";
 
 // Only the PUBLIC (anon / publishable) key is ever used in the browser.
@@ -21,5 +22,8 @@ export const supabase = createClient<Database>(
       autoRefreshToken: true,
       detectSessionInUrl: true,
     },
+    // Times every request, logs slow / failed ones and stops requests that get no answer
+    // for 30 s (see src/lib/telemetry.ts). Looks fetch up at call time so tests can stub it.
+    global: { fetch: createInstrumentedFetch((input, init) => globalThis.fetch(input, init)) },
   },
 );

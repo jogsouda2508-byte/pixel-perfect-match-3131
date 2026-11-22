@@ -19,8 +19,13 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
 import { getAccessToken, parseServiceAccount, sendFcm } from "./fcm.ts";
 import {
+  DELIVERY_TIMEOUT_MS,
+  MAX_CONCURRENT_DELIVERIES,
+  isBodyTooLarge,
   isGoneStatus,
+  mapWithConcurrency,
   parsePushRequest,
+  pushSummaryLog,
   recipientsWithoutSender,
   safeEqual,
   toPayload,
@@ -29,7 +34,12 @@ import {
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
+// every call to Google (sign-in + FCM) gets a deadline, so one hung request cannot hold the function
+const timedFetch: typeof fetch = (input, init) =>
+  fetch(input, { ...init, signal: AbortSignal.timeout(DELIVERY_TIMEOUT_MS) });
+
 Deno.serve(async (req) => {
+  const startedAt = Date.now();
   if (req.method !== "POST") return json(405, { error: "Use POST." });
 
   const secret = Deno.env.get("PUSH_WEBHOOK_SECRET") ?? "";
@@ -48,6 +58,10 @@ Deno.serve(async (req) => {
   }
   if (webReady) webpush.setVapidDetails(subject!, publicKey!, privateKey!);
   else console.warn("send-push: VAPID secrets are missing, browsers will not be notified");
+
+  if (isBodyTooLarge(req.headers.get("content-length"))) {
+    return json(413, { error: "Request too large." });
+  }
 
   let parsed;
   try {
@@ -89,13 +103,15 @@ Deno.serve(async (req) => {
   let sent = 0;
   let failed = 0;
 
-  await Promise.all(
-    (webRows.data ?? []).map(async (s) => {
+  await mapWithConcurrency(
+    webRows.data ?? [],
+    MAX_CONCURRENT_DELIVERIES,
+    async (s) => {
       try {
         await webpush.sendNotification(
           { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
           payload,
-          { TTL: 60 * 60 * 24, urgency: "high" },
+          { TTL: 60 * 60 * 24, urgency: "high", timeout: DELIVERY_TIMEOUT_MS },
         );
         sent++;
       } catch (e) {
@@ -106,7 +122,7 @@ Deno.serve(async (req) => {
           console.error("send-push: delivery failed", status, (e as Error).message);
         }
       }
-    }),
+    },
   );
 
   // 404 / 410 = the browser unsubscribed or the subscription expired: forget it
@@ -122,11 +138,13 @@ Deno.serve(async (req) => {
   const phones = phoneRows.error ? [] : (phoneRows.data ?? []);
   if (serviceAccount && phones.length > 0) {
     try {
-      const accessToken = await getAccessToken(serviceAccount);
-      await Promise.all(
-        phones.map(async (p) => {
+      const accessToken = await getAccessToken(serviceAccount, timedFetch);
+      await mapWithConcurrency(
+        phones,
+        MAX_CONCURRENT_DELIVERIES,
+        async (p) => {
           try {
-            const r = await sendFcm(serviceAccount, accessToken, p.token, pushPayload);
+            const r = await sendFcm(serviceAccount, accessToken, p.token, pushPayload, timedFetch);
             if (r.ok) phoneSent++;
             else if (r.dead) deadPhones.push(p.id);
             else {
@@ -137,7 +155,7 @@ Deno.serve(async (req) => {
             phoneFailed++;
             console.error("send-push: FCM request failed", (e as Error).message);
           }
-        }),
+        },
       );
     } catch (e) {
       phoneFailed += phones.length;
@@ -149,6 +167,15 @@ Deno.serve(async (req) => {
     const { error: delError } = await supabase.from("device_tokens").delete().in("id", deadPhones);
     if (delError) console.error("send-push: removing dead device tokens failed", delError);
   }
+
+  console.log(
+    pushSummaryLog({
+      ms: Date.now() - startedAt,
+      recipients: recipients.length,
+      web: { sent, removed: gone.length, failed },
+      android: { sent: phoneSent, removed: deadPhones.length, failed: phoneFailed },
+    }),
+  );
 
   return json(200, {
     sent,

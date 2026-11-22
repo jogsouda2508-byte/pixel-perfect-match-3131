@@ -1,10 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import {
-  useInfiniteQuery,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
   Camera,
@@ -73,6 +68,7 @@ import {
   VIDEO_PAGE_SIZE,
 } from "@/lib/videos";
 import type { VideoFeedRow } from "@/integrations/supabase/types";
+import { userMessage } from "@/lib/security";
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
@@ -102,9 +98,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
   const [buffering, setBuffering] = useState<Record<string, boolean>>({});
   const [downloading, setDownloading] = useState<Record<string, boolean>>({});
   const [videoErrors, setVideoErrors] = useState<Record<string, boolean>>({});
-  const [expandedCaptions, setExpandedCaptions] = useState<
-    Record<string, boolean>
-  >({});
+  const [expandedCaptions, setExpandedCaptions] = useState<Record<string, boolean>>({});
   const [commentsVideo, setCommentsVideo] = useState<VideoFeedRow | null>(null);
   const [deleteVideo, setDeleteVideo] = useState<VideoFeedRow | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -115,9 +109,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
     queryFn: ({ pageParam }) => fetchVideoFeed(pageParam),
     initialPageParam: 0,
     getNextPageParam: (lastPage, pages) =>
-      lastPage.length === VIDEO_PAGE_SIZE
-        ? pages.length * VIDEO_PAGE_SIZE
-        : undefined,
+      lastPage.length === VIDEO_PAGE_SIZE ? pages.length * VIDEO_PAGE_SIZE : undefined,
     enabled: !!user,
   });
   const linkedVideo = useQuery({
@@ -129,8 +121,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
   const items = useMemo(() => {
     const rows = feed.data?.pages.flat() ?? [];
     const deepLinked = linkedVideo.data;
-    if (deepLinked && !rows.some((row) => row.id === deepLinked.id))
-      return [deepLinked, ...rows];
+    if (deepLinked && !rows.some((row) => row.id === deepLinked.id)) return [deepLinked, ...rows];
     return rows;
   }, [feed.data?.pages, linkedVideo.data]);
   const activeIndex = items.findIndex((item) => item.id === activeId);
@@ -151,13 +142,11 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
       setActiveId(initialVideoId);
       return;
     }
-    if (!activeId || !items.some((item) => item.id === activeId))
-      setActiveId(items[0]!.id);
+    if (!activeId || !items.some((item) => item.id === activeId)) setActiveId(items[0]!.id);
   }, [activeId, initialVideoId, items]);
 
   useEffect(() => {
-    if (!initialVideoId || !items.some((item) => item.id === initialVideoId))
-      return;
+    if (!initialVideoId || !items.some((item) => item.id === initialVideoId)) return;
     const slide = containerRef.current?.querySelector<HTMLElement>(
       `[data-video-id="${CSS.escape(initialVideoId)}"]`,
     );
@@ -172,13 +161,9 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
     const observer = new IntersectionObserver(
       (entries) => {
         const visible = entries
-          .filter(
-            (entry) => entry.isIntersecting && entry.intersectionRatio >= 0.7,
-          )
+          .filter((entry) => entry.isIntersecting && entry.intersectionRatio >= 0.7)
           .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        const id = (visible?.target as HTMLElement | undefined)?.dataset[
-          "videoId"
-        ];
+        const id = (visible?.target as HTMLElement | undefined)?.dataset["videoId"];
         if (id) setActiveId(id);
       },
       { root, threshold: [0, 0.7, 1] },
@@ -214,9 +199,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
     videoRefs.current.forEach((video, id) => {
       if (id !== (activeVideo?.id ?? activeId)) video.pause();
     });
-    const current = activeVideo
-      ? videoRefs.current.get(activeVideo.id)
-      : undefined;
+    const current = activeVideo ? videoRefs.current.get(activeVideo.id) : undefined;
     if (!current || !pageVisible) return;
     current.muted = muted;
     if (playing) {
@@ -243,11 +226,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
   }, [activeVideoId, pageVisible]);
 
   useEffect(() => {
-    if (
-      feed.hasNextPage &&
-      !feed.isFetchingNextPage &&
-      activeIndex >= items.length - 2
-    )
+    if (feed.hasNextPage && !feed.isFetchingNextPage && activeIndex >= items.length - 2)
       void feed.fetchNextPage();
   }, [activeIndex, feed, items.length]);
 
@@ -255,10 +234,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
       const target = event.target;
-      if (
-        target instanceof HTMLElement &&
-        ["INPUT", "TEXTAREA", "BUTTON"].includes(target.tagName)
-      )
+      if (target instanceof HTMLElement && ["INPUT", "TEXTAREA", "BUTTON"].includes(target.tagName))
         return;
       const nextIndex = Math.min(
         Math.max(activeIndex + (event.key === "ArrowDown" ? 1 : -1), 0),
@@ -267,12 +243,9 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
       const next = items[nextIndex];
       if (next)
         containerRef.current
-          ?.querySelector<HTMLElement>(
-            `[data-video-id="${CSS.escape(next.id)}"]`,
-          )
+          ?.querySelector<HTMLElement>(`[data-video-id="${CSS.escape(next.id)}"]`)
           ?.scrollIntoView({
-            behavior: window.matchMedia("(prefers-reduced-motion: reduce)")
-              .matches
+            behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
               ? "instant"
               : "smooth",
             block: "start",
@@ -290,8 +263,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
 
   const seekTo = (post: VideoFeedRow, percent: number) => {
     const video = videoRefs.current.get(post.id);
-    if (!video || !Number.isFinite(video.duration) || video.duration <= 0)
-      return;
+    if (!video || !Number.isFinite(video.duration) || video.duration <= 0) return;
     video.currentTime = (percent / 100) * video.duration;
     setProgress(percent);
     setCurrentTime(video.currentTime);
@@ -305,11 +277,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
       toast.success(`Download started: ${filename}`);
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Couldn't download this video.",
-      );
+      toast.error(userMessage(error, "Couldn't download this video."));
     } finally {
       setDownloading((state) => ({ ...state, [post.id]: false }));
     }
@@ -389,15 +357,11 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
       if (next) {
         setActiveId(next.id);
         containerRef.current
-          ?.querySelector<HTMLElement>(
-            `[data-video-id="${CSS.escape(next.id)}"]`,
-          )
+          ?.querySelector<HTMLElement>(`[data-video-id="${CSS.escape(next.id)}"]`)
           ?.scrollIntoView({ block: "start" });
       }
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Couldn't delete this video.",
-      );
+      toast.error(userMessage(error, "Couldn't delete this video."));
     } finally {
       setDeleteBusy(false);
     }
@@ -405,9 +369,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
 
   if (
     feed.isLoading ||
-    (initialVideoId &&
-      linkedVideo.isLoading &&
-      !items.some((item) => item.id === initialVideoId))
+    (initialVideoId && linkedVideo.isLoading && !items.some((item) => item.id === initialVideoId))
   ) {
     return <VideoFeedLoading />;
   }
@@ -431,14 +393,9 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
           const active = activeVideo?.id === post.id;
           const preloadNext = index === activeIndex + 1;
           const state = { liked: post.liked_by_me, count: post.like_count };
-          const following = follow.isFollowing(
-            post.author_id,
-            post.is_following,
-          );
+          const following = follow.isFollowing(post.author_id, post.is_following);
           const longCaption = truncateCaption(post.content);
-          const caption = expandedCaptions[post.id]
-            ? post.content
-            : longCaption.text;
+          const caption = expandedCaptions[post.id] ? post.content : longCaption.text;
           const own = post.author_id === user?.id;
 
           return (
@@ -479,26 +436,15 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                       if (!active) return;
                       const el = event.currentTarget;
                       setCurrentTime(el.currentTime);
-                      setProgress(
-                        el.duration ? (el.currentTime / el.duration) * 100 : 0,
-                      );
+                      setProgress(el.duration ? (el.currentTime / el.duration) * 100 : 0);
                     }}
                     onLoadedMetadata={(event) => {
-                      if (active)
-                        setDuration(event.currentTarget.duration || 0);
+                      if (active) setDuration(event.currentTarget.duration || 0);
                     }}
-                    onWaiting={() =>
-                      setBuffering((state) => ({ ...state, [post.id]: true }))
-                    }
-                    onLoadStart={() =>
-                      setBuffering((state) => ({ ...state, [post.id]: true }))
-                    }
-                    onCanPlay={() =>
-                      setBuffering((state) => ({ ...state, [post.id]: false }))
-                    }
-                    onPlaying={() =>
-                      setBuffering((state) => ({ ...state, [post.id]: false }))
-                    }
+                    onWaiting={() => setBuffering((state) => ({ ...state, [post.id]: true }))}
+                    onLoadStart={() => setBuffering((state) => ({ ...state, [post.id]: true }))}
+                    onCanPlay={() => setBuffering((state) => ({ ...state, [post.id]: false }))}
+                    onPlaying={() => setBuffering((state) => ({ ...state, [post.id]: false }))}
                     onError={() => {
                       setBuffering((state) => ({ ...state, [post.id]: false }));
                       setVideoErrors((state) => ({
@@ -551,20 +497,14 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                     aria-label="Loading video"
                     className="pointer-events-none absolute grid h-14 w-14 place-items-center rounded-full bg-black/50"
                   >
-                    <Loader2
-                      className="h-7 w-7 animate-spin"
-                      aria-hidden="true"
-                    />
+                    <Loader2 className="h-7 w-7 animate-spin" aria-hidden="true" />
                   </span>
                 )}
-                {active &&
-                  !playing &&
-                  !buffering[post.id] &&
-                  !videoErrors[post.id] && (
-                    <span className="pointer-events-none absolute grid h-14 w-14 place-items-center rounded-full bg-black/50">
-                      <Play className="h-7 w-7 fill-white" aria-hidden="true" />
-                    </span>
-                  )}
+                {active && !playing && !buffering[post.id] && !videoErrors[post.id] && (
+                  <span className="pointer-events-none absolute grid h-14 w-14 place-items-center rounded-full bg-black/50">
+                    <Play className="h-7 w-7 fill-white" aria-hidden="true" />
+                  </span>
+                )}
               </div>
 
               {active && (
@@ -579,9 +519,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                       max={100}
                       step={0.1}
                       value={progress}
-                      onChange={(event) =>
-                        seekTo(post, Number(event.target.value))
-                      }
+                      onChange={(event) => seekTo(post, Number(event.target.value))}
                       aria-label="Seek video"
                       aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
                       className="video-seek h-1 w-full flex-1 cursor-pointer accent-white focus-visible:outline-none md:h-6 md:focus-visible:ring-2 md:focus-visible:ring-white"
@@ -602,11 +540,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                     aria-pressed={!muted}
                     className="grid h-11 w-11 cursor-pointer place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                   >
-                    {muted ? (
-                      <VolumeX className="h-5 w-5" />
-                    ) : (
-                      <Volume2 className="h-5 w-5" />
-                    )}
+                    {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
                   </button>
                 </div>
               </header>
@@ -618,11 +552,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                     params={{ username: post.author_username }}
                     className="flex min-h-11 min-w-0 items-center gap-2 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                   >
-                    <Avatar
-                      src={post.author_avatar}
-                      name={post.author_name}
-                      size={36}
-                    />
+                    <Avatar src={post.author_avatar} name={post.author_name} size={36} />
                     <span className="truncate text-sm font-semibold">
                       {post.author_name || `@${post.author_username}`}
                     </span>
@@ -634,10 +564,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                       onClick={() => follow.toggle(post.author_id, following)}
                       className="min-h-11 rounded-full border border-white/80 px-4 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
                     >
-                      {followLabel(
-                        following,
-                        follow.isRequested(post.author_id),
-                      )}
+                      {followLabel(following, follow.isRequested(post.author_id))}
                     </button>
                   )}
                 </div>
@@ -661,10 +588,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                   </p>
                 )}
                 <PostMeta post={post} tone="overlay" />
-                <time
-                  className="block text-sm text-white/75"
-                  dateTime={post.created_at}
-                >
+                <time className="block text-sm text-white/75" dateTime={post.created_at}>
                   {timeAgo(post.created_at)}
                 </time>
                 {user?.id && (
@@ -683,9 +607,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                     disabled={!!likeBusy[post.id]}
                     onClick={() => void toggleLike(post)}
                     aria-label={
-                      state.liked
-                        ? `Unlike, ${state.count} likes`
-                        : `Like, ${state.count} likes`
+                      state.liked ? `Unlike, ${state.count} likes` : `Like, ${state.count} likes`
                     }
                     aria-pressed={state.liked}
                     className="grid h-12 w-12 cursor-pointer place-items-center rounded-full bg-black/35 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
@@ -705,9 +627,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                   >
                     <CommentIcon className="h-6 w-6" aria-hidden="true" />
                   </button>
-                  <span className="text-sm font-semibold">
-                    {formatCount(post.comment_count)}
-                  </span>
+                  <span className="text-sm font-semibold">{formatCount(post.comment_count)}</span>
                 </div>
                 <div className="flex flex-col items-center gap-1">
                   <button
@@ -724,11 +644,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                   type="button"
                   onClick={() => void saved.toggle(post.id)}
                   disabled={saved.isPending(post.id)}
-                  aria-label={
-                    saved.isSaved(post.id)
-                      ? "Remove video from saved"
-                      : "Save video"
-                  }
+                  aria-label={saved.isSaved(post.id) ? "Remove video from saved" : "Save video"}
                   aria-pressed={saved.isSaved(post.id)}
                   className="grid h-12 w-12 cursor-pointer place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
                 >
@@ -745,10 +661,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                   className="grid h-12 w-12 cursor-pointer place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
                 >
                   {downloading[post.id] ? (
-                    <Loader2
-                      className="h-6 w-6 animate-spin"
-                      aria-hidden="true"
-                    />
+                    <Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" />
                   ) : (
                     <Download className="h-6 w-6" aria-hidden="true" />
                   )}
@@ -782,25 +695,15 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
           );
         })}
         {feed.isFetchingNextPage && (
-          <div
-            className="grid h-16 place-items-center text-white"
-            role="status"
-          >
+          <div className="grid h-16 place-items-center text-white" role="status">
             <Loader2 className="h-5 w-5 animate-spin" />
           </div>
         )}
         {feed.isError && (
-          <div
-            className="grid min-h-40 place-items-center bg-black p-5 text-white"
-            role="alert"
-          >
+          <div className="grid min-h-40 place-items-center bg-black p-5 text-white" role="alert">
             <div className="space-y-3 text-center">
               <p className="text-sm">Couldn't load more videos.</p>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => void feed.fetchNextPage()}
-              >
+              <Button type="button" variant="secondary" onClick={() => void feed.fetchNextPage()}>
                 Retry
               </Button>
             </div>
@@ -808,21 +711,14 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
         )}
       </section>
       <BottomNav />
-      <ShareVideoDialog
-        post={shareTarget}
-        onClose={() => setShareTarget(null)}
-      />
+      <ShareVideoDialog post={shareTarget} onClose={() => setShareTarget(null)} />
       {isMobile ? (
         <CommentsSheet
           postId={commentsVideo?.id ?? null}
           open={!!commentsVideo}
           onOpenChange={(open) => !open && setCommentsVideo(null)}
-          onAdded={() =>
-            void queryClient.invalidateQueries({ queryKey: ["video-feed"] })
-          }
-          onRemoved={() =>
-            void queryClient.invalidateQueries({ queryKey: ["video-feed"] })
-          }
+          onAdded={() => void queryClient.invalidateQueries({ queryKey: ["video-feed"] })}
+          onRemoved={() => void queryClient.invalidateQueries({ queryKey: ["video-feed"] })}
         />
       ) : (
         <VideoComments
@@ -831,10 +727,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
           currentUser={profile}
         />
       )}
-      <AlertDialog
-        open={!!deleteVideo}
-        onOpenChange={(open) => !open && setDeleteVideo(null)}
-      >
+      <AlertDialog open={!!deleteVideo} onOpenChange={(open) => !open && setDeleteVideo(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this video?</AlertDialogTitle>
@@ -966,13 +859,9 @@ function VideoComments({
               <Skeleton className="h-12 w-3/4" />
             </div>
           )}
-          {comments.isError && (
-            <p className="text-sm text-destructive">Couldn't load comments.</p>
-          )}
+          {comments.isError && <p className="text-sm text-destructive">Couldn't load comments.</p>}
           {comments.isSuccess && comments.data.length === 0 && (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              No comments yet.
-            </p>
+            <p className="py-8 text-center text-sm text-muted-foreground">No comments yet.</p>
           )}
           {comments.data?.map((comment) => (
             <CommentItem key={comment.id} comment={comment} />
@@ -1002,16 +891,8 @@ function VideoComments({
             onChange={setDraft}
             maxLength={300}
           />
-          <Button
-            type="submit"
-            className="min-h-11"
-            disabled={!draft.trim() || add.isPending}
-          >
-            {add.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              "Send"
-            )}
+          <Button type="submit" className="min-h-11" disabled={!draft.trim() || add.isPending}>
+            {add.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send"}
           </Button>
         </form>
       </DialogContent>
@@ -1025,11 +906,7 @@ function CommentItem({ comment }: { comment: CommentView }) {
   return (
     <div className="flex items-start gap-3">
       {author?.username ? (
-        <Link
-          to="/u/$username"
-          params={{ username: author.username }}
-          className="shrink-0"
-        >
+        <Link to="/u/$username" params={{ username: author.username }} className="shrink-0">
           <Avatar src={author.avatar_url} name={displayName} size={36} />
         </Link>
       ) : (
@@ -1050,10 +927,7 @@ function CommentItem({ comment }: { comment: CommentView }) {
           )}
         </p>
         <p className="break-words text-sm">{comment.content}</p>
-        <time
-          className="text-sm text-muted-foreground"
-          dateTime={comment.created_at}
-        >
+        <time className="text-sm text-muted-foreground" dateTime={comment.created_at}>
           {timeAgo(comment.created_at)}
         </time>
       </div>

@@ -2,16 +2,9 @@ import { Link } from "@tanstack/react-router";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import {
-  Flag,
-  Loader2,
-  MoreHorizontal,
-  Send,
-  Star,
-  Trash2,
-} from "lucide-react";
+import { Flag, Loader2, MoreHorizontal, Send, Star, Trash2 } from "lucide-react";
 import { Avatar } from "@/components/ediraa";
-import { CommentsSheet } from "@/components/comments-sheet";
+import { CommentBody, CommentsSheet, replyDraft } from "@/components/comments-sheet";
 import { UserSafetyMenu } from "@/components/user-safety-menu";
 import { ReportButton } from "@/components/report-sheet";
 import { Gallery } from "@/components/gallery";
@@ -214,7 +207,11 @@ export function PostCard({
   const captionText = post.content ?? "";
   const captionLines = captionText.split("\n");
   const longCaption = captionText.length > CAPTION_PREVIEW_CHARS || captionLines.length > 2;
-  const captionPreview = captionLines.slice(0, 2).join("\n").slice(0, CAPTION_PREVIEW_CHARS).trimEnd();
+  const captionPreview = captionLines
+    .slice(0, 2)
+    .join("\n")
+    .slice(0, CAPTION_PREVIEW_CHARS)
+    .trimEnd();
 
   // Someone else's post: report it, or mute / block its author.
   const otherMenu = !mine && !!post.author_id && !!post.author_username && (
@@ -223,8 +220,10 @@ export function PostCard({
       username={post.author_username}
       report={{ type: "post", id: post.id, label: isVideo ? "Report video" : "Report post" }}
       trigger={<MoreHorizontal className="h-5 w-5" aria-hidden="true" />}
-      triggerClassName={`pointer-events-auto rounded-full p-1 outline-none ${
-        isVideo ? "text-white hover:bg-white/15" : "text-muted-foreground hover:bg-elevated"
+      triggerClassName={`pointer-events-auto grid h-9 w-9 place-items-center rounded-full outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${
+        isVideo
+          ? "text-white hover:bg-white/15"
+          : "text-muted-foreground hover:bg-elevated hover:text-foreground"
       }`}
     />
   );
@@ -233,8 +232,10 @@ export function PostCard({
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="Post options"
-        className={`pointer-events-auto rounded-full p-1 outline-none ${
-          isVideo ? "text-white hover:bg-white/15" : "text-muted-foreground hover:bg-elevated"
+        className={`pointer-events-auto grid h-9 w-9 place-items-center rounded-full outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${
+          isVideo
+            ? "text-white hover:bg-white/15"
+            : "text-muted-foreground hover:bg-elevated hover:text-foreground"
         }`}
       >
         <MoreHorizontal className="h-5 w-5" />
@@ -259,15 +260,15 @@ export function PostCard({
       params={{ username: post.author_username }}
       className={`flex min-w-0 flex-1 items-center gap-3 ${isVideo ? "pointer-events-auto" : ""}`}
     >
-      <Avatar src={post.author_avatar} name={name} size={40} />
+      <Avatar src={post.author_avatar} name={name} size={44} />
       <div className="min-w-0 flex-1">
         <p
-          className={`truncate text-sm font-semibold ${isVideo ? "text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]" : ""}`}
+          className={`truncate font-display text-[0.95rem] font-bold leading-tight tracking-tight ${isVideo ? "text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]" : ""}`}
         >
           {name}
         </p>
         <p
-          className={`truncate text-xs ${isVideo ? "text-white/85 [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]" : "text-muted-foreground"}`}
+          className={`mt-0.5 truncate text-xs ${isVideo ? "text-white/85 [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]" : "text-muted-foreground"}`}
         >
           @{post.author_username} • {timeAgo(post.created_at)} • {post.audience}
         </p>
@@ -296,7 +297,7 @@ export function PostCard({
           </div>
         </div>
       ) : (
-        <div className="px-3 pt-3">
+        <div className="px-4 pt-4">
           <div className="flex items-center gap-3">
             {authorLink}
             {optionsMenu}
@@ -307,22 +308,22 @@ export function PostCard({
 
       {/* A text-only post keeps its text on top; with a photo or video the caption goes underneath. */}
       {post.content && !hasMedia && (
-        <p className="mt-3 whitespace-pre-line break-words px-3 text-sm leading-relaxed">
+        <p className="mt-3 whitespace-pre-line break-words px-4 text-[0.95rem] leading-relaxed">
           <RichText text={post.content} />
         </p>
       )}
-      <div className="px-3 empty:hidden">
+      <div className="px-4 empty:hidden">
         <PollCard postId={post.id} />
       </div>
       {!isVideo && post.image_url && (
         <>
           {/* Photo sits right under the profile row, full width, shown whole (never cropped). */}
-          <div className="relative mt-3 bg-black/5">
+          <div className="relative mt-3 overflow-hidden bg-black/30">
             <button
               type="button"
               onClick={onPhotoClick}
               aria-label="Open photo"
-              className="block w-full touch-manipulation select-none overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="relative z-10 block w-full touch-manipulation select-none overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <img
                 src={post.image_url}
@@ -332,10 +333,19 @@ export function PostCard({
                 className="mx-auto block h-auto max-h-[80dvh] w-full object-contain"
               />
             </button>
+            {/* Decorative: the same photo, blurred, fills any side gaps. Same file, so one download. */}
+            <img
+              src={post.image_url}
+              alt=""
+              aria-hidden="true"
+              loading="lazy"
+              draggable={false}
+              className="sz-media-glow pointer-events-none absolute inset-0 z-0 h-full w-full object-cover"
+            />
             <span
               ref={heartPop}
               aria-hidden="true"
-              className="pointer-events-none absolute inset-0 grid place-items-center opacity-0"
+              className="pointer-events-none absolute inset-0 z-20 grid place-items-center opacity-0"
             >
               <HeartIcon className="h-24 w-24 fill-red-500 text-red-500 drop-shadow-[0_4px_14px_rgba(0,0,0,0.35)]" />
             </span>
@@ -355,116 +365,118 @@ export function PostCard({
         </>
       )}
 
-      <div className="px-3 pb-3">
-      {/* Instagram-style action bar: icons only, each with its number beside it; Save sits at the far end. */}
-      <div className="mt-3 flex items-center gap-1 border-t border-border pt-2 text-sm font-semibold max-sm:mt-1.5 max-sm:pt-0.5">
-        <button
-          type="button"
-          onClick={onLikeClick}
-          aria-pressed={liked}
-          aria-label={liked ? `Unlike, ${likes} likes` : `Like, ${likes} likes`}
-          className="flex min-h-10 touch-manipulation items-center gap-1.5 rounded-full px-2.5"
-        >
-          <HeartIcon
-            className={`h-6 w-6 ${liked ? "fill-red-500 text-red-500" : ""}`}
-          />
-          {formatCount(likes) && <span>{formatCount(likes)}</span>}
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowComments((v) => !v)}
-          aria-expanded={showComments}
-          aria-label={`Comments, ${commentCount}`}
-          className="flex min-h-10 items-center gap-1.5 rounded-full px-2.5"
-        >
-          <CommentIcon
-            className={`h-6 w-6 ${showComments ? "text-primary" : ""}`}
-            aria-hidden="true"
-          />
-          {formatCount(commentCount) && <span>{formatCount(commentCount)}</span>}
-        </button>
-        <button
-          type="button"
-          onClick={() => setShareOpen(true)}
-          aria-label={`Share, ${shareCount} shares`}
-          className="flex min-h-10 items-center gap-1.5 rounded-full px-2.5"
-        >
-          <ShareIcon className="h-6 w-6" aria-hidden="true" />
-          {formatCount(shareCount) && <span>{formatCount(shareCount)}</span>}
-        </button>
-        <button
-          type="button"
-          onClick={() => void saved.toggle(post.id)}
-          disabled={savePending}
-          aria-label={
-            isSaved
-              ? isVideo
-                ? "Remove video from saved"
-                : "Remove from saved"
-              : isVideo
-                ? "Save video"
-                : "Save post"
-          }
-          aria-pressed={isSaved}
-          className={`ml-auto grid min-h-10 min-w-10 place-items-center rounded-full disabled:opacity-60 ${isSaved ? "text-warning" : ""}`}
-        >
-          <Star
-            className={`h-6 w-6 ${isSaved ? "fill-warning" : ""}`}
-            aria-hidden="true"
-          />
-        </button>
-      </div>
-
-      {user && <PostLikedBy postId={post.id} likes={likes} meId={user.id} authorId={post.author_id} />}
-
-      {captionText && hasMedia && (
-        <p className="mt-2 whitespace-pre-line break-words px-1 pb-0.5 text-sm leading-snug">
-          <Link
-            to="/u/$username"
-            params={{ username: post.author_username }}
-            className="mr-1.5 font-semibold hover:underline"
+      <div className="px-3 pb-4 sm:px-4">
+        {/* Action bar: icons with their counts in a soft pill row; Save sits at the far end. */}
+        <div className="mt-2 flex items-center gap-1 pt-1 text-sm font-semibold text-muted-foreground">
+          <button
+            type="button"
+            onClick={onLikeClick}
+            aria-pressed={liked}
+            aria-label={liked ? `Unlike, ${likes} likes` : `Like, ${likes} likes`}
+            className="flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full px-3 transition-colors hover:bg-elevated hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-pressed:text-foreground"
           >
-            {post.author_username}
-          </Link>
-          <RichText text={longCaption && !captionOpen ? captionPreview : captionText} />
-          {longCaption && !captionOpen && <span className="text-muted-foreground">… </span>}
-          {longCaption && (
-            <button
-              type="button"
-              onClick={() => setCaptionOpen((v) => !v)}
-              aria-expanded={captionOpen}
-              className="ml-1 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            <HeartIcon
+              className={`sz-pop h-6 w-6 ${liked ? "fill-red-500 text-red-500 drop-shadow-[0_2px_8px_rgba(239,68,68,0.45)]" : ""}`}
+            />
+            {formatCount(likes) && <span>{formatCount(likes)}</span>}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowComments((v) => !v)}
+            aria-expanded={showComments}
+            aria-label={`Comments, ${commentCount}`}
+            className="flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full px-3 transition-colors hover:bg-elevated hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <CommentIcon
+              className={`h-6 w-6 ${showComments ? "text-primary" : ""}`}
+              aria-hidden="true"
+            />
+            {formatCount(commentCount) && <span>{formatCount(commentCount)}</span>}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShareOpen(true)}
+            aria-label={`Share, ${shareCount} shares`}
+            className="flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full px-3 transition-colors hover:bg-elevated hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <ShareIcon className="h-6 w-6" aria-hidden="true" />
+            {formatCount(shareCount) && <span>{formatCount(shareCount)}</span>}
+          </button>
+          <button
+            type="button"
+            onClick={() => void saved.toggle(post.id)}
+            disabled={savePending}
+            aria-label={
+              isSaved
+                ? isVideo
+                  ? "Remove video from saved"
+                  : "Remove from saved"
+                : isVideo
+                  ? "Save video"
+                  : "Save post"
+            }
+            aria-pressed={isSaved}
+            className={`ml-auto grid min-h-11 min-w-11 place-items-center rounded-full transition-colors hover:bg-elevated hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 ${isSaved ? "text-warning" : ""}`}
+          >
+            <Star
+              className={`sz-pop h-6 w-6 ${isSaved ? "fill-warning" : ""}`}
+              aria-hidden="true"
+            />
+          </button>
+        </div>
+
+        {user && (
+          <PostLikedBy postId={post.id} likes={likes} meId={user.id} authorId={post.author_id} />
+        )}
+
+        {captionText && hasMedia && (
+          <p className="mt-2 whitespace-pre-line break-words px-1 pb-0.5 text-[0.9rem] leading-relaxed">
+            <Link
+              to="/u/$username"
+              params={{ username: post.author_username }}
+              className="mr-1.5 font-display font-bold hover:underline"
             >
-              {captionOpen ? "less" : "more"}
-            </button>
-          )}
-        </p>
-      )}
+              {post.author_username}
+            </Link>
+            <RichText text={longCaption && !captionOpen ? captionPreview : captionText} />
+            {longCaption && !captionOpen && <span className="text-muted-foreground">… </span>}
+            {longCaption && (
+              <button
+                type="button"
+                onClick={() => setCaptionOpen((v) => !v)}
+                aria-expanded={captionOpen}
+                className="ml-1 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {captionOpen ? "less" : "more"}
+              </button>
+            )}
+          </p>
+        )}
 
-      <ShareVideoDialog
-        post={shareOpen ? { id: post.id } : null}
-        kind={isVideo ? "video" : "post"}
-        onClose={() => setShareOpen(false)}
-      />
+        <ShareVideoDialog
+          post={shareOpen ? { id: post.id } : null}
+          kind={isVideo ? "video" : "post"}
+          onClose={() => setShareOpen(false)}
+        />
 
-      {isMobile && (
-        <CommentsSheet
-          postId={post.id}
-          open={showComments}
-          onOpenChange={setShowComments}
-          onAdded={() => setCommentCount((n) => n + 1)}
-          onRemoved={() => setCommentCount((n) => Math.max(0, n - 1))}
-        />
-      )}
-      {!isMobile && showComments && (
-        <Comments
-          postId={post.id}
-          draft={draft}
-          setDraft={setDraft}
-          onAdded={() => setCommentCount((n) => n + 1)}
-          onRemoved={() => setCommentCount((n) => Math.max(0, n - 1))}
-        />
-      )}
+        {isMobile && (
+          <CommentsSheet
+            postId={post.id}
+            open={showComments}
+            onOpenChange={setShowComments}
+            onAdded={() => setCommentCount((n) => n + 1)}
+            onRemoved={() => setCommentCount((n) => Math.max(0, n - 1))}
+          />
+        )}
+        {!isMobile && showComments && (
+          <Comments
+            postId={post.id}
+            draft={draft}
+            setDraft={setDraft}
+            onAdded={() => setCommentCount((n) => n + 1)}
+            onRemoved={() => setCommentCount((n) => Math.max(0, n - 1))}
+          />
+        )}
       </div>
     </article>
   );
@@ -687,15 +699,11 @@ function Comments({
   const text = draft.trim();
 
   return (
-    <div className="mt-3 space-y-3 border-t border-border pt-3">
-      {list.isLoading && (
-        <Loader2 className="mx-auto h-4 w-4 animate-spin text-muted-foreground" />
-      )}
-      {list.isError && (
-        <p className="text-xs text-destructive">Couldn't load comments.</p>
-      )}
+    <div className="mt-3 space-y-3.5 border-t border-border pt-4">
+      {list.isLoading && <Loader2 className="mx-auto h-4 w-4 animate-spin text-muted-foreground" />}
+      {list.isError && <p className="text-xs text-destructive">Couldn't load comments.</p>}
       {list.data?.map((c) => (
-        <div key={c.id} className="flex items-start gap-2">
+        <div key={c.id} className="flex items-start gap-2.5">
           <CommentAuthorLink author={c.author} className="shrink-0">
             <Avatar
               src={c.author?.avatar_url}
@@ -703,18 +711,27 @@ function Comments({
               size={30}
             />
           </CommentAuthorLink>
-          <div className="min-w-0 flex-1 rounded-xl bg-elevated/60 px-3 py-2">
-            <p className="text-xs font-semibold">
+          <div className="min-w-0 flex-1 rounded-2xl rounded-tl-md border border-border bg-elevated/60 px-3.5 py-2.5">
+            <p className="text-xs font-bold">
               <CommentAuthorLink author={c.author} className="hover:underline">
                 {c.author?.full_name || c.author?.username}
               </CommentAuthorLink>{" "}
-              <span className="font-normal text-muted-foreground">
-                • {timeAgo(c.created_at)}
-              </span>
+              <span className="font-normal text-muted-foreground">• {timeAgo(c.created_at)}</span>
             </p>
-            <p className="mt-0.5 whitespace-pre-line break-words text-sm">
-              {c.content}
-            </p>
+            <CommentBody text={c.content} className="mt-0.5" />
+            {!!c.author?.username && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDraft(replyDraft(draft, c.author?.username));
+                  commentInputRef.current?.focus();
+                }}
+                aria-label={`Reply to ${c.author?.full_name || c.author?.username}`}
+                className="mt-1 text-xs font-semibold text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Reply
+              </button>
+            )}
           </div>
           {c.author_id === user?.id && (
             <button
@@ -752,19 +769,14 @@ function Comments({
             if (e.key === "Enter" && text && !add.isPending) add.mutate(text);
           }}
           placeholder="Write a comment…"
-          className="min-w-0 flex-1 rounded-full border border-border bg-elevated/40 px-4 py-2 text-sm outline-none placeholder:text-muted-foreground focus:border-primary"
+          className="min-w-0 flex-1 rounded-full border border-border bg-elevated/50 px-4 py-2.5 text-sm outline-none placeholder:text-muted-foreground focus:border-primary/60"
         />
-        <EmojiButton
-          inputRef={commentInputRef}
-          value={draft}
-          onChange={setDraft}
-          maxLength={300}
-        />
+        <EmojiButton inputRef={commentInputRef} value={draft} onChange={setDraft} maxLength={300} />
         <button
           onClick={() => text && add.mutate(text)}
           disabled={!text || add.isPending}
           aria-label="Send comment"
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-brand text-primary-foreground disabled:opacity-50"
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-brand text-primary-foreground glow disabled:opacity-50 disabled:shadow-none"
         >
           {add.isPending ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -789,11 +801,7 @@ function CommentAuthorLink({
 }) {
   if (!author?.username) return <span className={className}>{children}</span>;
   return (
-    <Link
-      to="/u/$username"
-      params={{ username: author.username }}
-      className={className}
-    >
+    <Link to="/u/$username" params={{ username: author.username }} className={className}>
       {children}
     </Link>
   );

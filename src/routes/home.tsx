@@ -1,19 +1,22 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { Bell, Loader2, Search as SearchIcon, UsersRound } from "lucide-react";
 import {
-  Avatar,
-  BottomNav,
-  BrandLockup,
-  Pill,
-  SideNav,
-  UserRow,
-  Verified,
-} from "@/components/ediraa";
-import { CommunityBadge, CommunityHomeStrip } from "@/components/community-home";
+  Bell,
+  Compass,
+  Loader2,
+  Newspaper,
+  Plus,
+  RefreshCw,
+  Search as SearchIcon,
+  WifiOff,
+} from "lucide-react";
+import type { ReactNode } from "react";
+import { Avatar, BrandLockup, UserRow, Verified } from "@/components/ediraa";
+import { CommunityHomeStrip } from "@/components/community-home";
 import { LocalTiles } from "@/components/local-tiles";
 import { LocalityPicker } from "@/components/locality-picker";
+import { PageShell } from "@/components/page-shell";
 import { PostCard } from "@/components/post-card";
 import { Stories } from "@/components/stories";
 import { useAuth } from "@/lib/auth";
@@ -105,177 +108,282 @@ function HomePage() {
 
   const follow = useFollow();
 
+  const unreadCount = unread.data ?? 0;
+
   return (
-    <div className="mx-auto max-w-[1480px] app-page px-4 sm:px-6 pb-24 pt-0 sm:pt-5 sm:pb-28 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]">
-      <SideNav />
-      <main className="app-main min-w-0 space-y-1.5 sm:space-y-4">
-        <header className="flex flex-wrap items-center justify-between gap-y-3 md:flex-nowrap md:gap-4 lg:min-h-16 2xl:min-h-[4.5rem]">
+    <PageShell
+      aside={
+        <aside className="sticky top-6 hidden h-fit space-y-4 lg:block" aria-label="Suggestions">
+          <section className="glass-card space-y-4 p-4">
+            <h2 className="text-base font-bold">People you may know</h2>
+            {people.isLoading && (
+              <div className="space-y-3" role="status" aria-label="Loading suggestions">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <div className="sz-skeleton h-10 w-10 rounded-full" />
+                    <div className="sz-skeleton h-3 w-28 rounded-full" />
+                  </div>
+                ))}
+              </div>
+            )}
+            {people.isSuccess && people.data.length === 0 && (
+              <p className="text-sm text-muted-foreground">No suggestions right now.</p>
+            )}
+            {people.data?.map((p) => (
+              <UserRow
+                key={p.id}
+                name={p.full_name || p.username}
+                username={p.username}
+                sub={
+                  p.mutual_count > 0
+                    ? `${p.mutual_count} mutual ${p.mutual_count === 1 ? "friend" : "friends"}`
+                    : `@${p.username}`
+                }
+                img={p.avatar_url}
+                following={follow.isFollowing(p.id, p.is_following)}
+                requested={follow.isRequested(p.id)}
+                pending={follow.isPending(p.id)}
+                onToggle={() => follow.toggle(p.id, follow.isFollowing(p.id, p.is_following))}
+              />
+            ))}
+          </section>
+          <section className="glass-card p-4">
+            <h2 className="mb-3 text-base font-bold">Trending Topics</h2>
+            {trending.isSuccess && trending.data.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                Hashtags used in posts will trend here.
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {trending.data?.map((t) => (
+                <span
+                  key={t.tag}
+                  className="rounded-full border border-border bg-elevated/60 px-3 py-1.5 text-xs font-semibold"
+                >
+                  <span className="text-primary">#</span>
+                  {t.tag}
+                </span>
+              ))}
+            </div>
+            <p className="mt-4 flex items-center gap-1 text-xs text-muted-foreground">
+              SabZone Official <Verified />
+            </p>
+          </section>
+        </aside>
+      }
+    >
+      {/* Sticky, frosted top bar: brand + quick actions, with the feed switcher underneath. */}
+      <header className="sz-frost sticky top-0 z-30 -mx-4 space-y-2.5 px-4 pb-2.5 pt-[max(0.5rem,env(safe-area-inset-top))] sm:-mx-6 sm:px-6 md:mx-0 md:rounded-2xl md:border md:border-border md:px-3 md:pb-2.5 md:pt-2.5 md:top-3">
+        <div className="flex items-center justify-between gap-3 md:hidden">
           {/* The name lives in the side menu on desktop; keep it on phones, which have no side menu. */}
-          <h1 className="order-1 md:hidden">
+          <h1>
             <span className="sr-only">SabZone</span>
             <BrandLockup compact />
           </h1>
-          <div className="scrollbar-hidden order-3 flex w-full gap-2 overflow-x-auto md:order-1 md:w-auto md:min-w-0 md:flex-1">
-            {TABS.map((t) => (
-              <Pill key={t.key} active={tab === t.key} compact onClick={() => setTab(t.key)}>
-                {t.label}
-              </Pill>
-            ))}
-          </div>
-          <div className="order-2 flex shrink-0 items-center gap-2 md:order-2 md:gap-4">
+          <div className="flex shrink-0 items-center gap-1.5">
             <Link
               to="/discover"
               aria-label="Search"
-              className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
+              className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card/70 transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <span className="grid h-11 w-11 place-items-center rounded-full hover:bg-muted">
-                <SearchIcon className="h-6 w-6" />
-              </span>
+              <SearchIcon className="h-5 w-5" />
             </Link>
-            <Link
-              to="/notifications"
-              aria-label={`Notifications${(unread.data ?? 0) > 0 ? `, ${unread.data} unread` : ""}`}
-              className="relative rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <span className="grid h-11 w-11 place-items-center rounded-full hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                <Bell className="h-6 w-6" />
-              </span>
-              {(unread.data ?? 0) > 0 && (
-                <span className="absolute right-0 top-0 grid min-h-5 min-w-5 place-items-center rounded-full bg-brand-accent px-1 text-[10px] font-bold leading-none text-brand-accent-foreground">
-                  {(unread.data ?? 0) > 99 ? "99+" : unread.data}
-                  <span className="sr-only"> unread</span>
-                </span>
-              )}
-            </Link>
+            <BellLink unread={unreadCount} />
           </div>
-        </header>
-        <LocalTiles area={activeLocality} />
-        <Stories onLocalHub={() => setTab("local")} />
-        <section className="glass-card p-3">
-          <Link
-            to="/create"
-            className="flex items-center gap-3 rounded-xl border border-border bg-elevated/40 p-3"
+        </div>
+        <div className="flex items-center gap-3">
+          <div
+            role="group"
+            aria-label="Feed"
+            className="grid min-w-0 flex-1 grid-cols-4 gap-1 rounded-2xl bg-secondary/70 p-1 md:flex md:flex-none"
           >
-            <Avatar src={me} name={myName} size={34} />
-            <span className="text-sm text-muted-foreground">What's on your mind?</span>
-          </Link>
-        </section>
-
-        <CommunityHomeStrip />
-
-        {tab === "local" && (
-          <LocalityPicker
-            active={activeLocality}
-            profileLocation={profileLocation}
-            selected={pickedLocality}
-            onSelect={setPickedLocality}
-          />
-        )}
-
-        {feed.isLoading && !localNeedsSetup && (
-          <div className="grid place-items-center py-10">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            {TABS.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                aria-pressed={tab === t.key}
+                onClick={() => setTab(t.key)}
+                className={`min-h-9 truncate rounded-xl px-2 text-[12.5px] font-semibold transition-colors md:px-4 md:text-sm ${
+                  tab === t.key
+                    ? "bg-card text-foreground shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_6px_16px_-8px_rgba(0,0,0,0.8)] ring-1 ring-primary/30"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
-        )}
-        {feed.isError && (
-          <div className="glass-card space-y-3 p-4 text-center text-sm">
-            <p className="text-muted-foreground">Couldn't load your feed.</p>
-            <button
-              onClick={() => feed.refetch()}
-              className="rounded-full border border-primary px-4 py-1.5 font-medium text-primary"
-            >
-              Try again
-            </button>
+          <div className="ml-auto hidden md:block">
+            <BellLink unread={unreadCount} />
           </div>
-        )}
-        {feed.isSuccess && !localNeedsSetup && posts.length === 0 && (
-          <div className="glass-card p-6 text-center text-sm text-muted-foreground">
+        </div>
+      </header>
+
+      <LocalTiles area={activeLocality} />
+      <Stories onLocalHub={() => setTab("local")} />
+
+      <section className="glass-card p-3 sm:p-4">
+        <Link
+          to="/create"
+          className="group flex min-h-12 items-center gap-3 rounded-2xl border border-border bg-elevated/50 p-2 pr-2.5 transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Avatar src={me} name={myName} size={36} />
+          <span className="flex-1 text-sm text-muted-foreground">What's on your mind?</span>
+          <span
+            aria-hidden="true"
+            className="grid h-8 w-8 place-items-center rounded-full bg-gradient-brand text-primary-foreground transition-transform group-hover:scale-105"
+          >
+            <Plus className="h-4 w-4" strokeWidth={2.75} />
+          </span>
+        </Link>
+      </section>
+
+      <CommunityHomeStrip />
+
+      {tab === "local" && (
+        <LocalityPicker
+          active={activeLocality}
+          profileLocation={profileLocation}
+          selected={pickedLocality}
+          onSelect={setPickedLocality}
+        />
+      )}
+
+      {feed.isLoading && !localNeedsSetup && <FeedSkeleton />}
+      {feed.isError && (
+        <FeedMessage
+          icon={<WifiOff className="h-6 w-6" aria-hidden="true" />}
+          title="Can't reach your feed"
+          tone="error"
+        >
+          <p className="text-muted-foreground">Couldn't load your feed.</p>
+          <button
+            type="button"
+            onClick={() => feed.refetch()}
+            className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-2xl border border-primary/50 px-5 font-semibold text-primary transition-colors hover:bg-primary/10"
+          >
+            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+            Try again
+          </button>
+        </FeedMessage>
+      )}
+      {feed.isSuccess && !localNeedsSetup && posts.length === 0 && (
+        <FeedMessage
+          icon={<Newspaper className="h-6 w-6" aria-hidden="true" />}
+          title="Nothing here yet"
+        >
+          <p className="text-muted-foreground">
             {tab === "local" && activeLocality
               ? `No posts from ${activeLocality} yet.`
               : EMPTY[tab]}
-            {tab === "following" && (
-              <div className="mt-4">
-                <Link
-                  to="/discover"
-                  className="rounded-full border border-primary px-5 py-2 font-semibold text-primary"
-                >
-                  Find people to follow
-                </Link>
-              </div>
-            )}
-            {tab === "for_you" && (
-              <div className="mt-4">
-                <Link
-                  to="/create"
-                  className="rounded-full bg-gradient-brand px-5 py-2 font-semibold text-primary-foreground"
-                >
-                  Create a post
-                </Link>
-              </div>
-            )}
-          </div>
-        )}
-        {posts.map((p) => (
-          <PostCard key={p.id} post={p} />
-        ))}
-        {feed.hasNextPage && (
-          <button
-            onClick={() => feed.fetchNextPage()}
-            disabled={feed.isFetchingNextPage}
-            className="mx-auto flex items-center gap-2 rounded-full border border-border px-5 py-2 text-sm font-medium disabled:opacity-60"
-          >
-            {feed.isFetchingNextPage && <Loader2 className="h-4 w-4 animate-spin" />}
-            Load more
-          </button>
-        )}
-      </main>
-
-      <aside className="sticky top-6 hidden h-fit space-y-4 lg:block">
-        <section className="glass-card space-y-4 p-4">
-          <h2 className="font-semibold">People you may know</h2>
-          {people.isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-          {people.isSuccess && people.data.length === 0 && (
-            <p className="text-sm text-muted-foreground">No suggestions right now.</p>
-          )}
-          {people.data?.map((p) => (
-            <UserRow
-              key={p.id}
-              name={p.full_name || p.username}
-              username={p.username}
-              sub={
-                p.mutual_count > 0
-                  ? `${p.mutual_count} mutual ${p.mutual_count === 1 ? "friend" : "friends"}`
-                  : `@${p.username}`
-              }
-              img={p.avatar_url}
-              following={follow.isFollowing(p.id, p.is_following)}
-              requested={follow.isRequested(p.id)}
-              pending={follow.isPending(p.id)}
-              onToggle={() => follow.toggle(p.id, follow.isFollowing(p.id, p.is_following))}
-            />
-          ))}
-        </section>
-        <section className="glass-card p-4">
-          <h2 className="mb-3 font-semibold">Trending Topics</h2>
-          {trending.isSuccess && trending.data.length === 0 && (
-            <p className="text-sm text-muted-foreground">Hashtags used in posts will trend here.</p>
-          )}
-          <div className="flex flex-wrap gap-2">
-            {trending.data?.map((t) => (
-              <span
-                key={t.tag}
-                className="rounded-full bg-elevated px-3 py-1.5 text-xs font-medium"
-              >
-                #{t.tag}
-              </span>
-            ))}
-          </div>
-          <p className="mt-4 flex items-center gap-1 text-xs text-muted-foreground">
-            SabZone Official <Verified />
           </p>
-        </section>
-      </aside>
-      <BottomNav />
+          {tab === "following" && (
+            <Link
+              to="/discover"
+              className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-2xl border border-primary/50 px-5 font-semibold text-primary transition-colors hover:bg-primary/10"
+            >
+              <Compass className="h-4 w-4" aria-hidden="true" />
+              Find people to follow
+            </Link>
+          )}
+          {tab === "for_you" && (
+            <Link
+              to="/create"
+              className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-2xl bg-gradient-brand px-5 font-bold text-primary-foreground glow"
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Create a post
+            </Link>
+          )}
+        </FeedMessage>
+      )}
+      {posts.map((p) => (
+        <PostCard key={p.id} post={p} />
+      ))}
+      {feed.hasNextPage && (
+        <button
+          type="button"
+          onClick={() => feed.fetchNextPage()}
+          disabled={feed.isFetchingNextPage}
+          className="mx-auto flex min-h-11 items-center gap-2 rounded-2xl border border-border bg-card/70 px-6 text-sm font-semibold transition-colors hover:border-primary/40 disabled:opacity-60"
+        >
+          {feed.isFetchingNextPage && <Loader2 className="h-4 w-4 animate-spin" />}
+          Load more
+        </button>
+      )}
+      {feed.isSuccess && !feed.hasNextPage && posts.length > 0 && (
+        <p className="py-6 text-center text-xs text-muted-foreground">You're all caught up.</p>
+      )}
+    </PageShell>
+  );
+}
+
+function BellLink({ unread }: { unread: number }) {
+  return (
+    <Link
+      to="/notifications"
+      aria-label={`Notifications${unread > 0 ? `, ${unread} unread` : ""}`}
+      className="relative grid h-11 w-11 place-items-center rounded-full border border-border bg-card/70 transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <Bell className="h-5 w-5" />
+      {unread > 0 && (
+        <span className="absolute -right-0.5 -top-0.5 grid min-h-5 min-w-5 place-items-center rounded-full bg-gradient-brand px-1 text-[10px] font-extrabold leading-none text-primary-foreground ring-2 ring-background">
+          {unread > 99 ? "99+" : unread}
+          <span className="sr-only"> unread</span>
+        </span>
+      )}
+    </Link>
+  );
+}
+
+/** Placeholder cards that mirror a real post while the feed loads. */
+function FeedSkeleton() {
+  return (
+    <div className="space-y-1.5 sm:space-y-4" role="status" aria-label="Loading your feed">
+      {[0, 1].map((i) => (
+        <div key={i} className="glass-card overflow-hidden" aria-hidden="true">
+          <div className="flex items-center gap-3 p-4">
+            <div className="sz-skeleton h-11 w-11 rounded-full" />
+            <div className="space-y-2">
+              <div className="sz-skeleton h-3 w-32 rounded-full" />
+              <div className="sz-skeleton h-2.5 w-20 rounded-full" />
+            </div>
+          </div>
+          <div className="sz-skeleton aspect-[4/3] w-full" />
+          <div className="space-y-2 p-4">
+            <div className="sz-skeleton h-3 w-3/4 rounded-full" />
+            <div className="sz-skeleton h-3 w-1/2 rounded-full" />
+          </div>
+        </div>
+      ))}
+      <span className="sr-only">Loading your feed…</span>
+    </div>
+  );
+}
+
+/** Shared empty / error card: an icon, a short title, then whatever message and action the caller adds. */
+function FeedMessage({
+  icon,
+  title,
+  tone = "default",
+  children,
+}: {
+  icon: ReactNode;
+  title: string;
+  tone?: "default" | "error";
+  children: ReactNode;
+}) {
+  return (
+    <div className="glass-card flex flex-col items-center px-6 py-10 text-center text-sm">
+      <span
+        className={`mb-4 grid h-14 w-14 place-items-center rounded-2xl ${
+          tone === "error" ? "bg-destructive/15 text-destructive" : "bg-primary/12 text-primary"
+        }`}
+      >
+        {icon}
+      </span>
+      <h2 className="mb-1 text-lg font-bold">{title}</h2>
+      {children}
     </div>
   );
 }

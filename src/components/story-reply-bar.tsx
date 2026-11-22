@@ -9,6 +9,7 @@ import {
   STORY_REPLY_MAX,
   type StoryReplyKind,
 } from "@/lib/story-reply";
+import { userMessage } from "@/lib/security";
 
 type Floater = { id: number; emoji: string; x: number };
 
@@ -50,7 +51,7 @@ export function StoryReplyBar({
         toast.success(`Sent to ${authorName}`);
       }
     },
-    onError: (e: Error) => toast.error(e.message || "Couldn't send. Please try again."),
+    onError: (e: Error) => toast.error(userMessage(e, "Couldn't send. Please try again.")),
   });
 
   const react = (emoji: string, e: React.MouseEvent<HTMLButtonElement>) => {
@@ -103,7 +104,7 @@ export function StoryReplyBar({
       <div className="flex items-center gap-2">
         <form
           onSubmit={submit}
-          className="flex min-h-12 min-w-0 flex-1 items-center rounded-full border border-white/30 bg-white/10 pl-4 pr-1.5 backdrop-blur-md transition focus-within:border-white/70 focus-within:bg-white/15"
+          className="flex min-h-12 min-w-0 flex-1 items-center rounded-full border border-white/25 bg-black/30 pl-4 pr-1.5 backdrop-blur-xl transition focus-within:border-primary/80 focus-within:bg-black/40"
         >
           <input
             ref={inputRef}
@@ -123,7 +124,7 @@ export function StoryReplyBar({
               type="submit"
               disabled={send.isPending}
               aria-label="Send message"
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-brand text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
             >
               {send.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />

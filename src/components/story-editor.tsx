@@ -68,6 +68,7 @@ import {
   type StoryOverlay,
 } from "@/lib/story-render";
 import { cn } from "@/lib/utils";
+import { userMessage } from "@/lib/security";
 
 const EMOJI_GROUPS: { label: string; items: string[] }[] = [
   {
@@ -685,7 +686,7 @@ export function StoryEditor({
       else onShare(out, chosen);
     } catch (err) {
       setSharing(false);
-      toast.error(err instanceof Error ? err.message : "Couldn't prepare your story.");
+      toast.error(userMessage(err, "Couldn't prepare your story."));
     }
   };
 
@@ -924,7 +925,7 @@ export function StoryEditor({
                   <button
                     type="button"
                     onClick={() => setAttempt((n) => n + 1)}
-                    className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-black transition active:scale-95"
+                    className="rounded-full bg-gradient-brand px-5 py-2 text-sm font-bold text-primary-foreground transition active:scale-95"
                   >
                     Retry
                   </button>
@@ -1034,7 +1035,7 @@ export function StoryEditor({
               className={cn(
                 "pointer-events-none absolute bottom-5 left-1/2 grid h-12 w-12 -translate-x-1/2 place-items-center rounded-full ring-1 ring-white/25 backdrop-blur-md transition-all duration-200",
                 dragging ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0",
-                overTrash ? "scale-125 bg-red-500" : "bg-black/50",
+                overTrash ? "scale-125 bg-destructive" : "bg-black/50",
               )}
             >
               <Trash2 className="h-5 w-5" />
@@ -1090,7 +1091,7 @@ export function StoryEditor({
                 className={cn(
                   "grid h-9 w-9 animate-in place-items-center rounded-full ring-1 sm:h-11 sm:w-11 backdrop-blur-md transition fill-mode-backwards duration-300 fade-in slide-in-from-right-3 active:scale-90",
                   b.active
-                    ? "bg-white text-black ring-white"
+                    ? "bg-primary text-primary-foreground ring-primary"
                     : "bg-black/40 text-white ring-white/15 hover:bg-black/55",
                 )}
               >
@@ -1106,7 +1107,7 @@ export function StoryEditor({
             <button
               type="button"
               onClick={() => setTool("none")}
-              className="absolute right-3 top-[max(env(safe-area-inset-top),0.5rem)] z-10 flex h-9 animate-in items-center gap-1.5 rounded-full bg-white px-4 text-[13px] font-bold sm:h-11 sm:px-5 sm:text-sm text-black duration-200 fade-in active:scale-95"
+              className="absolute right-3 top-[max(env(safe-area-inset-top),0.5rem)] z-10 flex h-9 animate-in items-center gap-1.5 rounded-full bg-gradient-brand px-4 text-[13px] font-bold text-primary-foreground sm:h-11 sm:px-5 sm:text-sm duration-200 fade-in active:scale-95"
             >
               <Check className="h-4 w-4" /> Done
             </button>
@@ -1173,7 +1174,7 @@ export function StoryEditor({
             placeholder="Add a caption…"
             aria-label="Add a caption"
             enterKeyHint="done"
-            className="h-10 min-w-0 flex-1 rounded-full bg-white/10 px-4 text-[14px] text-white outline-none sm:h-12 sm:px-5 sm:text-[15px] ring-1 ring-white/10 transition placeholder:text-white/50 focus:bg-white/15 focus:ring-white/30"
+            className="h-10 min-w-0 flex-1 rounded-full bg-white/10 px-4 text-[14px] text-white outline-none sm:h-12 sm:px-5 sm:text-[15px] ring-1 ring-white/10 transition placeholder:text-white/50 focus:bg-white/15 focus:ring-primary/60"
           />
           {onPickCloseFriends && (
             <button
@@ -1181,7 +1182,7 @@ export function StoryEditor({
               onClick={() => void share(true)}
               disabled={sharing || load === "error"}
               aria-label="Share with Close Friends"
-              className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-emerald-500 px-3.5 text-[13px] font-bold text-white shadow-lg transition active:scale-95 disabled:opacity-60 sm:h-12 sm:px-4 sm:text-[15px]"
+              className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-success px-3.5 text-[13px] font-bold text-success-foreground shadow-lg transition active:scale-95 disabled:opacity-60 sm:h-12 sm:px-4 sm:text-[15px]"
             >
               <Star className="h-[18px] w-[18px] fill-current sm:h-5 sm:w-5" />
               <span className="max-sm:sr-only">Close Friends</span>
@@ -1192,7 +1193,7 @@ export function StoryEditor({
             onClick={() => void share()}
             disabled={sharing || load === "error"}
             aria-label="Share story"
-            className="flex h-10 shrink-0 items-center gap-1.5 rounded-full px-4 text-[13px] font-bold text-white shadow-lg sm:h-12 sm:gap-2 sm:px-5 sm:text-[15px] shadow-primary/30 transition active:scale-95 disabled:opacity-60"
+            className="flex h-10 shrink-0 items-center gap-1.5 rounded-full px-4 text-[13px] font-bold text-primary-foreground shadow-lg sm:h-12 sm:gap-2 sm:px-5 sm:text-[15px] shadow-primary/30 transition active:scale-95 disabled:opacity-60"
             style={{ background: "var(--gradient-primary)" }}
           >
             {sharing ? (
@@ -1227,7 +1228,7 @@ export function StoryEditor({
               className={cn(
                 "grid h-9 w-9 place-items-center rounded-full text-base font-extrabold ring-1 sm:h-11 sm:w-11 sm:text-lg transition active:scale-90",
                 textDraft.box
-                  ? "bg-white text-black ring-white"
+                  ? "bg-primary text-primary-foreground ring-primary"
                   : "bg-white/10 text-white ring-white/20",
               )}
             >
@@ -1236,7 +1237,7 @@ export function StoryEditor({
             <button
               type="button"
               onClick={() => commitText(textDraft)}
-              className="h-9 rounded-full bg-white px-4 text-[13px] font-bold text-black sm:h-11 sm:px-5 sm:text-[15px] transition active:scale-95"
+              className="h-9 rounded-full bg-gradient-brand px-4 text-[13px] font-bold text-primary-foreground sm:h-11 sm:px-5 sm:text-[15px] transition active:scale-95"
             >
               Done
             </button>
@@ -1310,7 +1311,7 @@ export function StoryEditor({
                   className={cn(
                     "shrink-0 rounded-xl px-3 py-1.5 text-[14px] leading-tight ring-1 sm:rounded-2xl sm:px-5 sm:py-2.5 sm:text-[18px] transition active:scale-95",
                     active
-                      ? "bg-white text-black ring-white"
+                      ? "bg-primary text-primary-foreground ring-primary"
                       : "bg-white/10 text-white ring-white/20 hover:bg-white/15",
                   )}
                   style={{
@@ -1336,10 +1337,12 @@ export function StoryEditor({
             onClick={() => setSheet("none")}
             className="absolute inset-0 animate-in bg-black/55 backdrop-blur-[3px] duration-200 fade-in"
           />
-          <div className="relative flex h-[52%] animate-in flex-col rounded-t-[24px] sm:h-[62%] sm:rounded-t-[28px] bg-zinc-900/95 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl duration-300 slide-in-from-bottom">
+          <div className="relative flex h-[52%] animate-in flex-col rounded-t-[24px] sm:h-[62%] sm:rounded-t-[28px] bg-popover/95 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl duration-300 slide-in-from-bottom">
             <div className="mx-auto mt-2.5 h-1 w-10 rounded-full bg-white/25" />
             <div className="flex items-center justify-between px-5 pb-1 pt-3">
-              <h2 className="text-base font-bold tracking-tight sm:text-lg">Stickers</h2>
+              <h2 className="font-display text-base font-bold tracking-tight sm:text-lg">
+                Stickers
+              </h2>
               <button
                 type="button"
                 onClick={() => setSheet("none")}
@@ -1391,9 +1394,9 @@ export function StoryEditor({
           <div
             role="alertdialog"
             aria-label="Discard story"
-            className="relative w-full max-w-[15rem] animate-in rounded-2xl bg-zinc-900 p-4 text-center sm:max-w-xs sm:rounded-3xl sm:p-5 shadow-2xl ring-1 ring-white/10 duration-200 zoom-in-95 fade-in"
+            className="relative w-full max-w-[15rem] animate-in rounded-2xl bg-popover p-4 text-center sm:max-w-xs sm:rounded-3xl sm:p-5 shadow-2xl ring-1 ring-white/10 duration-200 zoom-in-95 fade-in"
           >
-            <h2 className="text-[15px] font-bold leading-snug sm:text-lg">
+            <h2 className="font-display text-[15px] font-bold leading-snug sm:text-lg">
               Do you want to discard this story?
             </h2>
             <p className="mt-1 text-xs text-white/60 sm:text-sm">
@@ -1403,7 +1406,7 @@ export function StoryEditor({
               <button
                 type="button"
                 onClick={onClose}
-                className="h-9 rounded-full bg-red-500 text-[13px] font-bold sm:h-11 sm:text-[15px] transition active:scale-95"
+                className="h-9 rounded-full bg-destructive text-[13px] font-bold text-destructive-foreground sm:h-11 sm:text-[15px] transition active:scale-95"
               >
                 Discard
               </button>

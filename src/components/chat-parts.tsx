@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useResolvedMediaUrl } from "@/lib/private-media";
+import { safeLinkUrl, safeMediaUrl } from "@/lib/security";
 import { createPortal } from "react-dom";
 import {
   Camera,
@@ -97,14 +99,18 @@ export function ReplyQuote({
         </span>
       </span>
       {quoted?.image_url && (
-        <img
-          src={quoted.image_url}
-          alt=""
-          loading="lazy"
-          className="h-12 w-12 shrink-0 object-cover"
-        />
+        <QuotedThumb url={quoted.image_url} className="h-12 w-12 shrink-0 object-cover" lazy />
       )}
     </button>
+  );
+}
+
+/** The little picture beside a quoted message. */
+function QuotedThumb({ url, className, lazy }: { url: string; className: string; lazy?: boolean }) {
+  const src = useResolvedMediaUrl(url);
+  if (!src) return <span className={`${className} bg-black/10`} aria-hidden="true" />;
+  return (
+    <img src={src} alt="" {...(lazy ? { loading: "lazy" as const } : {})} className={className} />
   );
 }
 
@@ -124,6 +130,9 @@ export function ImageBody({
   overlay?: ReactNode;
 }) {
   const [broken, setBroken] = useState(false);
+  const src = useResolvedMediaUrl(url);
+  // a new picture (or a freshly signed link) gets a fresh chance to load
+  useEffect(() => setBroken(false), [src]);
   const ratio = width && height ? Math.min(1.6, Math.max(0.7, width / height)) : 1;
   return (
     <div
@@ -134,9 +143,9 @@ export function ImageBody({
         <div className="grid h-full w-full place-items-center text-xs text-[var(--wa-meta)]">
           Photo unavailable
         </div>
-      ) : (
+      ) : !src ? null : (
         <img
-          src={url}
+          src={src}
           alt="Photo"
           loading="lazy"
           draggable={false}
@@ -167,17 +176,13 @@ export function FileBody({
   name: string | null | undefined;
   size: number | null | undefined;
 }) {
+  const signed = useResolvedMediaUrl(url);
+  const candidate = signed ?? url;
+  const href = safeLinkUrl(candidate) ?? (candidate.startsWith("blob:") ? safeMediaUrl(candidate) : null);
   const label = name || "Document";
   const ext = label.includes(".") ? (label.split(".").pop() ?? "").toUpperCase().slice(0, 5) : "";
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      download={label}
-      aria-label={`Open ${label}`}
-      className="flex w-[min(14.5rem,62vw)] max-w-full items-center gap-2.5 rounded-md sm:w-[min(16.5rem,70vw)] sm:gap-3 bg-[var(--wa-quote)] p-2.5 text-[var(--wa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-    >
+  const content = (
+    <>
       <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#f15c6d] text-white">
         <FileText className="h-5 w-5" aria-hidden="true" />
       </span>
@@ -187,7 +192,18 @@ export function FileBody({
           {[formatFileSize(size), ext].filter(Boolean).join(" · ") || "Tap to open"}
         </span>
       </span>
+    </>
+  );
+  const className = "flex w-[min(14.5rem,62vw)] max-w-full items-center gap-2.5 rounded-md sm:w-[min(16.5rem,70vw)] sm:gap-3 bg-[var(--wa-quote)] p-2.5 text-[var(--wa-text)]";
+
+  return href ? (
+    <a href={href} target="_blank" rel="noopener noreferrer" download={label}
+      aria-label={`Open ${label}`}
+      className={`${className} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}>
+      {content}
     </a>
+  ) : (
+    <div className={className}>{content}</div>
   );
 }
 
@@ -278,6 +294,7 @@ export function ReactionsSheet({
 
 /** Full-screen photo. Tap anywhere, press Escape or use the X to close. */
 export function ImageLightbox({ url, onClose }: { url: string; onClose: () => void }) {
+  const src = useResolvedMediaUrl(url);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -301,7 +318,7 @@ export function ImageLightbox({ url, onClose }: { url: string; onClose: () => vo
       >
         <X className="h-6 w-6" aria-hidden="true" />
       </button>
-      <img src={url} alt="Photo" className="max-h-full max-w-full object-contain" />
+      {src && <img src={src} alt="Photo" className="max-h-full max-w-full object-contain" />}
     </div>,
     document.body,
   );
@@ -533,7 +550,7 @@ export function ReplyBar({
           </span>
         </span>
         {quoted.image_url && (
-          <img src={quoted.image_url} alt="" className="h-11 w-11 shrink-0 object-cover" />
+          <QuotedThumb url={quoted.image_url} className="h-11 w-11 shrink-0 object-cover" />
         )}
       </div>
       <button

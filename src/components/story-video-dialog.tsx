@@ -19,6 +19,7 @@ import {
   planStorySegments,
   suggestedLimit,
 } from "@/lib/story-video";
+import { userMessage } from "@/lib/security";
 
 /**
  * Shown after a video is picked for a story: choose the length limit
@@ -88,7 +89,7 @@ export function StoryVideoDialog({
       onClose();
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") return;
-      setError(e instanceof Error ? e.message : "Couldn't add your story.");
+      setError(userMessage(e, "Couldn't add your story."));
       setUploading(false);
     }
   };
@@ -110,7 +111,7 @@ export function StoryVideoDialog({
 
         <video
           src={previewUrl}
-          className="max-h-56 w-full bg-black object-contain"
+          className="max-h-56 w-full rounded-2xl bg-black object-contain ring-1 ring-border"
           controls
           muted
           playsInline
@@ -134,10 +135,10 @@ export function StoryVideoDialog({
                 aria-checked={limit === o}
                 disabled={uploading}
                 onClick={() => setLimit(o)}
-                className={`min-h-11 rounded-xl border text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 ${
+                className={`min-h-11 rounded-2xl border text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 ${
                   limit === o
-                    ? "border-transparent bg-gradient-brand text-primary-foreground"
-                    : "border-border bg-card"
+                    ? "border-transparent bg-gradient-brand text-primary-foreground glow"
+                    : "border-border bg-elevated/40 hover:border-primary/40"
                 }`}
               >
                 {o}s
@@ -153,7 +154,7 @@ export function StoryVideoDialog({
         </div>
 
         {onEditCloseFriends && (
-          <div className="flex items-center gap-3 rounded-xl border border-border p-3">
+          <div className="flex items-center gap-3 rounded-2xl border border-border bg-elevated/40 p-3">
             <Star className="h-5 w-5 shrink-0 text-success" aria-hidden="true" />
             <div className="min-w-0 flex-1">
               <p id="story-close-label" className="text-sm font-medium">
@@ -193,7 +194,7 @@ export function StoryVideoDialog({
           <button
             type="button"
             onClick={requestClose}
-            className="min-h-11 rounded-full border border-border px-5 text-sm font-medium"
+            className="min-h-11 rounded-full border border-border bg-card/60 px-5 text-sm font-semibold transition-colors hover:border-primary/40"
           >
             Cancel
           </button>
@@ -201,7 +202,7 @@ export function StoryVideoDialog({
             type="button"
             onClick={publish}
             disabled={!plan.ok || uploading}
-            className="flex min-h-11 items-center justify-center gap-2 rounded-full bg-gradient-brand px-6 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+            className="flex min-h-11 items-center justify-center gap-2 rounded-full bg-gradient-brand px-6 text-sm font-bold text-primary-foreground glow disabled:opacity-50 disabled:shadow-none"
           >
             {uploading && <Loader2 className="h-4 w-4 animate-spin" />}
             {uploading ? "Publishing…" : error ? "Try again" : "Publish"}

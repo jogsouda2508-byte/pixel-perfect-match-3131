@@ -12,6 +12,7 @@ import {
   saveNotifyPrefs,
   type CommunityNotifyPrefs,
 } from "@/lib/community-notify";
+import { userMessage } from "@/lib/security";
 
 const ROWS: { key: keyof CommunityNotifyPrefs; label: string }[] = [
   { key: "alerts", label: "Nearby alerts" },
@@ -30,7 +31,7 @@ export function CommunityNotifyCard() {
     fetchNotifyPrefs()
       .then((p) => live && setPrefs(p))
       .catch((e: unknown) => {
-        if (live) setFailed(e instanceof Error ? e.message : "Couldn't load your choices.");
+        if (live) setFailed(userMessage(e, "Couldn't load your choices."));
       });
     return () => {
       live = false;
@@ -46,7 +47,7 @@ export function CommunityNotifyCard() {
       setPrefs(await saveNotifyPrefs({ ...before, [key]: value }));
     } catch (e) {
       setPrefs(before);
-      toast.error(e instanceof Error ? e.message : "Couldn't save your choice.");
+      toast.error(userMessage(e, "Couldn't save your choice."));
     } finally {
       setBusy(false);
     }

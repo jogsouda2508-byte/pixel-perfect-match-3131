@@ -9,6 +9,7 @@ import { GroupAvatar, PrivacyBadge, memberLabel } from "@/components/group-ui";
 import { GroupInvites } from "@/components/group-invites";
 import { useAuth } from "@/lib/auth";
 import { fetchGroups, setGroupMembership } from "@/lib/social";
+import { userMessage } from "@/lib/security";
 
 /** Browse, create and join groups; answer invitations. Used on /groups and Discover → Groups. */
 export function GroupsPanel({ query = "" }: { query?: string }) {
@@ -32,7 +33,7 @@ export function GroupsPanel({ query = "" }: { query?: string }) {
         ["groups", "chat-conversations"].map((k) => qc.invalidateQueries({ queryKey: [k] })),
       );
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't join the group."),
+    onError: (e) => toast.error(userMessage(e, "Couldn't join the group.")),
   });
 
   return (

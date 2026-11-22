@@ -50,6 +50,7 @@ import {
   PrimaryButton,
   SkeletonList,
 } from "./shared";
+import { userMessage } from "@/lib/security";
 
 export function MarketTab({ locality, meId }: { locality: string | null; meId: string }) {
   const qc = useQueryClient();
@@ -235,7 +236,7 @@ function ListingSheet({
       toast.success(v.sold ? "Marked as sold" : "Back on sale");
       onChanged();
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't update the item."),
+    onError: (e) => toast.error(userMessage(e, "Couldn't update the item.")),
   });
   const remove = useMutation({
     mutationFn: (id: string) => deleteListing(id),
@@ -243,7 +244,7 @@ function ListingSheet({
       toast.success("Item removed");
       onChanged();
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't remove the item."),
+    onError: (e) => toast.error(userMessage(e, "Couldn't remove the item.")),
   });
   const busy = chat.isPending || sold.isPending || remove.isPending;
 
@@ -412,7 +413,7 @@ function SellSheet({
       onDone();
       onOpenChange(false);
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't post your item."),
+    onError: (e) => toast.error(userMessage(e, "Couldn't post your item.")),
   });
 
   const addFiles = (list: FileList | null) => {

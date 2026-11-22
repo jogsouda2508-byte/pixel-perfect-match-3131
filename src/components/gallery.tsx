@@ -47,7 +47,7 @@ export function Gallery({
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/95" />
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md data-[state=open]:animate-in data-[state=open]:fade-in-0" />
         <DialogPrimitive.Content
           onKeyDown={onKeyDown}
           className="fixed inset-0 z-50 flex flex-col text-white outline-none"
@@ -57,13 +57,16 @@ export function Gallery({
             Use the left and right arrows to move between photos and videos.
           </DialogPrimitive.Description>
 
-          <div className="flex items-center justify-between px-3 py-2">
-            <span className="px-2 text-sm text-white/80" aria-live="polite">
+          <div className="flex items-center justify-between px-3 pb-2 pt-[max(env(safe-area-inset-top),0.5rem)]">
+            <span
+              className="rounded-full bg-white/10 px-3 py-1 text-sm font-semibold tabular-nums text-white/85 ring-1 ring-white/10"
+              aria-live="polite"
+            >
               {hasMany ? `${index + 1} / ${items.length}` : ""}
             </span>
             <DialogPrimitive.Close
               aria-label="Close"
-              className="grid h-11 w-11 place-items-center rounded-full hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              className="grid h-11 w-11 place-items-center rounded-full bg-white/10 ring-1 ring-white/10 transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
               <X className="h-6 w-6" />
             </DialogPrimitive.Close>
@@ -94,14 +97,14 @@ export function Gallery({
                   disablePictureInPicture
                   autoPlay
                   playsInline
-                  className="max-h-full max-w-full rounded-lg"
+                  className="max-h-full max-w-full rounded-2xl"
                 />
               ) : (
                 <img
                   key={item.id}
                   src={item.src}
                   alt={item.caption ?? ""}
-                  className="max-h-full max-w-full rounded-lg object-contain"
+                  className="max-h-full max-w-full rounded-2xl object-contain shadow-[0_30px_80px_-30px_rgba(0,0,0,0.9)]"
                 />
               ))}
 
@@ -110,7 +113,7 @@ export function Gallery({
                 type="button"
                 onClick={prev}
                 aria-label="Previous"
-                className="absolute left-2 top-1/2 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/15 hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white md:grid"
+                className="absolute left-2 top-1/2 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/10 ring-1 ring-white/15 backdrop-blur transition-colors hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white md:grid"
               >
                 <ChevronLeft className="h-6 w-6" />
               </button>
@@ -120,7 +123,7 @@ export function Gallery({
                 type="button"
                 onClick={next}
                 aria-label="Next"
-                className="absolute right-2 top-1/2 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/15 hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white md:grid"
+                className="absolute right-2 top-1/2 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/10 ring-1 ring-white/15 backdrop-blur transition-colors hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white md:grid"
               >
                 <ChevronRight className="h-6 w-6" />
               </button>
@@ -128,7 +131,7 @@ export function Gallery({
           </div>
 
           {item && (
-            <div className="flex items-center justify-between gap-3 px-4 py-3">
+            <div className="flex items-center justify-between gap-3 bg-gradient-to-t from-black/70 to-transparent px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-4">
               <p className="line-clamp-2 min-w-0 flex-1 break-words text-sm text-white/90">
                 {item.caption}
               </p>
@@ -137,7 +140,7 @@ export function Gallery({
                 params={{ id: item.id }}
                 search={{ comments: true }}
                 onClick={onClose}
-                className="flex shrink-0 items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-xs font-semibold hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                className="flex shrink-0 items-center gap-2 rounded-full bg-white/10 px-4 py-2.5 text-xs font-bold ring-1 ring-white/15 backdrop-blur transition-colors hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
                 <CommentIcon className="h-4 w-4" aria-hidden="true" />
                 Likes &amp; comments

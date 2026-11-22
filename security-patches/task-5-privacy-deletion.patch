@@ -1,0 +1,1970 @@
+diff --git a/docs/PRIVACY-ACCOUNT-DELETION.md b/docs/PRIVACY-ACCOUNT-DELETION.md
+new file mode 100644
+index 0000000..34a3de8
+--- /dev/null
++++ b/docs/PRIVACY-ACCOUNT-DELETION.md
+@@ -0,0 +1,35 @@
++# Privacy and account deletion (Nov 2026)
++
++## What changed
++
++**Account deletion (`src/lib/account.ts`, `src/components/delete-account.tsx`)**
++
++1. Email accounts must type their password. Google accounts have no password, so the server instead requires a sign-in from the last 10 minutes and the dialog offers "Sign out and sign in again".
++2. The server checks that sign-in age (`my_session_is_fresh()`) **before** any file is touched. A stale session can no longer delete an account, and a refused request never strands a person with their photos already gone.
++3. Files are removed before the account, as before, but a listing or removal error now stops the deletion with a clear message instead of being skipped. (Skipping left public avatars and videos online for people who no longer had an account.) A missing bucket counts as empty, and each removal is retried once.
++4. After a successful deletion, the data this app keeps on the device for that person is wiped.
++
++**Database (`20261116000000_privacy_account_deletion.sql`)**
++
++- `delete_my_account()` now refuses stale sessions, hands a group the person created to another member (admins first, then longest-standing) instead of destroying the group and its chat for everybody, and deletes chat rooms nobody is left in.
++- `get_login_emails(text)` is closed to the public key. The app does not use it (log-in is by username) and it turned a mailbox into the account emails behind it.
++
++**Text:** Privacy Policy and the public /delete-account page describe the password step and the group hand-over.
++
++## Apply order (nothing here deploys itself)
++
++1. Apply the patch to the repo and review it.
++2. Run `supabase/migrations/20261116000000_privacy_account_deletion.sql` (SQL Editor or `supabase db push`) **before** shipping the new web/app build. The new client calls `my_session_is_fresh()`; without it the dialog shows the "run the migration" hint.
++3. Ship the build.
++
++## Tests
++
++- `src/test/account.test.ts`: order of operations, wrong password, stale session, file failures, missing bucket, error mapping, device wipe.
++- `supabase/tests/replay/delete_account.assert.sql`: stale/foreign/fresh sessions, group hand-over, orphan chats, other people's data untouched, closed email lookup, and a guard that fails if any new table pointing at a person lacks `on delete cascade` / `set null`.
++
++## Still open (not changed on purpose)
++
++- **S1: username to email lookup is public.** `get_login_email(username)` and `get_reset_emails(identifier)` still answer to the public key, so anyone can learn the login email behind a username. The fix is a server-side log-in and reset step (an Edge Function holding the service key) so the browser never sees the email. That changes how everyone signs in and needs a deployment, so it is not part of this patch.
++- **S2: `chat-media` is a public bucket.** Chat photos and videos are reachable by anyone who has the URL. Making it private means signed URLs everywhere chat media is shown, plus rewriting stored URLs.
++- **Reports** that mention a deleted person are kept with the person unlinked (the policy says so). The free-text `details` of a report is kept as written.
++- Backups follow the provider's normal cycle.
+diff --git a/sabzone-privacy-account-deletion.patch b/sabzone-privacy-account-deletion.patch
+new file mode 100644
+index 0000000..d051ecf
+--- /dev/null
++++ b/sabzone-privacy-account-deletion.patch
+@@ -0,0 +1,982 @@
++diff --git a/docs/PRIVACY-ACCOUNT-DELETION.md b/docs/PRIVACY-ACCOUNT-DELETION.md
++new file mode 100644
++index 0000000..34a3de8
++--- /dev/null
+++++ b/docs/PRIVACY-ACCOUNT-DELETION.md
++@@ -0,0 +1,35 @@
+++# Privacy and account deletion (Nov 2026)
+++
+++## What changed
+++
+++**Account deletion (`src/lib/account.ts`, `src/components/delete-account.tsx`)**
+++
+++1. Email accounts must type their password. Google accounts have no password, so the server instead requires a sign-in from the last 10 minutes and the dialog offers "Sign out and sign in again".
+++2. The server checks that sign-in age (`my_session_is_fresh()`) **before** any file is touched. A stale session can no longer delete an account, and a refused request never strands a person with their photos already gone.
+++3. Files are removed before the account, as before, but a listing or removal error now stops the deletion with a clear message instead of being skipped. (Skipping left public avatars and videos online for people who no longer had an account.) A missing bucket counts as empty, and each removal is retried once.
+++4. After a successful deletion, the data this app keeps on the device for that person is wiped.
+++
+++**Database (`20261116000000_privacy_account_deletion.sql`)**
+++
+++- `delete_my_account()` now refuses stale sessions, hands a group the person created to another member (admins first, then longest-standing) instead of destroying the group and its chat for everybody, and deletes chat rooms nobody is left in.
+++- `get_login_emails(text)` is closed to the public key. The app does not use it (log-in is by username) and it turned a mailbox into the account emails behind it.
+++
+++**Text:** Privacy Policy and the public /delete-account page describe the password step and the group hand-over.
+++
+++## Apply order (nothing here deploys itself)
+++
+++1. Apply the patch to the repo and review it.
+++2. Run `supabase/migrations/20261116000000_privacy_account_deletion.sql` (SQL Editor or `supabase db push`) **before** shipping the new web/app build. The new client calls `my_session_is_fresh()`; without it the dialog shows the "run the migration" hint.
+++3. Ship the build.
+++
+++## Tests
+++
+++- `src/test/account.test.ts`: order of operations, wrong password, stale session, file failures, missing bucket, error mapping, device wipe.
+++- `supabase/tests/replay/delete_account.assert.sql`: stale/foreign/fresh sessions, group hand-over, orphan chats, other people's data untouched, closed email lookup, and a guard that fails if any new table pointing at a person lacks `on delete cascade` / `set null`.
+++
+++## Still open (not changed on purpose)
+++
+++- **S1: username to email lookup is public.** `get_login_email(username)` and `get_reset_emails(identifier)` still answer to the public key, so anyone can learn the login email behind a username. The fix is a server-side log-in and reset step (an Edge Function holding the service key) so the browser never sees the email. That changes how everyone signs in and needs a deployment, so it is not part of this patch.
+++- **S2: `chat-media` is a public bucket.** Chat photos and videos are reachable by anyone who has the URL. Making it private means signed URLs everywhere chat media is shown, plus rewriting stored URLs.
+++- **Reports** that mention a deleted person are kept with the person unlinked (the policy says so). The free-text `details` of a report is kept as written.
+++- Backups follow the provider's normal cycle.
++diff --git a/src/components/delete-account.tsx b/src/components/delete-account.tsx
++index 4cd7091..0fe8141 100644
++--- a/src/components/delete-account.tsx
+++++ b/src/components/delete-account.tsx
++@@ -12,7 +12,13 @@ import {
++   AlertDialogTitle,
++ } from "@/components/ui/alert-dialog";
++ import { useAuth } from "@/lib/auth";
++-import { DELETE_WORD, deleteMyAccount, isDeleteConfirmed } from "@/lib/account";
+++import {
+++  AccountDeletionError,
+++  DELETE_WORD,
+++  deleteMyAccount,
+++  hasPasswordLogin,
+++  isDeleteConfirmed,
+++} from "@/lib/account";
++ 
++ /** "Delete account" button + confirmation. Used in Settings and on the public /delete-account page. */
++ export function DeleteAccountButton() {
++@@ -20,13 +26,25 @@ export function DeleteAccountButton() {
++   const navigate = useNavigate();
++   const [open, setOpen] = useState(false);
++   const [text, setText] = useState("");
+++  const [password, setPassword] = useState("");
+++  const [problem, setProblem] = useState<{ code: string; message: string } | null>(null);
++   const [busy, setBusy] = useState(false);
++   if (!user) return null;
++ 
+++  // Accounts made with an email + password must type it again. Google-only accounts have no
+++  // password; the server instead insists they signed in a few minutes ago.
+++  const needsPassword = hasPasswordLogin(user);
+++  const ready = isDeleteConfirmed(text) && (!needsPassword || password.length > 0);
+++
++   const run = async () => {
++     setBusy(true);
+++    setProblem(null);
++     try {
++-      await deleteMyAccount(user.id);
+++      await deleteMyAccount({
+++        userId: user.id,
+++        email: user.email,
+++        password: needsPassword ? password : undefined,
+++      });
++       try {
++         await signOut();
++       } catch {
++@@ -35,17 +53,30 @@ export function DeleteAccountButton() {
++       toast.success("Your account was deleted.");
++       void navigate({ to: "/welcome", replace: true });
++     } catch (e) {
++-      toast.error(e instanceof Error ? e.message : "Couldn't delete your account.");
+++      const message = e instanceof Error ? e.message : "Couldn't delete your account.";
+++      setPassword("");
+++      setProblem({ code: e instanceof AccountDeletionError ? e.code : "failed", message });
++       setBusy(false);
++     }
++   };
++ 
+++  const signOutToRetry = async () => {
+++    try {
+++      await signOut();
+++    } catch {
+++      /* signing in again is all that matters */
+++    }
+++    void navigate({ to: "/login", replace: true });
+++  };
+++
++   return (
++     <>
++       <button
++         type="button"
++         onClick={() => {
++           setText("");
+++          setPassword("");
+++          setProblem(null);
++           setOpen(true);
++         }}
++         className="flex w-full items-center justify-center gap-2 rounded-full border border-destructive py-3 text-sm font-semibold text-destructive transition hover:bg-destructive/10"
++@@ -59,8 +90,8 @@ export function DeleteAccountButton() {
++             <AlertDialogTitle>Delete your account for good?</AlertDialogTitle>
++             <AlertDialogDescription>
++               Your profile, posts, stories, comments, messages you sent, followers, listings and
++-              bookings are removed, and so are your photos, videos and voice notes. This cannot be
++-              undone.
+++              bookings are removed, and so are your photos, videos and voice notes. Groups you
+++              created pass to another member. This cannot be undone.
++             </AlertDialogDescription>
++           </AlertDialogHeader>
++           <label className="block text-sm">
++@@ -73,12 +104,38 @@ export function DeleteAccountButton() {
++               className="mt-2 w-full rounded-[14px] border border-border bg-elevated/40 px-4 py-3 text-sm outline-none focus:border-destructive"
++             />
++           </label>
+++          {needsPassword && (
+++            <label className="block text-sm">
+++              Enter your password
+++              <input
+++                type="password"
+++                value={password}
+++                onChange={(e) => setPassword(e.target.value)}
+++                autoComplete="current-password"
+++                className="mt-2 w-full rounded-[14px] border border-border bg-elevated/40 px-4 py-3 text-sm outline-none focus:border-destructive"
+++              />
+++            </label>
+++          )}
+++          {problem && (
+++            <div role="alert" className="space-y-2 text-sm text-destructive">
+++              <p>{problem.message}</p>
+++              {problem.code === "reauth_required" && (
+++                <button
+++                  type="button"
+++                  onClick={signOutToRetry}
+++                  className="rounded-full border border-destructive px-3 py-1 text-xs font-semibold"
+++                >
+++                  Sign out and sign in again
+++                </button>
+++              )}
+++            </div>
+++          )}
++           <AlertDialogFooter>
++             <AlertDialogCancel disabled={busy}>Keep my account</AlertDialogCancel>
++             <button
++               type="button"
++               onClick={run}
++-              disabled={busy || !isDeleteConfirmed(text)}
+++              disabled={busy || !ready}
++               className="inline-flex items-center justify-center gap-2 rounded-md bg-destructive px-4 py-2 text-sm font-semibold text-destructive-foreground disabled:opacity-50"
++             >
++               {busy && <Loader2 className="h-4 w-4 animate-spin" />}
++diff --git a/src/lib/account.ts b/src/lib/account.ts
++index d7a2243..d8ffded 100644
++--- a/src/lib/account.ts
+++++ b/src/lib/account.ts
++@@ -1,4 +1,4 @@
++-import type { SupabaseClient } from "@supabase/supabase-js";
+++import type { SupabaseClient, User } from "@supabase/supabase-js";
++ import { supabase } from "@/integrations/supabase/client";
++ 
++ const db = supabase as unknown as SupabaseClient;
++@@ -7,19 +7,64 @@ export const DELETE_WORD = "DELETE";
++ 
++ export const DELETE_MIGRATION_HINT =
++   "Account deletion needs a one-time database update. In Supabase open SQL Editor, run " +
++-  "supabase/migrations/20261113000000_delete_account.sql, then try again.";
+++  "supabase/migrations/20261113000000_delete_account.sql and " +
+++  "supabase/migrations/20261116000000_privacy_account_deletion.sql, then try again.";
+++
+++export const REAUTH_MESSAGE =
+++  "For your security, please sign out, sign back in, and then delete your account.";
+++export const WRONG_PASSWORD_MESSAGE = "That password isn't right. Please try again.";
+++export const FILES_FAILED_MESSAGE =
+++  "We couldn't remove all of your uploaded photos and videos, so nothing was deleted. " +
+++  "Check your internet and try again.";
++ 
++ /** Every storage bucket that keeps files under a "<user id>/" folder. */
++ export const USER_BUCKETS = ["avatars", "media", "videos", "voice", "chat-media"] as const;
++ 
+++export type AccountDeletionErrorCode =
+++  | "wrong_password"
+++  | "reauth_required"
+++  | "files_failed"
+++  | "migration_missing"
+++  | "failed";
+++
+++/** Thrown by deleteMyAccount. `code` lets the screen react; `message` is safe to show. */
+++export class AccountDeletionError extends Error {
+++  constructor(
+++    readonly code: AccountDeletionErrorCode,
+++    message: string,
+++  ) {
+++    super(message);
+++    this.name = "AccountDeletionError";
+++  }
+++}
+++
++ /** True when what was typed matches the confirmation word (any case, spaces ignored). */
++ export function isDeleteConfirmed(text: string): boolean {
++   return text.trim().toUpperCase() === DELETE_WORD;
++ }
++ 
+++/** True when the person can prove who they are with a password (email sign-up), not only Google. */
+++export function hasPasswordLogin(user: Pick<User, "app_metadata" | "identities">): boolean {
+++  const providers = (user.app_metadata as { providers?: unknown } | undefined)?.providers;
+++  if (Array.isArray(providers) && providers.includes("email")) return true;
+++  return (user.identities ?? []).some((i) => i.provider === "email");
+++}
+++
++ type Entry = { name: string; id: string | null };
++ 
++-/** Lists every file under `prefix`, going into sub-folders (folders come back with a null id). */
+++/** A bucket that doesn't exist (or has nothing for this person) simply has no files to remove. */
+++function isNotFound(error: {
+++  message?: string | undefined;
+++  statusCode?: string | number | undefined;
+++}): boolean {
+++  return String(error.statusCode ?? "") === "404" || /not.?found/i.test(error.message ?? "");
+++}
+++
+++/**
+++ * Lists every file under `prefix`, going into sub-folders (folders come back with a null id).
+++ * A listing error is thrown, never treated as "empty": skipping files would leave a deleted
+++ * person's public photos online.
+++ */
++ async function listFiles(bucket: string, prefix: string, depth = 0): Promise<string[]> {
++   if (depth > 5) return [];
++   const files: string[] = [];
++@@ -27,7 +72,11 @@ async function listFiles(bucket: string, prefix: string, depth = 0): Promise<str
++     const { data, error } = await supabase.storage
++       .from(bucket)
++       .list(prefix, { limit: 100, offset });
++-    if (error || !data || data.length === 0) break;
+++    if (error) {
+++      if (isNotFound(error)) return files;
+++      throw error;
+++    }
+++    if (!data || data.length === 0) break;
++     for (const e of data as Entry[]) {
++       if (e.id) files.push(`${prefix}/${e.name}`);
++       else files.push(...(await listFiles(bucket, `${prefix}/${e.name}`, depth + 1)));
++@@ -37,36 +86,113 @@ async function listFiles(bucket: string, prefix: string, depth = 0): Promise<str
++   return files;
++ }
++ 
+++async function removeChunk(bucket: string, chunk: string[]): Promise<void> {
+++  // One quick retry: a dropped connection should not block someone from deleting their account.
+++  for (let attempt = 0; ; attempt++) {
+++    const { error } = await supabase.storage.from(bucket).remove(chunk);
+++    if (!error || isNotFound(error)) return;
+++    if (attempt >= 1) throw error;
+++  }
+++}
+++
++ /**
++- * Removes the person's uploaded photos, videos and voice notes. Best effort: a bucket that can't
++- * be read or cleaned doesn't stop the account from being deleted. Returns how many files went.
+++ * Removes the person's uploaded photos, videos and voice notes. Throws if any file could not be
+++ * removed, so the account is NOT deleted while its files are still online. Returns how many
+++ * files went.
++  */
++ export async function removeMyFiles(userId: string): Promise<number> {
++   let removed = 0;
++   for (const bucket of USER_BUCKETS) {
++-    try {
++-      const paths = await listFiles(bucket, userId);
++-      for (let i = 0; i < paths.length; i += 100) {
++-        const chunk = paths.slice(i, i + 100);
++-        const { error } = await supabase.storage.from(bucket).remove(chunk);
++-        if (!error) removed += chunk.length;
++-      }
++-    } catch (e) {
++-      console.error(`couldn't clean ${bucket}`, e);
+++    const paths = await listFiles(bucket, userId);
+++    for (let i = 0; i < paths.length; i += 100) {
+++      const chunk = paths.slice(i, i + 100);
+++      await removeChunk(bucket, chunk);
+++      removed += chunk.length;
++     }
++   }
++   return removed;
++ }
++ 
++-/** Deletes the files, then the account itself. The caller signs the person out afterwards. */
++-export async function deleteMyAccount(userId: string): Promise<void> {
++-  await removeMyFiles(userId);
+++/** Erases what this app keeps in the browser/phone for the person (drafts, "seen" markers, area). */
+++export function clearLocalUserData(userId: string): void {
+++  try {
+++    if (typeof window === "undefined" || !userId) return;
+++    const store = window.localStorage;
+++    const doomed: string[] = [];
+++    for (let i = 0; i < store.length; i++) {
+++      const key = store.key(i);
+++      if (key && key.includes(userId)) doomed.push(key);
+++    }
+++    for (const key of doomed) store.removeItem(key);
+++  } catch {
+++    /* storage can be unavailable (private mode); nothing more to do */
+++  }
+++}
+++
+++function looksLikeMissingMigration(message: string): boolean {
+++  return /delete_my_account|my_session_is_fresh|schema cache|does not exist/i.test(message);
+++}
+++
+++export type DeleteAccountInput = {
+++  userId: string;
+++  /** The login email, needed to check the password. */
+++  email?: string | null | undefined;
+++  /** Required for accounts that have a password (see hasPasswordLogin). */
+++  password?: string | undefined;
+++};
+++
+++/**
+++ * Deletes the account for good, in an order that never strands a half-deleted person:
+++ *  1. confirm the password (when the account has one),
+++ *  2. ask the server whether the sign-in is recent enough, BEFORE touching any file,
+++ *  3. remove the uploaded files (stops here if any can't be removed),
+++ *  4. delete the account and its data (database function),
+++ *  5. wipe what the app stored on this device.
+++ * The caller signs the person out afterwards.
+++ */
+++export async function deleteMyAccount(input: DeleteAccountInput): Promise<void> {
+++  const { userId, email, password } = input;
+++
+++  if (password !== undefined) {
+++    if (!email || password.length === 0)
+++      throw new AccountDeletionError("wrong_password", WRONG_PASSWORD_MESSAGE);
+++    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+++    if (error || data.user?.id !== userId)
+++      throw new AccountDeletionError("wrong_password", WRONG_PASSWORD_MESSAGE);
+++  }
+++
+++  const fresh = await db.rpc("my_session_is_fresh");
+++  if (fresh.error) {
+++    console.error("my_session_is_fresh failed", fresh.error);
+++    if (looksLikeMissingMigration(fresh.error.message ?? ""))
+++      throw new AccountDeletionError("migration_missing", DELETE_MIGRATION_HINT);
+++    throw new AccountDeletionError(
+++      "failed",
+++      "Couldn't delete your account. Check your internet and try again.",
+++    );
+++  }
+++  if (fresh.data !== true) throw new AccountDeletionError("reauth_required", REAUTH_MESSAGE);
+++
+++  try {
+++    await removeMyFiles(userId);
+++  } catch (e) {
+++    console.error("couldn't remove uploaded files", e);
+++    throw new AccountDeletionError("files_failed", FILES_FAILED_MESSAGE);
+++  }
+++
++   const { error } = await db.rpc("delete_my_account");
++   if (error) {
++     console.error("delete_my_account failed", error);
++-    if (/delete_my_account|schema cache|does not exist/i.test(error.message ?? "")) {
++-      throw new Error(DELETE_MIGRATION_HINT);
++-    }
++-    throw new Error("Couldn't delete your account. Check your internet and try again.");
+++    const message = error.message ?? "";
+++    if (/reauth_required/i.test(message))
+++      throw new AccountDeletionError("reauth_required", REAUTH_MESSAGE);
+++    if (looksLikeMissingMigration(message))
+++      throw new AccountDeletionError("migration_missing", DELETE_MIGRATION_HINT);
+++    throw new AccountDeletionError(
+++      "failed",
+++      "Couldn't delete your account. Check your internet and try again.",
+++    );
++   }
+++
+++  clearLocalUserData(userId);
++ }
++diff --git a/src/routes/delete-account.tsx b/src/routes/delete-account.tsx
++index f1f16d5..c4e65fb 100644
++--- a/src/routes/delete-account.tsx
+++++ b/src/routes/delete-account.tsx
++@@ -31,7 +31,7 @@ function DeleteAccountPage() {
++         <ol className="list-decimal space-y-1 pl-5 text-sm">
++           <li>Open More, then Settings &amp; Privacy.</li>
++           <li>Scroll to Delete account and tap Delete my account.</li>
++-          <li>Type DELETE and confirm.</li>
+++          <li>Type DELETE and enter your password to confirm. If you signed in with Google, sign in again first.</li>
++         </ol>
++       </section>
++ 
++@@ -40,7 +40,7 @@ function DeleteAccountPage() {
++         <p className="text-sm">
++           Your profile, posts, stories, comments, followers, messages you sent, market listings,
++           bookings and offers, blocks and Close Friends list, notification settings, and the photos,
++-          videos and voice notes you uploaded. This happens right away and cannot be undone.
+++          videos and voice notes you uploaded. This happens right away and cannot be undone. If you created a group that other people are in, it passes to another member so they keep it; a group with nobody else in it is deleted.
++         </p>
++       </section>
++ 
++diff --git a/src/routes/privacy.tsx b/src/routes/privacy.tsx
++index 0644f5b..25c8d1f 100644
++--- a/src/routes/privacy.tsx
+++++ b/src/routes/privacy.tsx
++@@ -95,7 +95,8 @@ function PrivacyPage() {
++             <p>
++               We keep your data while your account exists. When you delete your account, your
++               profile, posts, stories, comments, messages you sent, followers, listings, bookings
++-              and uploaded files are removed. Reports about you may be kept without a link to a
+++              and uploaded files are removed. A group you created that other people are in passes
+++              to another member; a group with nobody else in it is deleted. Reports about you may be kept without a link to a
++               profile so we can stop abuse. Backups are removed on their normal cycle. Copies of
++               messages that other people received may remain in their chats.
++             </p>
++diff --git a/src/test/account.test.ts b/src/test/account.test.ts
++index 5d0d7f6..64a0d74 100644
++--- a/src/test/account.test.ts
+++++ b/src/test/account.test.ts
++@@ -1,7 +1,95 @@
++-import { describe, expect, it } from "vitest";
++-import { DELETE_WORD, USER_BUCKETS, isDeleteConfirmed } from "@/lib/account";
+++import { beforeEach, describe, expect, it, vi } from "vitest";
++ 
++-describe("account deletion", () => {
+++const { auth, rpc, storage, calls } = vi.hoisted(() => {
+++  const calls: string[] = [];
+++  type Bucket = { list: ReturnType<typeof vi.fn>; remove: ReturnType<typeof vi.fn> };
+++  const buckets: Record<string, Bucket> = {};
+++  const storage = {
+++    buckets,
+++    from: (name: string): Bucket => {
+++      const bucket = buckets[name] ?? { list: vi.fn(), remove: vi.fn() };
+++      buckets[name] = bucket;
+++      return bucket;
+++    },
+++  };
+++  return {
+++    calls,
+++    auth: { signInWithPassword: vi.fn() },
+++    rpc: vi.fn(),
+++    storage,
+++  };
+++});
+++
+++vi.mock("@/integrations/supabase/client", () => ({
+++  isSupabaseConfigured: true,
+++  supabase: { auth, rpc, storage },
+++}));
+++
+++import {
+++  AccountDeletionError,
+++  DELETE_WORD,
+++  USER_BUCKETS,
+++  clearLocalUserData,
+++  deleteMyAccount,
+++  hasPasswordLogin,
+++  isDeleteConfirmed,
+++} from "@/lib/account";
+++
+++const ME = "11111111-1111-1111-1111-111111111111";
+++
+++type Mode = "list-error" | "remove-error" | "missing" | "missing-no-code" | "error-no-code";
+++
+++/** Every bucket holds one file for the person; removing records the call order. */
+++function stubStorage(overrides: Partial<Record<string, Mode>> = {}) {
+++  for (const name of USER_BUCKETS) {
+++    const b = storage.from(name);
+++    const mode = overrides[name];
+++    b.list.mockReset();
+++    b.remove.mockReset();
+++    b.list.mockImplementation(async (prefix: string) => {
+++      if (mode === "missing")
+++        return { data: null, error: { message: "Bucket not found", statusCode: "404" } };
+++      if (mode === "missing-no-code")
+++        return { data: null, error: { message: "Object not found", statusCode: undefined } };
+++      if (mode === "error-no-code")
+++        return { data: null, error: { message: "boom", statusCode: undefined } };
+++      if (mode === "list-error")
+++        return { data: null, error: { message: "boom", statusCode: "500" } };
+++      return { data: prefix === ME ? [{ name: "a.jpg", id: "file-1" }] : [], error: null };
+++    });
+++    b.remove.mockImplementation(async () => {
+++      calls.push(`remove:${name}`);
+++      return mode === "remove-error"
+++        ? { data: null, error: { message: "boom", statusCode: "500" } }
+++        : { data: [], error: null };
+++    });
+++  }
+++}
+++
+++function stubRpc(opts: { fresh?: boolean; deleteError?: string } = {}) {
+++  rpc.mockImplementation(async (fn: string) => {
+++    calls.push(`rpc:${fn}`);
+++    if (fn === "my_session_is_fresh") return { data: opts.fresh ?? true, error: null };
+++    if (fn === "delete_my_account")
+++      return { data: null, error: opts.deleteError ? { message: opts.deleteError } : null };
+++    return { data: null, error: null };
+++  });
+++}
+++
+++beforeEach(() => {
+++  calls.length = 0;
+++  rpc.mockReset();
+++  auth.signInWithPassword.mockReset();
+++  auth.signInWithPassword.mockImplementation(async () => {
+++    calls.push("signIn");
+++    return { data: { user: { id: ME } }, error: null };
+++  });
+++  stubStorage();
+++  stubRpc();
+++  window.localStorage.clear();
+++});
+++
+++describe("account deletion helpers", () => {
++   it("needs the confirmation word, in any case", () => {
++     expect(isDeleteConfirmed("delete")).toBe(true);
++     expect(isDeleteConfirmed("  Delete ")).toBe(true);
++@@ -13,6 +101,162 @@ describe("account deletion", () => {
++     expect(isDeleteConfirmed("del")).toBe(false);
++   });
++   it("cleans every bucket the app uploads to", () => {
++-    expect([...USER_BUCKETS].sort()).toEqual(["avatars", "chat-media", "media", "videos", "voice"]);
+++    expect([...USER_BUCKETS].sort()).toEqual([
+++      "avatars",
+++      "chat-media",
+++      "media",
+++      "videos",
+++      "voice",
+++    ]);
+++  });
+++  it("tells password accounts from Google-only accounts", () => {
+++    const check = (u: unknown) => hasPasswordLogin(u as Parameters<typeof hasPasswordLogin>[0]);
+++    expect(check({ app_metadata: { providers: ["email"] }, identities: [] })).toBe(true);
+++    expect(check({ app_metadata: { providers: ["email", "google"] } })).toBe(true);
+++    expect(check({ app_metadata: {}, identities: [{ provider: "email" }] })).toBe(true);
+++    expect(
+++      check({ app_metadata: { providers: ["google"] }, identities: [{ provider: "google" }] }),
+++    ).toBe(false);
+++  });
+++  it("wipes only this person's data stored on the device", () => {
+++    window.localStorage.setItem(`ediraa-user-posts:${ME}`, "[]");
+++    window.localStorage.setItem(`ediraa.local-locality.${ME}`, "Indiranagar");
+++    window.localStorage.setItem("ediraa.local-locality.someone-else", "Koramangala");
+++    window.localStorage.setItem("sabzone.feed-sound", "true");
+++    clearLocalUserData(ME);
+++    expect(window.localStorage.getItem(`ediraa-user-posts:${ME}`)).toBe(null);
+++    expect(window.localStorage.getItem(`ediraa.local-locality.${ME}`)).toBe(null);
+++    expect(window.localStorage.getItem("ediraa.local-locality.someone-else")).toBe("Koramangala");
+++    expect(window.localStorage.getItem("sabzone.feed-sound")).toBe("true");
+++  });
+++});
+++
+++describe("deleteMyAccount", () => {
+++  it("checks the password, then the session, then removes files, then the account", async () => {
+++    window.localStorage.setItem(`ediraa-user-posts:${ME}`, "[]");
+++    await deleteMyAccount({ userId: ME, email: "me@test.local", password: "secret" });
+++    expect(auth.signInWithPassword).toHaveBeenCalledWith({
+++      email: "me@test.local",
+++      password: "secret",
+++    });
+++    const firstRemove = calls.findIndex((c) => c.startsWith("remove:"));
+++    expect(calls[0]).toBe("signIn");
+++    expect(calls[1]).toBe("rpc:my_session_is_fresh");
+++    expect(firstRemove).toBeGreaterThan(1);
+++    expect(calls[calls.length - 1]).toBe("rpc:delete_my_account");
+++    expect(calls.filter((c) => c.startsWith("remove:")).length).toBe(USER_BUCKETS.length);
+++    expect(window.localStorage.getItem(`ediraa-user-posts:${ME}`)).toBe(null);
+++  });
+++
+++  it("works for a Google account with a fresh sign-in (no password asked)", async () => {
+++    await deleteMyAccount({ userId: ME, email: "me@gmail.com" });
+++    expect(auth.signInWithPassword).not.toHaveBeenCalled();
+++    expect(calls[calls.length - 1]).toBe("rpc:delete_my_account");
+++  });
+++
+++  it("stops on a wrong password and touches nothing", async () => {
+++    auth.signInWithPassword.mockResolvedValue({
+++      data: { user: null },
+++      error: { message: "Invalid login credentials" },
+++    });
+++    await expect(
+++      deleteMyAccount({ userId: ME, email: "me@test.local", password: "nope" }),
+++    ).rejects.toMatchObject({ code: "wrong_password" });
+++    expect(rpc).not.toHaveBeenCalled();
+++    expect(storage.from("avatars").remove).not.toHaveBeenCalled();
+++  });
+++
+++  it("refuses an empty password without calling the server", async () => {
+++    await expect(
+++      deleteMyAccount({ userId: ME, email: "me@test.local", password: "" }),
+++    ).rejects.toMatchObject({ code: "wrong_password" });
+++    expect(auth.signInWithPassword).not.toHaveBeenCalled();
+++  });
+++
+++  it("refuses a password that signs in as a different account", async () => {
+++    auth.signInWithPassword.mockResolvedValue({
+++      data: { user: { id: "someone-else" } },
+++      error: null,
+++    });
+++    await expect(
+++      deleteMyAccount({ userId: ME, email: "me@test.local", password: "x" }),
+++    ).rejects.toMatchObject({ code: "wrong_password" });
+++    expect(rpc).not.toHaveBeenCalled();
+++  });
+++
+++  it("asks for a fresh sign-in BEFORE deleting any file", async () => {
+++    stubRpc({ fresh: false });
+++    await expect(deleteMyAccount({ userId: ME, email: "me@gmail.com" })).rejects.toMatchObject({
+++      code: "reauth_required",
+++    });
+++    expect(storage.from("avatars").remove).not.toHaveBeenCalled();
+++    expect(calls.includes("rpc:delete_my_account")).toBe(false);
+++  });
+++
+++  it("does not delete the account while some of its files are still online", async () => {
+++    stubStorage({ videos: "remove-error" });
+++    await expect(deleteMyAccount({ userId: ME, email: "me@gmail.com" })).rejects.toMatchObject({
+++      code: "files_failed",
+++    });
+++    expect(calls.includes("rpc:delete_my_account")).toBe(false);
+++  });
+++
+++  it("does not treat a failed file listing as 'no files'", async () => {
+++    stubStorage({ media: "list-error" });
+++    await expect(deleteMyAccount({ userId: ME, email: "me@gmail.com" })).rejects.toMatchObject({
+++      code: "files_failed",
+++    });
+++    expect(calls.includes("rpc:delete_my_account")).toBe(false);
+++  });
+++
+++  it("treats a bucket that doesn't exist as having nothing to remove", async () => {
+++    stubStorage({ voice: "missing" });
+++    await deleteMyAccount({ userId: ME, email: "me@gmail.com" });
+++    expect(calls[calls.length - 1]).toBe("rpc:delete_my_account");
+++  });
+++
+++  it("recognises a not-found error that carries no status code", async () => {
+++    stubStorage({ voice: "missing-no-code" });
+++    await deleteMyAccount({ userId: ME, email: "me@gmail.com" });
+++    expect(calls[calls.length - 1]).toBe("rpc:delete_my_account");
+++  });
+++
+++  it("still fails on an error that carries no status code and isn't 'not found'", async () => {
+++    stubStorage({ media: "error-no-code" });
+++    await expect(deleteMyAccount({ userId: ME, email: "me@gmail.com" })).rejects.toMatchObject({
+++      code: "files_failed",
+++    });
+++    expect(calls.includes("rpc:delete_my_account")).toBe(false);
+++  });
+++
+++  it("accepts explicitly undefined email and password (as the screen passes them)", async () => {
+++    await deleteMyAccount({ userId: ME, email: undefined, password: undefined });
+++    expect(auth.signInWithPassword).not.toHaveBeenCalled();
+++    expect(calls[calls.length - 1]).toBe("rpc:delete_my_account");
+++  });
+++
+++  it("maps the server's reauth_required answer", async () => {
+++    stubRpc({ deleteError: "reauth_required" });
+++    await expect(deleteMyAccount({ userId: ME, email: "me@gmail.com" })).rejects.toMatchObject({
+++      code: "reauth_required",
+++    });
+++  });
+++
+++  it("points at the migration when the database function is missing", async () => {
+++    stubRpc({
+++      deleteError: "Could not find the function public.delete_my_account in the schema cache",
+++    });
+++    await expect(deleteMyAccount({ userId: ME, email: "me@gmail.com" })).rejects.toMatchObject({
+++      code: "migration_missing",
+++    });
+++  });
+++
+++  it("keeps the device data when the account could not be deleted", async () => {
+++    window.localStorage.setItem(`ediraa-user-posts:${ME}`, "[]");
+++    stubRpc({ deleteError: "network down" });
+++    await expect(deleteMyAccount({ userId: ME, email: "me@gmail.com" })).rejects.toBeInstanceOf(
+++      AccountDeletionError,
+++    );
+++    expect(window.localStorage.getItem(`ediraa-user-posts:${ME}`)).toBe("[]");
++   });
++ });
++diff --git a/supabase/migrations/20261116000000_privacy_account_deletion.sql b/supabase/migrations/20261116000000_privacy_account_deletion.sql
++new file mode 100644
++index 0000000..eab4abf
++--- /dev/null
+++++ b/supabase/migrations/20261116000000_privacy_account_deletion.sql
++@@ -0,0 +1,108 @@
+++-- =====================================================================
+++-- Privacy + account deletion hardening. Safe to run more than once.
+++-- Run in Supabase Dashboard -> SQL Editor (or `supabase db push`), AFTER
+++-- 20261113000000_delete_account.sql. Nothing here changes existing data.
+++--
+++-- 1. delete_my_account() now
+++--      * needs a RECENT sign-in (my_session_is_fresh(): session < 10 minutes old), so a stolen or
+++--        left-open session cannot erase an account. The app asks for the password first;
+++--        accounts that signed in with Google are asked to sign in again.
+++--      * hands a group you created to another member instead of destroying the group
+++--        (and its chat) for everybody else. A group with nobody else in it is deleted.
+++--      * removes chat rooms that nobody is left in.
+++--    Everything else still goes through "on delete cascade" (see the replay test
+++--    supabase/tests/replay/delete_account.assert.sql, which fails if a new table that points
+++--    at a profile or login is added without cascade / set null).
+++-- 2. get_login_emails(text) is not used by the app (log-in is by username) but lets anyone
+++--    holding the public key turn a mailbox into the account emails behind it. Closed.
+++-- =====================================================================
+++
+++-- "Did this person sign in recently?" The app asks this BEFORE it deletes any uploaded files,
+++-- so a stale session is turned away without losing anything. A session row's created_at only
+++-- moves when the person actually signs in (refreshing the access token does not), so it is the
+++-- right clock. Tokens that carry no session id fall back to the token's own issue time.
+++create or replace function public.my_session_is_fresh()
+++returns boolean
+++language plpgsql
+++security definer
+++stable
+++set search_path = public, auth
+++as $$
+++declare
+++  v_claims  jsonb := coalesce(auth.jwt(), '{}'::jsonb);
+++  v_session uuid;
+++  v_started timestamptz;
+++begin
+++  if auth.uid() is null then return false; end if;
+++  begin
+++    v_session := nullif(v_claims ->> 'session_id', '')::uuid;
+++  exception when others then
+++    v_session := null;
+++  end;
+++  if v_session is not null then
+++    select s.created_at into v_started
+++    from auth.sessions s
+++    where s.id = v_session and s.user_id = auth.uid();
+++  elsif (v_claims ->> 'iat') ~ '^[0-9]+$' then
+++    v_started := to_timestamp((v_claims ->> 'iat')::bigint);
+++  end if;
+++  return v_started is not null and v_started >= now() - interval '10 minutes';
+++end $$;
+++
+++revoke all on function public.my_session_is_fresh() from public, anon;
+++grant execute on function public.my_session_is_fresh() to authenticated;
+++
+++create or replace function public.delete_my_account()
+++returns void
+++language plpgsql
+++security definer
+++set search_path = public, auth
+++as $$
+++declare
+++  uid     uuid := auth.uid();
+++  v_heir  uuid;
+++  v_group record;
+++  v_convs uuid[];
+++begin
+++  if uid is null then raise exception 'Please sign in first'; end if;
+++
+++  if not public.my_session_is_fresh() then
+++    raise exception 'reauth_required'
+++      using hint = 'Sign in again, then delete the account within 10 minutes.';
+++  end if;
+++
+++  -- Groups this person created: give each one to the longest-standing other member (admins
+++  -- first) so the other members keep their group and chat. No other member -> the group is
+++  -- deleted with the account (cascade).
+++  for v_group in select g.id from public.groups g where g.created_by = uid loop
+++    select m.user_id into v_heir
+++    from public.group_members m
+++    where m.group_id = v_group.id and m.user_id <> uid
+++    order by (m.role = 'admin') desc, m.created_at asc
+++    limit 1;
+++    if v_heir is not null then
+++      update public.groups set created_by = v_heir where id = v_group.id;
+++      update public.group_members set role = 'admin'
+++        where group_id = v_group.id and user_id = v_heir;
+++    end if;
+++  end loop;
+++
+++  select coalesce(array_agg(cp.conversation_id), '{}') into v_convs
+++  from public.conversation_participants cp where cp.user_id = uid;
+++
+++  delete from auth.users where id = uid;
+++  if not found then raise exception 'account_not_found'; end if;
+++
+++  -- Chats that nobody is in any more (both people deleted their accounts).
+++  delete from public.conversations c
+++  where c.id = any (v_convs)
+++    and not exists (
+++      select 1 from public.conversation_participants p where p.conversation_id = c.id
+++    );
+++end $$;
+++
+++revoke all on function public.delete_my_account() from public, anon;
+++grant execute on function public.delete_my_account() to authenticated;
+++
+++-- 2. Unused email lookup that anon could call.
+++revoke all on function public.get_login_emails(text) from public, anon, authenticated;
++diff --git a/supabase/tests/replay/00_supabase_stub.sql b/supabase/tests/replay/00_supabase_stub.sql
++index 61cc801..cd1549d 100644
++--- a/supabase/tests/replay/00_supabase_stub.sql
+++++ b/supabase/tests/replay/00_supabase_stub.sql
++@@ -24,3 +24,9 @@ create schema extensions; create schema net;
++ create function net.http_post(url text, body jsonb default '{}', params jsonb default '{}', headers jsonb default '{}', timeout_milliseconds int default 1000) returns bigint language sql as $$ select 1::bigint $$;
++ grant usage on schema public, auth, storage to anon, authenticated, service_role;
++ grant execute on function auth.uid() to anon, authenticated;
+++-- Sessions + JWT helper (used by delete_my_account's "recent sign-in" check).
+++create table auth.sessions (id uuid primary key default gen_random_uuid(),
+++  user_id uuid not null references auth.users (id) on delete cascade, created_at timestamptz default now());
+++create function auth.jwt() returns jsonb language sql stable as
+++  $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
+++grant execute on function auth.jwt() to anon, authenticated;
++diff --git a/supabase/tests/replay/delete_account.assert.sql b/supabase/tests/replay/delete_account.assert.sql
++new file mode 100644
++index 0000000..ca40bb5
++--- /dev/null
+++++ b/supabase/tests/replay/delete_account.assert.sql
++@@ -0,0 +1,153 @@
+++-- Account deletion, enforced with ASSERT. Runs inside one transaction and rolls back.
+++begin;
+++
+++-- ---- 1. Guard for future tables: anything that points at a person must cascade or set null,
+++--         otherwise deleting an account fails or leaves that person's data behind.
+++do $$
+++declare bad text;
+++begin
+++  select string_agg(format('%s.%s', c.conrelid::regclass, a.attname), ', ') into bad
+++  from pg_constraint c
+++  join pg_attribute a on a.attrelid = c.conrelid and a.attnum = any (c.conkey)
+++  where c.contype = 'f'
+++    and c.confrelid in ('auth.users'::regclass, 'public.profiles'::regclass)
+++    and c.confdeltype not in ('c', 'n');
+++  assert bad is null, 'foreign keys to a person without cascade/set null: ' || coalesce(bad, '');
+++end $$;
+++
+++-- ---- 2. Fixtures: asha (deleter), ravi (member), meena (admin), zed (a stranger).
+++insert into auth.users (id, email, raw_user_meta_data) values
+++  ('00000000-0000-0000-0000-00000000000a', 'a@test.local', '{"username":"asha","full_name":"Asha"}'),
+++  ('00000000-0000-0000-0000-00000000000b', 'b@test.local', '{"username":"ravi","full_name":"Ravi"}'),
+++  ('00000000-0000-0000-0000-00000000000c', 'c@test.local', '{"username":"meena","full_name":"Meena"}'),
+++  ('00000000-0000-0000-0000-00000000000d', 'd@test.local', '{"username":"zedd","full_name":"Zed"}');
+++
+++insert into public.follows (follower_id, following_id) values
+++  ('00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-00000000000b'),
+++  ('00000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-00000000000a'),
+++  ('00000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-00000000000d');
+++
+++-- group 1: made by asha, ravi (member) and meena (admin) are in it -> goes to meena
+++-- group 2: made by asha, nobody else -> deleted
+++insert into public.groups (id, name, created_by) values
+++  ('10000000-0000-0000-0000-000000000001', 'Shared group', '00000000-0000-0000-0000-00000000000a'),
+++  ('10000000-0000-0000-0000-000000000002', 'Solo group',   '00000000-0000-0000-0000-00000000000a');
+++insert into public.group_members (group_id, user_id, role) values
+++  ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000a', 'admin'),
+++  ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000b', 'member'),
+++  ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000c', 'admin'),
+++  ('10000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-00000000000a', 'admin');
+++
+++-- chats: asha<->ravi (ravi stays), asha<->zed is irrelevant; asha-only room
+++insert into public.conversations (id) values
+++  ('20000000-0000-0000-0000-000000000001'),
+++  ('20000000-0000-0000-0000-000000000002');
+++insert into public.conversation_participants (conversation_id, user_id) values
+++  ('20000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000a'),
+++  ('20000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000b'),
+++  ('20000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-00000000000a');
+++insert into public.messages (conversation_id, sender_id, body) values
+++  ('20000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000a', 'from asha'),
+++  ('20000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000b', 'from ravi'),
+++  ('20000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-00000000000a', 'note to self');
+++
+++-- ---- 3. Not signed in, or signed in long ago -> refused, nothing changes.
+++set local role anon;
+++do $$ begin
+++  perform public.delete_my_account();
+++  raise exception 'anon was allowed to delete';
+++exception when insufficient_privilege then null; end $$;
+++reset role;
+++
+++select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', true);
+++set local role authenticated;
+++do $$ begin
+++  perform public.delete_my_account();
+++  raise exception 'a token with no session or issue time was accepted';
+++exception when others then
+++  assert sqlerrm = 'reauth_required', 'stale/unknown session must be refused, got: ' || sqlerrm;
+++end $$;
+++reset role;
+++
+++insert into auth.sessions (id, user_id, created_at) values
+++  ('30000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000a', now() - interval '2 hours');
+++select set_config('request.jwt.claims',
+++  '{"sub":"00000000-0000-0000-0000-00000000000a","session_id":"30000000-0000-0000-0000-000000000001"}', true);
+++set local role authenticated;
+++do $$ begin
+++  perform public.delete_my_account();
+++  raise exception 'a 2-hour-old session was accepted';
+++exception when others then
+++  assert sqlerrm = 'reauth_required', 'old session must be refused, got: ' || sqlerrm;
+++end $$;
+++reset role;
+++do $$ begin
+++  assert exists (select 1 from public.profiles where username = 'asha'), 'refused deletion changed nothing';
+++end $$;
+++
+++-- ---- 4. Someone else's fresh session id does not count.
+++insert into auth.sessions (id, user_id, created_at) values
+++  ('30000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-00000000000b', now());
+++select set_config('request.jwt.claims',
+++  '{"sub":"00000000-0000-0000-0000-00000000000a","session_id":"30000000-0000-0000-0000-000000000002"}', true);
+++set local role authenticated;
+++do $$ begin
+++  perform public.delete_my_account();
+++  raise exception 'another person''s session was accepted';
+++exception when others then
+++  assert sqlerrm = 'reauth_required', 'foreign session must be refused, got: ' || sqlerrm;
+++end $$;
+++reset role;
+++
+++-- the app's pre-flight check agrees with the refusals above (and is closed to the public key)
+++set local role authenticated;
+++do $$ begin assert public.my_session_is_fresh() = false, 'foreign session is not fresh'; end $$;
+++reset role;
+++set local role anon;
+++do $$ begin
+++  perform public.my_session_is_fresh();
+++  raise exception 'anon can call my_session_is_fresh';
+++exception when insufficient_privilege then null; end $$;
+++reset role;
+++
+++-- ---- 5. Fresh sign-in -> works.
+++insert into auth.sessions (id, user_id, created_at) values
+++  ('30000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-00000000000a', now() - interval '1 minute');
+++select set_config('request.jwt.claims',
+++  '{"sub":"00000000-0000-0000-0000-00000000000a","session_id":"30000000-0000-0000-0000-000000000003"}', true);
+++set local role authenticated;
+++do $$ begin assert public.my_session_is_fresh() = true, 'a 1-minute-old session is fresh'; end $$;
+++select public.delete_my_account();
+++reset role;
+++
+++do $$ begin
+++  assert not exists (select 1 from auth.users    where id = '00000000-0000-0000-0000-00000000000a'), 'login removed';
+++  assert not exists (select 1 from public.profiles where username = 'asha'),                         'profile removed';
+++  assert not exists (select 1 from public.follows
+++                     where '00000000-0000-0000-0000-00000000000a' in (follower_id, following_id)),    'follows removed both ways';
+++  assert exists (select 1 from public.follows
+++                 where follower_id = '00000000-0000-0000-0000-00000000000b'
+++                   and following_id = '00000000-0000-0000-0000-00000000000d'),                        'other people''s follows untouched';
+++  assert not exists (select 1 from public.messages where body in ('from asha', 'note to self')),     'her messages removed';
+++  assert exists (select 1 from public.messages where body = 'from ravi'),                             'ravi''s message kept';
+++  assert not exists (select 1 from public.conversations where id = '20000000-0000-0000-0000-000000000002'),
+++                     'a chat nobody is left in is removed';
+++  assert exists (select 1 from public.conversations where id = '20000000-0000-0000-0000-000000000001'),
+++                     'a chat someone is still in is kept';
+++  assert (select created_by from public.groups where id = '10000000-0000-0000-0000-000000000001')
+++         = '00000000-0000-0000-0000-00000000000c',                                                   'shared group goes to its other admin';
+++  assert (select count(*) from public.group_members where group_id = '10000000-0000-0000-0000-000000000001') = 2,
+++                     'shared group keeps its other members';
+++  assert not exists (select 1 from public.groups where id = '10000000-0000-0000-0000-000000000002'), 'a group with nobody else is deleted';
+++  assert exists (select 1 from public.profiles where username in ('ravi', 'meena', 'zedd')),         'other accounts untouched';
+++end $$;
+++
+++-- ---- 6. The unused email lookup is closed to the public key.
+++set local role anon;
+++do $$ begin
+++  perform public.get_login_emails('a@test.local');
+++  raise exception 'anon can still look up account emails by mailbox';
+++exception when insufficient_privilege then null; end $$;
+++reset role;
+++
+++rollback;
+diff --git a/src/components/delete-account.tsx b/src/components/delete-account.tsx
+index 4cd7091..0fe8141 100644
+--- a/src/components/delete-account.tsx
++++ b/src/components/delete-account.tsx
+@@ -12,7 +12,13 @@ import {
+   AlertDialogTitle,
+ } from "@/components/ui/alert-dialog";
+ import { useAuth } from "@/lib/auth";
+-import { DELETE_WORD, deleteMyAccount, isDeleteConfirmed } from "@/lib/account";
++import {
++  AccountDeletionError,
++  DELETE_WORD,
++  deleteMyAccount,
++  hasPasswordLogin,
++  isDeleteConfirmed,
++} from "@/lib/account";
+ 
+ /** "Delete account" button + confirmation. Used in Settings and on the public /delete-account page. */
+ export function DeleteAccountButton() {
+@@ -20,13 +26,25 @@ export function DeleteAccountButton() {
+   const navigate = useNavigate();
+   const [open, setOpen] = useState(false);
+   const [text, setText] = useState("");
++  const [password, setPassword] = useState("");
++  const [problem, setProblem] = useState<{ code: string; message: string } | null>(null);
+   const [busy, setBusy] = useState(false);
+   if (!user) return null;
+ 
++  // Accounts made with an email + password must type it again. Google-only accounts have no
++  // password; the server instead insists they signed in a few minutes ago.
++  const needsPassword = hasPasswordLogin(user);
++  const ready = isDeleteConfirmed(text) && (!needsPassword || password.length > 0);
++
+   const run = async () => {
+     setBusy(true);
++    setProblem(null);
+     try {
+-      await deleteMyAccount(user.id);
++      await deleteMyAccount({
++        userId: user.id,
++        email: user.email,
++        password: needsPassword ? password : undefined,
++      });
+       try {
+         await signOut();
+       } catch {
+@@ -35,17 +53,30 @@ export function DeleteAccountButton() {
+       toast.success("Your account was deleted.");
+       void navigate({ to: "/welcome", replace: true });
+     } catch (e) {
+-      toast.error(e instanceof Error ? e.message : "Couldn't delete your account.");
++      const message = e instanceof Error ? e.message : "Couldn't delete your account.";
++      setPassword("");
++      setProblem({ code: e instanceof AccountDeletionError ? e.code : "failed", message });
+       setBusy(false);
+     }
+   };
+ 
++  const signOutToRetry = async () => {
++    try {
++      await signOut();
++    } catch {
++      /* signing in again is all that matters */
++    }
++    void navigate({ to: "/login", replace: true });
++  };
++
+   return (
+     <>
+       <button
+         type="button"
+         onClick={() => {
+           setText("");
++          setPassword("");
++          setProblem(null);
+           setOpen(true);
+         }}
+         className="flex w-full items-center justify-center gap-2 rounded-full border border-destructive py-3 text-sm font-semibold text-destructive transition hover:bg-destructive/10"
+@@ -59,8 +90,8 @@ export function DeleteAccountButton() {
+             <AlertDialogTitle>Delete your account for good?</AlertDialogTitle>
+             <AlertDialogDescription>
+               Your profile, posts, stories, comments, messages you sent, followers, listings and
+-              bookings are removed, and so are your photos, videos and voice notes. This cannot be
+-              undone.
++              bookings are removed, and so are your photos, videos and voice notes. Groups you
++              created pass to another member. This cannot be undone.
+             </AlertDialogDescription>
+           </AlertDialogHeader>
+           <label className="block text-sm">
+@@ -73,12 +104,38 @@ export function DeleteAccountButton() {
+               className="mt-2 w-full rounded-[14px] border border-border bg-elevated/40 px-4 py-3 text-sm outline-none focus:border-destructive"
+             />
+           </label>
++          {needsPassword && (
++            <label className="block text-sm">
++              Enter your password
++              <input
++                type="password"
++                value={password}
++                onChange={(e) => setPassword(e.target.value)}
++                autoComplete="current-password"
++                className="mt-2 w-full rounded-[14px] border border-border bg-elevated/40 px-4 py-3 text-sm outline-none focus:border-destructive"
++              />
++            </label>
++          )}
++          {problem && (
++            <div role="alert" className="space-y-2 text-sm text-destructive">
++              <p>{problem.message}</p>
++              {problem.code === "reauth_required" && (
++                <button
++                  type="button"
++                  onClick={signOutToRetry}
++                  className="rounded-full border border-destructive px-3 py-1 text-xs font-semibold"
++                >
++                  Sign out and sign in again
++                </button>
++              )}
++            </div>
++          )}
+           <AlertDialogFooter>
+             <AlertDialogCancel disabled={busy}>Keep my account</AlertDialogCancel>
+             <button
+               type="button"
+               onClick={run}
+-              disabled={busy || !isDeleteConfirmed(text)}
++              disabled={busy || !ready}
+               className="inline-flex items-center justify-center gap-2 rounded-md bg-destructive px-4 py-2 text-sm font-semibold text-destructive-foreground disabled:opacity-50"
+             >
+               {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+diff --git a/src/lib/account.ts b/src/lib/account.ts
+index d7a2243..d8ffded 100644
+--- a/src/lib/account.ts
++++ b/src/lib/account.ts
+@@ -1,4 +1,4 @@
+-import type { SupabaseClient } from "@supabase/supabase-js";
++import type { SupabaseClient, User } from "@supabase/supabase-js";
+ import { supabase } from "@/integrations/supabase/client";
+ 
+ const db = supabase as unknown as SupabaseClient;
+@@ -7,19 +7,64 @@ export const DELETE_WORD = "DELETE";
+ 
+ export const DELETE_MIGRATION_HINT =
+   "Account deletion needs a one-time database update. In Supabase open SQL Editor, run " +
+-  "supabase/migrations/20261113000000_delete_account.sql, then try again.";
++  "supabase/migrations/20261113000000_delete_account.sql and " +
++  "supabase/migrations/20261116000000_privacy_account_deletion.sql, then try again.";
++
++export const REAUTH_MESSAGE =
++  "For your security, please sign out, sign back in, and then delete your account.";
++export const WRONG_PASSWORD_MESSAGE = "That password isn't right. Please try again.";
++export const FILES_FAILED_MESSAGE =
++  "We couldn't remove all of your uploaded photos and videos, so nothing was deleted. " +
++  "Check your internet and try again.";
+ 
+ /** Every storage bucket that keeps files under a "<user id>/" folder. */
+ export const USER_BUCKETS = ["avatars", "media", "videos", "voice", "chat-media"] as const;
+ 
++export type AccountDeletionErrorCode =
++  | "wrong_password"
++  | "reauth_required"
++  | "files_failed"
++  | "migration_missing"
++  | "failed";
++
++/** Thrown by deleteMyAccount. `code` lets the screen react; `message` is safe to show. */
++export class AccountDeletionError extends Error {
++  constructor(
++    readonly code: AccountDeletionErrorCode,
++    message: string,
++  ) {
++    super(message);
++    this.name = "AccountDeletionError";
++  }
++}
++
+ /** True when what was typed matches the confirmation word (any case, spaces ignored). */
+ export function isDeleteConfirmed(text: string): boolean {
+   return text.trim().toUpperCase() === DELETE_WORD;
+ }
+ 
++/** True when the person can prove who they are with a password (email sign-up), not only Google. */
++export function hasPasswordLogin(user: Pick<User, "app_metadata" | "identities">): boolean {
++  const providers = (user.app_metadata as { providers?: unknown } | undefined)?.providers;
++  if (Array.isArray(providers) && providers.includes("email")) return true;
++  return (user.identities ?? []).some((i) => i.provider === "email");
++}
++
+ type Entry = { name: string; id: string | null };
+ 
+-/** Lists every file under `prefix`, going into sub-folders (folders come back with a null id). */
++/** A bucket that doesn't exist (or has nothing for this person) simply has no files to remove. */
++function isNotFound(error: {
++  message?: string | undefined;
++  statusCode?: string | number | undefined;
++}): boolean {
++  return String(error.statusCode ?? "") === "404" || /not.?found/i.test(error.message ?? "");
++}
++
++/**
++ * Lists every file under `prefix`, going into sub-folders (folders come back with a null id).
++ * A listing error is thrown, never treated as "empty": skipping files would leave a deleted
++ * person's public photos online.
++ */
+ async function listFiles(bucket: string, prefix: string, depth = 0): Promise<string[]> {
+   if (depth > 5) return [];
+   const files: string[] = [];
+@@ -27,7 +72,11 @@ async function listFiles(bucket: string, prefix: string, depth = 0): Promise<str
+     const { data, error } = await supabase.storage
+       .from(bucket)
+       .list(prefix, { limit: 100, offset });
+-    if (error || !data || data.length === 0) break;
++    if (error) {
++      if (isNotFound(error)) return files;
++      throw error;
++    }
++    if (!data || data.length === 0) break;
+     for (const e of data as Entry[]) {
+       if (e.id) files.push(`${prefix}/${e.name}`);
+       else files.push(...(await listFiles(bucket, `${prefix}/${e.name}`, depth + 1)));
+@@ -37,36 +86,113 @@ async function listFiles(bucket: string, prefix: string, depth = 0): Promise<str
+   return files;
+ }
+ 
++async function removeChunk(bucket: string, chunk: string[]): Promise<void> {
++  // One quick retry: a dropped connection should not block someone from deleting their account.
++  for (let attempt = 0; ; attempt++) {
++    const { error } = await supabase.storage.from(bucket).remove(chunk);
++    if (!error || isNotFound(error)) return;
++    if (attempt >= 1) throw error;
++  }
++}
++
+ /**
+- * Removes the person's uploaded photos, videos and voice notes. Best effort: a bucket that can't
+- * be read or cleaned doesn't stop the account from being deleted. Returns how many files went.
++ * Removes the person's uploaded photos, videos and voice notes. Throws if any file could not be
++ * removed, so the account is NOT deleted while its files are still online. Returns how many
++ * files went.
+  */
+ export async function removeMyFiles(userId: string): Promise<number> {
+   let removed = 0;
+   for (const bucket of USER_BUCKETS) {
+-    try {
+-      const paths = await listFiles(bucket, userId);
+-      for (let i = 0; i < paths.length; i += 100) {
+-        const chunk = paths.slice(i, i + 100);
+-        const { error } = await supabase.storage.from(bucket).remove(chunk);
+-        if (!error) removed += chunk.length;
+-      }
+-    } catch (e) {
+-      console.error(`couldn't clean ${bucket}`, e);
++    const paths = await listFiles(bucket, userId);
++    for (let i = 0; i < paths.length; i += 100) {
++      const chunk = paths.slice(i, i + 100);
++      await removeChunk(bucket, chunk);
++      removed += chunk.length;
+     }
+   }
+   return removed;
+ }
+ 
+-/** Deletes the files, then the account itself. The caller signs the person out afterwards. */
+-export async function deleteMyAccount(userId: string): Promise<void> {
+-  await removeMyFiles(userId);
++/** Erases what this app keeps in the browser/phone for the person (drafts, "seen" markers, area). */
++export function clearLocalUserData(userId: string): void {
++  try {
++    if (typeof window === "undefined" || !userId) return;
++    const store = window.localStorage;
++    const doomed: string[] = [];
++    for (let i = 0; i < store.length; i++) {
++      const key = store.key(i);
++      if (key && key.includes(userId)) doomed.push(key);
++    }
++    for (const key of doomed) store.removeItem(key);
++  } catch {
++    /* storage can be unavailable (private mode); nothing more to do */
++  }
++}
++
++function looksLikeMissingMigration(message: string): boolean {
++  return /delete_my_account|my_session_is_fresh|schema cache|does not exist/i.test(message);
++}
++
++export type DeleteAccountInput = {
++  userId: string;
++  /** The login email, needed to check the password. */
++  email?: string | null | undefined;
++  /** Required for accounts that have a password (see hasPasswordLogin). */
++  password?: string | undefined;
++};
++
++/**
++ * Deletes the account for good, in an order that never strands a half-deleted person:
++ *  1. confirm the password (when the account has one),
++ *  2. ask the server whether the sign-in is recent enough, BEFORE touching any file,
++ *  3. remove the uploaded files (stops here if any can't be removed),
++ *  4. delete the account and its data (database function),
++ *  5. wipe what the app stored on this device.
++ * The caller signs the person out afterwards.
++ */
++export async function deleteMyAccount(input: DeleteAccountInput): Promise<void> {
++  const { userId, email, password } = input;
++
++  if (password !== undefined) {
++    if (!email || password.length === 0)
++      throw new AccountDeletionError("wrong_password", WRONG_PASSWORD_MESSAGE);
++    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
++    if (error || data.user?.id !== userId)
++      throw new AccountDeletionError("wrong_password", WRONG_PASSWORD_MESSAGE);
++  }
++
++  const fresh = await db.rpc("my_session_is_fresh");
++  if (fresh.error) {
++    console.error("my_session_is_fresh failed", fresh.error);
++    if (looksLikeMissingMigration(fresh.error.message ?? ""))
++      throw new AccountDeletionError("migration_missing", DELETE_MIGRATION_HINT);
++    throw new AccountDeletionError(
++      "failed",
++      "Couldn't delete your account. Check your internet and try again.",
++    );
++  }
++  if (fresh.data !== true) throw new AccountDeletionError("reauth_required", REAUTH_MESSAGE);
++
++  try {
++    await removeMyFiles(userId);
++  } catch (e) {
++    console.error("couldn't remove uploaded files", e);
++    throw new AccountDeletionError("files_failed", FILES_FAILED_MESSAGE);
++  }
++
+   const { error } = await db.rpc("delete_my_account");
+   if (error) {
+     console.error("delete_my_account failed", error);
+-    if (/delete_my_account|schema cache|does not exist/i.test(error.message ?? "")) {
+-      throw new Error(DELETE_MIGRATION_HINT);
+-    }
+-    throw new Error("Couldn't delete your account. Check your internet and try again.");
++    const message = error.message ?? "";
++    if (/reauth_required/i.test(message))
++      throw new AccountDeletionError("reauth_required", REAUTH_MESSAGE);
++    if (looksLikeMissingMigration(message))
++      throw new AccountDeletionError("migration_missing", DELETE_MIGRATION_HINT);
++    throw new AccountDeletionError(
++      "failed",
++      "Couldn't delete your account. Check your internet and try again.",
++    );
+   }
++
++  clearLocalUserData(userId);
+ }
+diff --git a/src/routes/delete-account.tsx b/src/routes/delete-account.tsx
+index f1f16d5..c4e65fb 100644
+--- a/src/routes/delete-account.tsx
++++ b/src/routes/delete-account.tsx
+@@ -31,7 +31,7 @@ function DeleteAccountPage() {
+         <ol className="list-decimal space-y-1 pl-5 text-sm">
+           <li>Open More, then Settings &amp; Privacy.</li>
+           <li>Scroll to Delete account and tap Delete my account.</li>
+-          <li>Type DELETE and confirm.</li>
++          <li>Type DELETE and enter your password to confirm. If you signed in with Google, sign in again first.</li>
+         </ol>
+       </section>
+ 
+@@ -40,7 +40,7 @@ function DeleteAccountPage() {
+         <p className="text-sm">
+           Your profile, posts, stories, comments, followers, messages you sent, market listings,
+           bookings and offers, blocks and Close Friends list, notification settings, and the photos,
+-          videos and voice notes you uploaded. This happens right away and cannot be undone.
++          videos and voice notes you uploaded. This happens right away and cannot be undone. If you created a group that other people are in, it passes to another member so they keep it; a group with nobody else in it is deleted.
+         </p>
+       </section>
+ 
+diff --git a/src/routes/privacy.tsx b/src/routes/privacy.tsx
+index 0644f5b..25c8d1f 100644
+--- a/src/routes/privacy.tsx
++++ b/src/routes/privacy.tsx
+@@ -95,7 +95,8 @@ function PrivacyPage() {
+             <p>
+               We keep your data while your account exists. When you delete your account, your
+               profile, posts, stories, comments, messages you sent, followers, listings, bookings
+-              and uploaded files are removed. Reports about you may be kept without a link to a
++              and uploaded files are removed. A group you created that other people are in passes
++              to another member; a group with nobody else in it is deleted. Reports about you may be kept without a link to a
+               profile so we can stop abuse. Backups are removed on their normal cycle. Copies of
+               messages that other people received may remain in their chats.
+             </p>
+diff --git a/src/test/account.test.ts b/src/test/account.test.ts
+index 5d0d7f6..64a0d74 100644
+--- a/src/test/account.test.ts
++++ b/src/test/account.test.ts
+@@ -1,7 +1,95 @@
+-import { describe, expect, it } from "vitest";
+-import { DELETE_WORD, USER_BUCKETS, isDeleteConfirmed } from "@/lib/account";
++import { beforeEach, describe, expect, it, vi } from "vitest";
+ 
+-describe("account deletion", () => {
++const { auth, rpc, storage, calls } = vi.hoisted(() => {
++  const calls: string[] = [];
++  type Bucket = { list: ReturnType<typeof vi.fn>; remove: ReturnType<typeof vi.fn> };
++  const buckets: Record<string, Bucket> = {};
++  const storage = {
++    buckets,
++    from: (name: string): Bucket => {
++      const bucket = buckets[name] ?? { list: vi.fn(), remove: vi.fn() };
++      buckets[name] = bucket;
++      return bucket;
++    },
++  };
++  return {
++    calls,
++    auth: { signInWithPassword: vi.fn() },
++    rpc: vi.fn(),
++    storage,
++  };
++});
++
++vi.mock("@/integrations/supabase/client", () => ({
++  isSupabaseConfigured: true,
++  supabase: { auth, rpc, storage },
++}));
++
++import {
++  AccountDeletionError,
++  DELETE_WORD,
++  USER_BUCKETS,
++  clearLocalUserData,
++  deleteMyAccount,
++  hasPasswordLogin,
++  isDeleteConfirmed,
++} from "@/lib/account";
++
++const ME = "11111111-1111-1111-1111-111111111111";
++
++type Mode = "list-error" | "remove-error" | "missing" | "missing-no-code" | "error-no-code";
++
++/** Every bucket holds one file for the person; removing records the call order. */
++function stubStorage(overrides: Partial<Record<string, Mode>> = {}) {
++  for (const name of USER_BUCKETS) {
++    const b = storage.from(name);
++    const mode = overrides[name];
++    b.list.mockReset();
++    b.remove.mockReset();
++    b.list.mockImplementation(async (prefix: string) => {
++      if (mode === "missing")
++        return { data: null, error: { message: "Bucket not found", statusCode: "404" } };
++      if (mode === "missing-no-code")
++        return { data: null, error: { message: "Object not found", statusCode: undefined } };
++      if (mode === "error-no-code")
++        return { data: null, error: { message: "boom", statusCode: undefined } };
++      if (mode === "list-error")
++        return { data: null, error: { message: "boom", statusCode: "500" } };
++      return { data: prefix === ME ? [{ name: "a.jpg", id: "file-1" }] : [], error: null };
++    });
++    b.remove.mockImplementation(async () => {
++      calls.push(`remove:${name}`);
++      return mode === "remove-error"
++        ? { data: null, error: { message: "boom", statusCode: "500" } }
++        : { data: [], error: null };
++    });
++  }
++}
++
++function stubRpc(opts: { fresh?: boolean; deleteError?: string } = {}) {
++  rpc.mockImplementation(async (fn: string) => {
++    calls.push(`rpc:${fn}`);
++    if (fn === "my_session_is_fresh") return { data: opts.fresh ?? true, error: null };
++    if (fn === "delete_my_account")
++      return { data: null, error: opts.deleteError ? { message: opts.deleteError } : null };
++    return { data: null, error: null };
++  });
++}
++
++beforeEach(() => {
++  calls.length = 0;
++  rpc.mockReset();
++  auth.signInWithPassword.mockReset();
++  auth.signInWithPassword.mockImplementation(async () => {
++    calls.push("signIn");
++    return { data: { user: { id: ME } }, error: null };
++  });
++  stubStorage();
++  stubRpc();
++  window.localStorage.clear();
++});
++
++describe("account deletion helpers", () => {
+   it("needs the confirmation word, in any case", () => {
+     expect(isDeleteConfirmed("delete")).toBe(true);
+     expect(isDeleteConfirmed("  Delete ")).toBe(true);
+@@ -13,6 +101,162 @@ describe("account deletion", () => {
+     expect(isDeleteConfirmed("del")).toBe(false);
+   });
+   it("cleans every bucket the app uploads to", () => {
+-    expect([...USER_BUCKETS].sort()).toEqual(["avatars", "chat-media", "media", "videos", "voice"]);
++    expect([...USER_BUCKETS].sort()).toEqual([
++      "avatars",
++      "chat-media",
++      "media",
++      "videos",
++      "voice",
++    ]);
++  });
++  it("tells password accounts from Google-only accounts", () => {
++    const check = (u: unknown) => hasPasswordLogin(u as Parameters<typeof hasPasswordLogin>[0]);
++    expect(check({ app_metadata: { providers: ["email"] }, identities: [] })).toBe(true);
++    expect(check({ app_metadata: { providers: ["email", "google"] } })).toBe(true);
++    expect(check({ app_metadata: {}, identities: [{ provider: "email" }] })).toBe(true);
++    expect(
++      check({ app_metadata: { providers: ["google"] }, identities: [{ provider: "google" }] }),
++    ).toBe(false);
++  });
++  it("wipes only this person's data stored on the device", () => {
++    window.localStorage.setItem(`ediraa-user-posts:${ME}`, "[]");
++    window.localStorage.setItem(`ediraa.local-locality.${ME}`, "Indiranagar");
++    window.localStorage.setItem("ediraa.local-locality.someone-else", "Koramangala");
++    window.localStorage.setItem("sabzone.feed-sound", "true");
++    clearLocalUserData(ME);
++    expect(window.localStorage.getItem(`ediraa-user-posts:${ME}`)).toBe(null);
++    expect(window.localStorage.getItem(`ediraa.local-locality.${ME}`)).toBe(null);
++    expect(window.localStorage.getItem("ediraa.local-locality.someone-else")).toBe("Koramangala");
++    expect(window.localStorage.getItem("sabzone.feed-sound")).toBe("true");
++  });
++});
++
++describe("deleteMyAccount", () => {
++  it("checks the password, then the session, then removes files, then the account", async () => {
++    window.localStorage.setItem(`ediraa-user-posts:${ME}`, "[]");
++    await deleteMyAccount({ userId: ME, email: "me@test.local", password: "secret" });
++    expect(auth.signInWithPassword).toHaveBeenCalledWith({
++      email: "me@test.local",
++      password: "secret",
++    });
++    const firstRemove = calls.findIndex((c) => c.startsWith("remove:"));
++    expect(calls[0]).toBe("signIn");
++    expect(calls[1]).toBe("rpc:my_session_is_fresh");
++    expect(firstRemove).toBeGreaterThan(1);
++    expect(calls[calls.length - 1]).toBe("rpc:delete_my_account");
++    expect(calls.filter((c) => c.startsWith("remove:")).length).toBe(USER_BUCKETS.length);
++    expect(window.localStorage.getItem(`ediraa-user-posts:${ME}`)).toBe(null);
++  });
++
++  it("works for a Google account with a fresh sign-in (no password asked)", async () => {
++    await deleteMyAccount({ userId: ME, email: "me@gmail.com" });
++    expect(auth.signInWithPassword).not.toHaveBeenCalled();
++    expect(calls[calls.length - 1]).toBe("rpc:delete_my_account");
++  });
++
++  it("stops on a wrong password and touches nothing", async () => {
++    auth.signInWithPassword.mockResolvedValue({
++      data: { user: null },
++      error: { message: "Invalid login credentials" },
++    });
++    await expect(
++      deleteMyAccount({ userId: ME, email: "me@test.local", password: "nope" }),
++    ).rejects.toMatchObject({ code: "wrong_password" });
++    expect(rpc).not.toHaveBeenCalled();
++    expect(storage.from("avatars").remove).not.toHaveBeenCalled();
++  });
++
++  it("refuses an empty password without calling the server", async () => {
++    await expect(
++      deleteMyAccount({ userId: ME, email: "me@test.local", password: "" }),
++    ).rejects.toMatchObject({ code: "wrong_password" });
++    expect(auth.signInWithPassword).not.toHaveBeenCalled();
++  });
++
++  it("refuses a password that signs in as a different account", async () => {
++    auth.signInWithPassword.mockResolvedValue({
++      data: { user: { id: "someone-else" } },
++      error: null,
++    });
++    await expect(
++      deleteMyAccount({ userId: ME, email: "me@test.local", password: "x" }),
++    ).rejects.toMatchObject({ code: "wrong_password" });
++    expect(rpc).not.toHaveBeenCalled();
++  });
++
++  it("asks for a fresh sign-in BEFORE deleting any file", async () => {
++    stubRpc({ fresh: false });
++    await expect(deleteMyAccount({ userId: ME, email: "me@gmail.com" })).rejects.toMatchObject({
++      code: "reauth_required",
++    });
++    expect(storage.from("avatars").remove).not.toHaveBeenCalled();
++    expect(calls.includes("rpc:delete_my_account")).toBe(false);
++  });
++
++  it("does not delete the account while some of its files are still online", async () => {
++    stubStorage({ videos: "remove-error" });
++    await expect(deleteMyAccount({ userId: ME, email: "me@gmail.com" })).rejects.toMatchObject({
++      code: "files_failed",
++    });
++    expect(calls.includes("rpc:delete_my_account")).toBe(false);
++  });
++
++  it("does not treat a failed file listing as 'no files'", async () => {
++    stubStorage({ media: "list-error" });
++    await expect(deleteMyAccount({ userId: ME, email: "me@gmail.com" })).rejects.toMatchObject({
++      code: "files_failed",
++    });
++    expect(calls.includes("rpc:delete_my_account")).toBe(false);
++  });
++
++  it("treats a bucket that doesn't exist as having nothing to remove", async () => {
++    stubStorage({ voice: "missing" });
++    await deleteMyAccount({ userId: ME, email: "me@gmail.com" });
++    expect(calls[calls.length - 1]).toBe("rpc:delete_my_account");
++  });
++
++  it("recognises a not-found error that carries no status code", async () => {
++    stubStorage({ voice: "missing-no-code" });
++    await deleteMyAccount({ userId: ME, email: "me@gmail.com" });
++    expect(calls[calls.length - 1]).toBe("rpc:delete_my_account");
++  });
++
++  it("still fails on an error that carries no status code and isn't 'not found'", async () => {
++    stubStorage({ media: "error-no-code" });
++    await expect(deleteMyAccount({ userId: ME, email: "me@gmail.com" })).rejects.toMatchObject({
++      code: "files_failed",
++    });
++    expect(calls.includes("rpc:delete_my_account")).toBe(false);
++  });
++
++  it("accepts explicitly undefined email and password (as the screen passes them)", async () => {
++    await deleteMyAccount({ userId: ME, email: undefined, password: undefined });
++    expect(auth.signInWithPassword).not.toHaveBeenCalled();
++    expect(calls[calls.length - 1]).toBe("rpc:delete_my_account");
++  });
++
++  it("maps the server's reauth_required answer", async () => {
++    stubRpc({ deleteError: "reauth_required" });
++    await expect(deleteMyAccount({ userId: ME, email: "me@gmail.com" })).rejects.toMatchObject({
++      code: "reauth_required",
++    });
++  });
++
++  it("points at the migration when the database function is missing", async () => {
++    stubRpc({
++      deleteError: "Could not find the function public.delete_my_account in the schema cache",
++    });
++    await expect(deleteMyAccount({ userId: ME, email: "me@gmail.com" })).rejects.toMatchObject({
++      code: "migration_missing",
++    });
++  });
++
++  it("keeps the device data when the account could not be deleted", async () => {
++    window.localStorage.setItem(`ediraa-user-posts:${ME}`, "[]");
++    stubRpc({ deleteError: "network down" });
++    await expect(deleteMyAccount({ userId: ME, email: "me@gmail.com" })).rejects.toBeInstanceOf(
++      AccountDeletionError,
++    );
++    expect(window.localStorage.getItem(`ediraa-user-posts:${ME}`)).toBe("[]");
+   });
+ });
+diff --git a/supabase/migrations/20261116000000_privacy_account_deletion.sql b/supabase/migrations/20261116000000_privacy_account_deletion.sql
+new file mode 100644
+index 0000000..eab4abf
+--- /dev/null
++++ b/supabase/migrations/20261116000000_privacy_account_deletion.sql
+@@ -0,0 +1,108 @@
++-- =====================================================================
++-- Privacy + account deletion hardening. Safe to run more than once.
++-- Run in Supabase Dashboard -> SQL Editor (or `supabase db push`), AFTER
++-- 20261113000000_delete_account.sql. Nothing here changes existing data.
++--
++-- 1. delete_my_account() now
++--      * needs a RECENT sign-in (my_session_is_fresh(): session < 10 minutes old), so a stolen or
++--        left-open session cannot erase an account. The app asks for the password first;
++--        accounts that signed in with Google are asked to sign in again.
++--      * hands a group you created to another member instead of destroying the group
++--        (and its chat) for everybody else. A group with nobody else in it is deleted.
++--      * removes chat rooms that nobody is left in.
++--    Everything else still goes through "on delete cascade" (see the replay test
++--    supabase/tests/replay/delete_account.assert.sql, which fails if a new table that points
++--    at a profile or login is added without cascade / set null).
++-- 2. get_login_emails(text) is not used by the app (log-in is by username) but lets anyone
++--    holding the public key turn a mailbox into the account emails behind it. Closed.
++-- =====================================================================
++
++-- "Did this person sign in recently?" The app asks this BEFORE it deletes any uploaded files,
++-- so a stale session is turned away without losing anything. A session row's created_at only
++-- moves when the person actually signs in (refreshing the access token does not), so it is the
++-- right clock. Tokens that carry no session id fall back to the token's own issue time.
++create or replace function public.my_session_is_fresh()
++returns boolean
++language plpgsql
++security definer
++stable
++set search_path = public, auth
++as $$
++declare
++  v_claims  jsonb := coalesce(auth.jwt(), '{}'::jsonb);
++  v_session uuid;
++  v_started timestamptz;
++begin
++  if auth.uid() is null then return false; end if;
++  begin
++    v_session := nullif(v_claims ->> 'session_id', '')::uuid;
++  exception when others then
++    v_session := null;
++  end;
++  if v_session is not null then
++    select s.created_at into v_started
++    from auth.sessions s
++    where s.id = v_session and s.user_id = auth.uid();
++  elsif (v_claims ->> 'iat') ~ '^[0-9]+$' then
++    v_started := to_timestamp((v_claims ->> 'iat')::bigint);
++  end if;
++  return v_started is not null and v_started >= now() - interval '10 minutes';
++end $$;
++
++revoke all on function public.my_session_is_fresh() from public, anon;
++grant execute on function public.my_session_is_fresh() to authenticated;
++
++create or replace function public.delete_my_account()
++returns void
++language plpgsql
++security definer
++set search_path = public, auth
++as $$
++declare
++  uid     uuid := auth.uid();
++  v_heir  uuid;
++  v_group record;
++  v_convs uuid[];
++begin
++  if uid is null then raise exception 'Please sign in first'; end if;
++
++  if not public.my_session_is_fresh() then
++    raise exception 'reauth_required'
++      using hint = 'Sign in again, then delete the account within 10 minutes.';
++  end if;
++
++  -- Groups this person created: give each one to the longest-standing other member (admins
++  -- first) so the other members keep their group and chat. No other member -> the group is
++  -- deleted with the account (cascade).
++  for v_group in select g.id from public.groups g where g.created_by = uid loop
++    select m.user_id into v_heir
++    from public.group_members m
++    where m.group_id = v_group.id and m.user_id <> uid
++    order by (m.role = 'admin') desc, m.created_at asc
++    limit 1;
++    if v_heir is not null then
++      update public.groups set created_by = v_heir where id = v_group.id;
++      update public.group_members set role = 'admin'
++        where group_id = v_group.id and user_id = v_heir;
++    end if;
++  end loop;
++
++  select coalesce(array_agg(cp.conversation_id), '{}') into v_convs
++  from public.conversation_participants cp where cp.user_id = uid;
++
++  delete from auth.users where id = uid;
++  if not found then raise exception 'account_not_found'; end if;
++
++  -- Chats that nobody is in any more (both people deleted their accounts).
++  delete from public.conversations c
++  where c.id = any (v_convs)
++    and not exists (
++      select 1 from public.conversation_participants p where p.conversation_id = c.id
++    );
++end $$;
++
++revoke all on function public.delete_my_account() from public, anon;
++grant execute on function public.delete_my_account() to authenticated;
++
++-- 2. Unused email lookup that anon could call.
++revoke all on function public.get_login_emails(text) from public, anon, authenticated;
+diff --git a/supabase/tests/replay/00_supabase_stub.sql b/supabase/tests/replay/00_supabase_stub.sql
+index 61cc801..cd1549d 100644
+--- a/supabase/tests/replay/00_supabase_stub.sql
++++ b/supabase/tests/replay/00_supabase_stub.sql
+@@ -24,3 +24,9 @@ create schema extensions; create schema net;
+ create function net.http_post(url text, body jsonb default '{}', params jsonb default '{}', headers jsonb default '{}', timeout_milliseconds int default 1000) returns bigint language sql as $$ select 1::bigint $$;
+ grant usage on schema public, auth, storage to anon, authenticated, service_role;
+ grant execute on function auth.uid() to anon, authenticated;
++-- Sessions + JWT helper (used by delete_my_account's "recent sign-in" check).
++create table auth.sessions (id uuid primary key default gen_random_uuid(),
++  user_id uuid not null references auth.users (id) on delete cascade, created_at timestamptz default now());
++create function auth.jwt() returns jsonb language sql stable as
++  $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
++grant execute on function auth.jwt() to anon, authenticated;
+diff --git a/supabase/tests/replay/delete_account.assert.sql b/supabase/tests/replay/delete_account.assert.sql
+new file mode 100644
+index 0000000..ca40bb5
+--- /dev/null
++++ b/supabase/tests/replay/delete_account.assert.sql
+@@ -0,0 +1,153 @@
++-- Account deletion, enforced with ASSERT. Runs inside one transaction and rolls back.
++begin;
++
++-- ---- 1. Guard for future tables: anything that points at a person must cascade or set null,
++--         otherwise deleting an account fails or leaves that person's data behind.
++do $$
++declare bad text;
++begin
++  select string_agg(format('%s.%s', c.conrelid::regclass, a.attname), ', ') into bad
++  from pg_constraint c
++  join pg_attribute a on a.attrelid = c.conrelid and a.attnum = any (c.conkey)
++  where c.contype = 'f'
++    and c.confrelid in ('auth.users'::regclass, 'public.profiles'::regclass)
++    and c.confdeltype not in ('c', 'n');
++  assert bad is null, 'foreign keys to a person without cascade/set null: ' || coalesce(bad, '');
++end $$;
++
++-- ---- 2. Fixtures: asha (deleter), ravi (member), meena (admin), zed (a stranger).
++insert into auth.users (id, email, raw_user_meta_data) values
++  ('00000000-0000-0000-0000-00000000000a', 'a@test.local', '{"username":"asha","full_name":"Asha"}'),
++  ('00000000-0000-0000-0000-00000000000b', 'b@test.local', '{"username":"ravi","full_name":"Ravi"}'),
++  ('00000000-0000-0000-0000-00000000000c', 'c@test.local', '{"username":"meena","full_name":"Meena"}'),
++  ('00000000-0000-0000-0000-00000000000d', 'd@test.local', '{"username":"zedd","full_name":"Zed"}');
++
++insert into public.follows (follower_id, following_id) values
++  ('00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-00000000000b'),
++  ('00000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-00000000000a'),
++  ('00000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-00000000000d');
++
++-- group 1: made by asha, ravi (member) and meena (admin) are in it -> goes to meena
++-- group 2: made by asha, nobody else -> deleted
++insert into public.groups (id, name, created_by) values
++  ('10000000-0000-0000-0000-000000000001', 'Shared group', '00000000-0000-0000-0000-00000000000a'),
++  ('10000000-0000-0000-0000-000000000002', 'Solo group',   '00000000-0000-0000-0000-00000000000a');
++insert into public.group_members (group_id, user_id, role) values
++  ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000a', 'admin'),
++  ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000b', 'member'),
++  ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000c', 'admin'),
++  ('10000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-00000000000a', 'admin');
++
++-- chats: asha<->ravi (ravi stays), asha<->zed is irrelevant; asha-only room
++insert into public.conversations (id) values
++  ('20000000-0000-0000-0000-000000000001'),
++  ('20000000-0000-0000-0000-000000000002');
++insert into public.conversation_participants (conversation_id, user_id) values
++  ('20000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000a'),
++  ('20000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000b'),
++  ('20000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-00000000000a');
++insert into public.messages (conversation_id, sender_id, body) values
++  ('20000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000a', 'from asha'),
++  ('20000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000b', 'from ravi'),
++  ('20000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-00000000000a', 'note to self');
++
++-- ---- 3. Not signed in, or signed in long ago -> refused, nothing changes.
++set local role anon;
++do $$ begin
++  perform public.delete_my_account();
++  raise exception 'anon was allowed to delete';
++exception when insufficient_privilege then null; end $$;
++reset role;
++
++select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', true);
++set local role authenticated;
++do $$ begin
++  perform public.delete_my_account();
++  raise exception 'a token with no session or issue time was accepted';
++exception when others then
++  assert sqlerrm = 'reauth_required', 'stale/unknown session must be refused, got: ' || sqlerrm;
++end $$;
++reset role;
++
++insert into auth.sessions (id, user_id, created_at) values
++  ('30000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000a', now() - interval '2 hours');
++select set_config('request.jwt.claims',
++  '{"sub":"00000000-0000-0000-0000-00000000000a","session_id":"30000000-0000-0000-0000-000000000001"}', true);
++set local role authenticated;
++do $$ begin
++  perform public.delete_my_account();
++  raise exception 'a 2-hour-old session was accepted';
++exception when others then
++  assert sqlerrm = 'reauth_required', 'old session must be refused, got: ' || sqlerrm;
++end $$;
++reset role;
++do $$ begin
++  assert exists (select 1 from public.profiles where username = 'asha'), 'refused deletion changed nothing';
++end $$;
++
++-- ---- 4. Someone else's fresh session id does not count.
++insert into auth.sessions (id, user_id, created_at) values
++  ('30000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-00000000000b', now());
++select set_config('request.jwt.claims',
++  '{"sub":"00000000-0000-0000-0000-00000000000a","session_id":"30000000-0000-0000-0000-000000000002"}', true);
++set local role authenticated;
++do $$ begin
++  perform public.delete_my_account();
++  raise exception 'another person''s session was accepted';
++exception when others then
++  assert sqlerrm = 'reauth_required', 'foreign session must be refused, got: ' || sqlerrm;
++end $$;
++reset role;
++
++-- the app's pre-flight check agrees with the refusals above (and is closed to the public key)
++set local role authenticated;
++do $$ begin assert public.my_session_is_fresh() = false, 'foreign session is not fresh'; end $$;
++reset role;
++set local role anon;
++do $$ begin
++  perform public.my_session_is_fresh();
++  raise exception 'anon can call my_session_is_fresh';
++exception when insufficient_privilege then null; end $$;
++reset role;
++
++-- ---- 5. Fresh sign-in -> works.
++insert into auth.sessions (id, user_id, created_at) values
++  ('30000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-00000000000a', now() - interval '1 minute');
++select set_config('request.jwt.claims',
++  '{"sub":"00000000-0000-0000-0000-00000000000a","session_id":"30000000-0000-0000-0000-000000000003"}', true);
++set local role authenticated;
++do $$ begin assert public.my_session_is_fresh() = true, 'a 1-minute-old session is fresh'; end $$;
++select public.delete_my_account();
++reset role;
++
++do $$ begin
++  assert not exists (select 1 from auth.users    where id = '00000000-0000-0000-0000-00000000000a'), 'login removed';
++  assert not exists (select 1 from public.profiles where username = 'asha'),                         'profile removed';
++  assert not exists (select 1 from public.follows
++                     where '00000000-0000-0000-0000-00000000000a' in (follower_id, following_id)),    'follows removed both ways';
++  assert exists (select 1 from public.follows
++                 where follower_id = '00000000-0000-0000-0000-00000000000b'
++                   and following_id = '00000000-0000-0000-0000-00000000000d'),                        'other people''s follows untouched';
++  assert not exists (select 1 from public.messages where body in ('from asha', 'note to self')),     'her messages removed';
++  assert exists (select 1 from public.messages where body = 'from ravi'),                             'ravi''s message kept';
++  assert not exists (select 1 from public.conversations where id = '20000000-0000-0000-0000-000000000002'),
++                     'a chat nobody is left in is removed';
++  assert exists (select 1 from public.conversations where id = '20000000-0000-0000-0000-000000000001'),
++                     'a chat someone is still in is kept';
++  assert (select created_by from public.groups where id = '10000000-0000-0000-0000-000000000001')
++         = '00000000-0000-0000-0000-00000000000c',                                                   'shared group goes to its other admin';
++  assert (select count(*) from public.group_members where group_id = '10000000-0000-0000-0000-000000000001') = 2,
++                     'shared group keeps its other members';
++  assert not exists (select 1 from public.groups where id = '10000000-0000-0000-0000-000000000002'), 'a group with nobody else is deleted';
++  assert exists (select 1 from public.profiles where username in ('ravi', 'meena', 'zedd')),         'other accounts untouched';
++end $$;
++
++-- ---- 6. The unused email lookup is closed to the public key.
++set local role anon;
++do $$ begin
++  perform public.get_login_emails('a@test.local');
++  raise exception 'anon can still look up account emails by mailbox';
++exception when insufficient_privilege then null; end $$;
++reset role;
++
++rollback;

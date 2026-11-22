@@ -87,3 +87,64 @@ export function safeEqual(a: string, b: string): boolean {
   for (let i = 0; i < len; i++) diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
   return diff === 0;
 }
+
+// ---- speed and observability helpers ---------------------------------------------------------
+
+/** At most this many pushes are in flight at once (one request can name 500 people). */
+export const MAX_CONCURRENT_DELIVERIES = 25;
+/** A push service or Google that has not answered after this long is counted as failed. */
+export const DELIVERY_TIMEOUT_MS = 10_000;
+/** A real request is a few hundred bytes; 500 UUIDs fit well under this. */
+export const MAX_BODY_BYTES = 64 * 1024;
+
+/** True when the Content-Length header announces a body that is too large to accept. */
+export function isBodyTooLarge(contentLength: string | null): boolean {
+  if (contentLength === null) return false;
+  const n = Number(contentLength);
+  return Number.isFinite(n) && n > MAX_BODY_BYTES;
+}
+
+/**
+ * Like Promise.all(items.map(fn)) but with at most `limit` calls running at the same time.
+ * Results keep the order of `items`.
+ */
+export async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    for (;;) {
+      const i = next++;
+      if (i >= items.length) return;
+      results[i] = await fn(items[i] as T, i);
+    }
+  };
+  const workers = Math.max(1, Math.min(Math.floor(limit) || 1, items.length));
+  await Promise.all(Array.from({ length: workers }, worker));
+  return results;
+}
+
+export type DeliveryCounts = { sent: number; removed: number; failed: number };
+
+/**
+ * One structured log line for a finished request: how long it took and how many pushes went
+ * where. Numbers only: no people, endpoints, tokens or message text can end up in the log.
+ */
+export function pushSummaryLog(fields: {
+  ms: number;
+  recipients: number;
+  web: DeliveryCounts;
+  android: DeliveryCounts;
+}): string {
+  const counts = (c: DeliveryCounts) => ({ sent: c.sent, removed: c.removed, failed: c.failed });
+  return JSON.stringify({
+    event: "send_push_done",
+    ms: Math.round(fields.ms),
+    recipients: fields.recipients,
+    web: counts(fields.web),
+    android: counts(fields.android),
+  });
+}

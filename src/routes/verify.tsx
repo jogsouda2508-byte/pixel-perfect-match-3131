@@ -2,14 +2,20 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { authRedirect } from "@/lib/auth-redirect";
+import { callGateway, gatewayProblem, startSession, tokensFrom } from "@/lib/auth-gateway";
 import { friendlyAuthError } from "@/lib/auth-errors";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { AuthShell, PrimaryButton } from "@/components/auth-ui";
 
 export const Route = createFileRoute("/verify")({
-  validateSearch: (search: Record<string, unknown>): { email?: string; phone?: string } => {
-    const out: { email?: string; phone?: string } = {};
-    if (typeof search["email"] === "string" && search["email"]) out.email = search["email"];
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { username?: string; masked?: string; phone?: string } => {
+    const out: { username?: string; masked?: string; phone?: string } = {};
+    if (typeof search["username"] === "string" && search["username"])
+      out.username = search["username"];
+    if (typeof search["masked"] === "string" && search["masked"]) out.masked = search["masked"];
     if (typeof search["phone"] === "string" && search["phone"]) out.phone = search["phone"];
     return out;
   },
@@ -20,7 +26,7 @@ export const Route = createFileRoute("/verify")({
 const RESEND_SECONDS = 30;
 
 function VerifyPage() {
-  const { email, phone } = Route.useSearch();
+  const { username, masked, phone } = Route.useSearch();
   const navigate = useNavigate();
   const [code, setCode] = useState("");
   const [error, setError] = useState<string>();
@@ -28,7 +34,7 @@ function VerifyPage() {
   const [seconds, setSeconds] = useState(RESEND_SECONDS);
   const [resending, setResending] = useState(false);
 
-  const target = email ?? phone;
+  const target = username ? masked || `@${username}` : phone;
 
   useEffect(() => {
     if (seconds <= 0) return;
@@ -40,12 +46,24 @@ function VerifyPage() {
     if (value.length !== 6) return setError("Enter the 6-digit code");
     setError(undefined);
     setLoading(true);
-    const { error: err } = email
-      ? await supabase.auth.verifyOtp({ email, token: value, type: "signup" })
-      : await supabase.auth.verifyOtp({ phone: phone!, token: value, type: "sms" });
+    let failure: string | undefined;
+    if (username) {
+      // The server checks the code (rate limited) and starts the session.
+      const r = await callGateway("verify", { username, code: value });
+      const tokens = r.ok ? tokensFrom(r) : null;
+      if (tokens) failure = (await startSession(tokens)).error ?? undefined;
+      else failure = gatewayProblem(r, "That code is wrong or has expired. Request a new one.");
+    } else {
+      const { error: err } = await supabase.auth.verifyOtp({
+        phone: phone!,
+        token: value,
+        type: "sms",
+      });
+      if (err) failure = friendlyAuthError(err);
+    }
     setLoading(false);
-    if (err) {
-      setError(friendlyAuthError(err));
+    if (failure) {
+      setError(failure);
       setCode("");
       return;
     }
@@ -56,12 +74,20 @@ function VerifyPage() {
 
   const resend = async () => {
     setResending(true);
-    const { error: err } = email
-      ? await supabase.auth.resend({ type: "signup", email })
-      : await supabase.auth.signInWithOtp({ phone: phone!, options: { shouldCreateUser: true } });
+    let failure: string | undefined;
+    if (username) {
+      const r = await callGateway("resend", { username, redirect_to: authRedirect("/home") });
+      if (!r.ok) failure = gatewayProblem(r, "Couldn't send a new code. Please try again.");
+    } else {
+      const { error: err } = await supabase.auth.signInWithOtp({
+        phone: phone!,
+        options: { shouldCreateUser: true },
+      });
+      if (err) failure = friendlyAuthError(err);
+    }
     setResending(false);
-    if (err) {
-      toast.error(friendlyAuthError(err));
+    if (failure) {
+      toast.error(failure);
       return;
     }
     toast.success("A new code is on its way.");
@@ -92,8 +118,8 @@ function VerifyPage() {
       title="Enter verification code"
       subtitle={`We sent a 6-digit code to ${target}`}
       footer={
-        <Link to={email ? "/signup" : "/login"} className="font-semibold text-primary">
-          Use a different {email ? "email" : "number"}
+        <Link to={username ? "/signup" : "/login"} className="font-semibold text-primary">
+          Use a different {username ? "email" : "number"}
         </Link>
       }
     >
@@ -156,7 +182,7 @@ function VerifyPage() {
             </button>
           )}
         </p>
-        {email && (
+        {username && (
           <p className="text-center text-xs text-muted-foreground">
             Tip: you can also click the link in the email instead.
           </p>
