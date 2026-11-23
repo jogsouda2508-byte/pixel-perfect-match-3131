@@ -436,6 +436,8 @@ export type RenderInput = {
   photo: HTMLImageElement;
   /** zoom and position of the photo (omitted = whole photo) */
   view?: PhotoView;
+  /** CSS filter for the photo only (see lib/photo-filters.ts); omitted or "none" = unchanged */
+  filter?: string;
   strokes: Stroke[];
   items: StoryOverlay[];
   caption: string;
@@ -459,7 +461,11 @@ export function drawStory(ctx: CanvasRenderingContext2D, input: RenderInput) {
   const pr = photoRect(iw, ih, W, SH);
   const dw = pr.w * v.zoom;
   const dh = pr.h * v.zoom;
+  // the filter touches the photo only: strokes, stickers, text and the caption stay as they are
+  const filtered = !!input.filter && input.filter !== "none" && "filter" in ctx;
+  if (filtered) ctx.filter = input.filter!;
   ctx.drawImage(photo, (W - dw) / 2 + v.x * W, (SH - dh) / 2 + v.y * SH, dw, dh);
+  if (filtered) ctx.filter = "none";
 
   drawStrokes(ctx, strokes, W, SH);
 

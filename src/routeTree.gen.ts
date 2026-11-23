@@ -24,6 +24,8 @@ import { Route as HomeRouteImport } from './routes/home'
 import { Route as InviteRouteImport } from './routes/invite'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MoreRouteImport } from './routes/more'
+import { Route as MyActivityRouteImport } from './routes/my-activity'
+import { Route as MyProfileRouteImport } from './routes/my-profile'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as PrivacyRouteImport } from './routes/privacy'
@@ -115,6 +117,16 @@ const LoginRoute = LoginRouteImport.update({
 const MoreRoute = MoreRouteImport.update({
   id: '/more',
   path: '/more',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MyActivityRoute = MyActivityRouteImport.update({
+  id: '/my-activity',
+  path: '/my-activity',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MyProfileRoute = MyProfileRouteImport.update({
+  id: '/my-profile',
+  path: '/my-profile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NotificationsRoute = NotificationsRouteImport.update({
@@ -219,6 +231,8 @@ export interface FileRoutesByFullPath {
   '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
   '/more': typeof MoreRoute
+  '/my-activity': typeof MyActivityRoute
+  '/my-profile': typeof MyProfileRoute
   '/notifications': typeof NotificationsRoute
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
@@ -253,6 +267,8 @@ export interface FileRoutesByTo {
   '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
   '/more': typeof MoreRoute
+  '/my-activity': typeof MyActivityRoute
+  '/my-profile': typeof MyProfileRoute
   '/notifications': typeof NotificationsRoute
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
@@ -288,6 +304,8 @@ export interface FileRoutesById {
   '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
   '/more': typeof MoreRoute
+  '/my-activity': typeof MyActivityRoute
+  '/my-profile': typeof MyProfileRoute
   '/notifications': typeof NotificationsRoute
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
@@ -324,6 +342,8 @@ export interface FileRouteTypes {
     | '/invite'
     | '/login'
     | '/more'
+    | '/my-activity'
+    | '/my-profile'
     | '/notifications'
     | '/onboarding'
     | '/privacy'
@@ -358,6 +378,8 @@ export interface FileRouteTypes {
     | '/invite'
     | '/login'
     | '/more'
+    | '/my-activity'
+    | '/my-profile'
     | '/notifications'
     | '/onboarding'
     | '/privacy'
@@ -392,6 +414,8 @@ export interface FileRouteTypes {
     | '/invite'
     | '/login'
     | '/more'
+    | '/my-activity'
+    | '/my-profile'
     | '/notifications'
     | '/onboarding'
     | '/privacy'
@@ -427,6 +451,8 @@ export interface RootRouteChildren {
   InviteRoute: typeof InviteRoute
   LoginRoute: typeof LoginRoute
   MoreRoute: typeof MoreRoute
+  MyActivityRoute: typeof MyActivityRoute
+  MyProfileRoute: typeof MyProfileRoute
   NotificationsRoute: typeof NotificationsRoute
   OnboardingRoute: typeof OnboardingRoute
   PrivacyRoute: typeof PrivacyRoute
@@ -551,6 +577,20 @@ declare module '@tanstack/react-router' {
       path: '/more'
       fullPath: '/more'
       preLoaderRoute: typeof MoreRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/my-activity': {
+      id: '/my-activity'
+      path: '/my-activity'
+      fullPath: '/my-activity'
+      preLoaderRoute: typeof MyActivityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/my-profile': {
+      id: '/my-profile'
+      path: '/my-profile'
+      fullPath: '/my-profile'
+      preLoaderRoute: typeof MyProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/notifications': {
@@ -691,6 +731,8 @@ const rootRouteChildren: RootRouteChildren = {
   InviteRoute: InviteRoute,
   LoginRoute: LoginRoute,
   MoreRoute: MoreRoute,
+  MyActivityRoute: MyActivityRoute,
+  MyProfileRoute: MyProfileRoute,
   NotificationsRoute: NotificationsRoute,
   OnboardingRoute: OnboardingRoute,
   PrivacyRoute: PrivacyRoute,

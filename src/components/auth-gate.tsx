@@ -17,6 +17,8 @@ const PROTECTED = [
   "/notifications",
   "/more",
   "/saved",
+  "/my-profile",
+  "/my-activity",
   "/groups",
   "/business",
   "/business-edit",

@@ -11,10 +11,11 @@ import {
   Share2,
   Star,
   User,
-  UserPlus,
   Users,
 } from "lucide-react";
+import { DeleteAccountButton } from "@/components/delete-account";
 import { Avatar } from "@/components/ediraa";
+import { LocalTiles } from "@/components/local-tiles";
 import { PageShell } from "@/components/page-shell";
 import { useAuth } from "@/lib/auth";
 
@@ -29,7 +30,7 @@ export const Route = createFileRoute("/more")({
 });
 
 const links = [
-  { label: "My Profile", icon: User, to: "/profile" },
+  { label: "My Profile", icon: User, to: "/my-profile" },
   { label: "Community", icon: UsersRound, to: "/community" },
   { label: "Business Page", icon: Building2, to: "/business" },
   { label: "Saved Posts", icon: Star, to: "/saved" },
@@ -55,33 +56,21 @@ function MorePage() {
     }
   };
 
-  const invite = async () => {
-    const url = `${window.location.origin}/signup`;
-    const text = "Join me on SabZone — connect with people and businesses around you.";
-    try {
-      if (navigator.share) await navigator.share({ title: "SabZone", text, url });
-      else {
-        await navigator.clipboard.writeText(`${text} ${url}`);
-        toast.success("Invite link copied to clipboard");
-      }
-    } catch {
-      /* user cancelled the share sheet */
-    }
-  };
-
   const name = profile?.full_name || profile?.username || "";
 
   return (
     <PageShell>
       <h1 className="text-xl font-bold">More</h1>
       <Link to="/profile" className="glass-card more-profile-card flex items-center gap-3 p-4">
-        <Avatar src={profile?.avatar_url} name={name} size={48} ring />
+        <Avatar src={profile?.avatar_url} name={name} size={48} />
         <div className="min-w-0 flex-1">
           <p className="truncate font-semibold">{name}</p>
           <p className="truncate text-sm text-muted-foreground">@{profile?.username}</p>
         </div>
         <ChevronRight className="h-5 w-5 text-muted-foreground" />
       </Link>
+      {/* The "Around you" shortcuts used to sit on the Home feed. */}
+      <LocalTiles area={null} grid />
       <section className="glass-card divide-y divide-border">
         {links.map((r) => (
           <Link
@@ -94,15 +83,6 @@ function MorePage() {
             <ChevronRight className="ml-auto h-5 w-5 text-muted-foreground" />
           </Link>
         ))}
-        <button
-          type="button"
-          onClick={invite}
-          className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-sm"
-        >
-          <UserPlus className="h-5 w-5" />
-          Invite Friends
-          <ChevronRight className="ml-auto h-5 w-5 text-muted-foreground" />
-        </button>
       </section>
       <button
         type="button"
@@ -112,6 +92,8 @@ function MorePage() {
       >
         {busy && <Loader2 className="h-4 w-4 animate-spin" />}Log Out
       </button>
+      {/* Asks to type DELETE (and the password) before anything is removed. */}
+      <DeleteAccountButton />
     </PageShell>
   );
 }

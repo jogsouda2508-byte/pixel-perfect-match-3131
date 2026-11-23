@@ -1,0 +1,1915 @@
+diff --git a/src/components/auth-gate.tsx b/src/components/auth-gate.tsx
+index 8e460e0..ce9474a 100644
+--- a/src/components/auth-gate.tsx
++++ b/src/components/auth-gate.tsx
+@@ -17,6 +17,8 @@ const PROTECTED = [
+   "/notifications",
+   "/more",
+   "/saved",
++  "/my-profile",
++  "/my-activity",
+   "/groups",
+   "/business",
+   "/business-edit",
+diff --git a/src/components/ediraa.tsx b/src/components/ediraa.tsx
+index 3996c60..618554b 100644
+--- a/src/components/ediraa.tsx
++++ b/src/components/ediraa.tsx
+@@ -60,20 +60,19 @@ export function BrandLockup({
+   );
+ }
+ 
+-/** Story ring: marigold -> ember -> rose -> violet -> lagoon. */
++/** Story ring: the same gold -> ember look as the Local Hub ring (the brand gradient). */
+ const STORY_RING_STOPS: [string, string][] = [
+   ["0%", "#f9b233"],
+-  ["30%", "#f2705a"],
+-  ["58%", "#e2528f"],
+-  ["82%", "#9b6bff"],
+-  ["100%", "#35d0ba"],
++  ["100%", "#f2705a"],
+ ];
++/** A story that has been watched: the ring turns brown. */
++export const STORY_RING_SEEN = "#8b5e3c";
+ /** The lagoon-green ring of a Close Friends story. */
+ const CLOSE_RING_STOPS: [string, string][] = [
+   ["0%", "#5eead4"],
+   ["100%", "#1fae7a"],
+ ];
+-const STORY_RING_CSS = `linear-gradient(45deg, ${STORY_RING_STOPS.map(([o, c]) => `${c} ${o}`).join(", ")})`;
++export const STORY_RING_CSS = `linear-gradient(45deg, ${STORY_RING_STOPS.map(([o, c]) => `${c} ${o}`).join(", ")})`;
+ 
+ /**
+  * Story ring split into one arc per story (like Instagram): 2 stories = 2 arcs with a small gap
+@@ -97,7 +96,9 @@ function SegmentedRing({
+   children: ReactNode;
+ }) {
+   const id = useId();
+-  const r = 48.6;
++  // Same thickness as the Local Hub ring: 2.5px on the Home row, a little less on small avatars.
++  const sw = ((size >= 56 ? 2.5 : 1.75) / size) * 100;
++  const r = 50 - sw / 2;
+   const circumference = 2 * Math.PI * r;
+   // No gaps: the arcs touch, so several stories still look like ONE unbroken ring.
+   const arc = circumference / segments;
+@@ -121,9 +122,8 @@ function SegmentedRing({
+                 cy="50"
+                 r={r}
+                 fill="none"
+-                stroke={isSeen ? undefined : `url(#${id})`}
+-                className={isSeen ? "stroke-neutral-300 dark:stroke-neutral-600" : undefined}
+-                strokeWidth="2.6"
++                stroke={isSeen ? STORY_RING_SEEN : `url(#${id})`}
++                strokeWidth={sw}
+                 // a hair of overlap hides the seam between neighbouring arcs
+                 strokeDasharray={`${Math.min(circumference, arc + 0.4)} ${circumference}`}
+                 strokeDashoffset={-(i * arc)}
+@@ -133,7 +133,9 @@ function SegmentedRing({
+         </g>
+       </svg>
+       {loading && <RingLoader />}
+-      <div className="absolute inset-[3%]">{children}</div>
++      <div className="absolute" style={{ inset: `${sw + 0.6}%` }}>
++        {children}
++      </div>
+     </div>
+   );
+ }
+@@ -208,7 +210,7 @@ export function Avatar({
+   const ringClass = !ring
+     ? ""
+     : seen?.[0]
+-      ? "rounded-full bg-neutral-300 p-[2px] dark:bg-neutral-600"
++      ? "rounded-full p-[2px]"
+       : "rounded-full bg-gradient-brand p-[2px]";
+   return (
+     <div
+@@ -336,8 +338,9 @@ const items = [
+ export function BottomNav({ showCreate = false }: { showCreate?: boolean }) {
+   return (
+     <>
+-      <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:hidden">
+-        <div className="sz-dock pointer-events-auto mx-auto flex max-w-sm items-center justify-around rounded-[1.75rem] p-1.5">
++      {/* Docked to the bottom edge, full width (like Instagram): no floating gap on any side. */}
++      <nav className="fixed inset-x-0 bottom-0 z-50 md:hidden">
++        <div className="sz-dock flex w-full items-center justify-around px-2 pt-1 pb-[max(0.375rem,env(safe-area-inset-bottom))]">
+           {items.map((i) => (
+             <NavItem key={i.label} {...i} />
+           ))}
+@@ -395,7 +398,7 @@ function NavItem({
+                 src={avatar}
+                 alt=""
+                 aria-hidden="true"
+-                className={`h-7 w-7 rounded-full object-cover ring-offset-2 ring-offset-card ${isActive ? "ring-2 ring-primary" : "opacity-90"}`}
++                className={`h-7 w-7 rounded-full object-cover ${isActive ? "" : "opacity-90"}`}
+               />
+             ) : isActive && to === "/home" ? (
+               <HomeSelectedIcon />
+diff --git a/src/components/local-tiles.tsx b/src/components/local-tiles.tsx
+index 8f1c54c..250c8b5 100644
+--- a/src/components/local-tiles.tsx
++++ b/src/components/local-tiles.tsx
+@@ -54,27 +54,43 @@ const TILES: Tile[] = [
+ ];
+ 
+ /** "Around Whitefield": one-tap shortcuts to what is happening near the person. */
+-export function LocalTiles({ area }: { area: string | null }) {
++export function LocalTiles({
++  area,
++  grid = false,
++}: {
++  area: string | null;
++  /** Wrap the shortcuts in a grid (More page) instead of one sideways-scrolling row. */
++  grid?: boolean;
++}) {
+   return (
+     <section aria-label="Around you" className="space-y-2">
+       <h2 className="flex items-center gap-1.5 px-1 font-display text-sm font-bold">
+         <MapPin className="h-4 w-4 text-primary" aria-hidden="true" />
+         {area ? `Around ${area}` : "Around you"}
+       </h2>
+-      <div className="scrollbar-hidden -mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1">
++      <div
++        className={
++          grid
++            ? "grid grid-cols-5 gap-2"
++            : "scrollbar-hidden -mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1"
++        }
++      >
+         {TILES.map((t) => {
+           const body = (
+             <>
+               <span
+-                className={`grid h-11 w-11 place-items-center rounded-2xl ring-1 ring-inset ring-white/5 ${t.tone}`}
++                className={`grid place-items-center ring-1 ring-inset ring-white/5 ${grid ? "h-8 w-8 rounded-xl" : "h-11 w-11 rounded-2xl"} ${t.tone}`}
+               >
+-                <t.icon className="h-5 w-5" aria-hidden="true" />
++                <t.icon className={grid ? "h-4 w-4" : "h-5 w-5"} aria-hidden="true" />
++              </span>
++              <span className={grid ? "text-[10px] font-semibold" : "text-[11px] font-semibold"}>
++                {t.label}
+               </span>
+-              <span className="text-[11px] font-semibold">{t.label}</span>
+             </>
+           );
+           const cls =
+-            "flex w-[4.75rem] shrink-0 flex-col items-center gap-1.5 rounded-2xl border border-border bg-card/60 px-1 py-2.5 transition hover:border-primary/40 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
++            (grid ? "w-full gap-1 py-2" : "w-[4.75rem] shrink-0 gap-1.5 py-2.5") +
++            " flex flex-col items-center rounded-2xl border border-border bg-card/60 px-1 transition hover:border-primary/40 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+           return t.to === "/business" ? (
+             <Link key={t.label} to="/business" className={cls}>
+               {body}
+diff --git a/src/components/post-card.tsx b/src/components/post-card.tsx
+index 1d6b11b..2d1aa70 100644
+--- a/src/components/post-card.tsx
++++ b/src/components/post-card.tsx
+@@ -170,11 +170,8 @@ export function PostCard({
+       void setLike(true);
+       return;
+     }
++    // A single tap does nothing (like Instagram); only a double tap likes the photo.
+     lastPhotoClick.current = now;
+-    openTimer.current = setTimeout(() => {
+-      lastPhotoClick.current = 0;
+-      setGalleryOpen(true);
+-    }, 300);
+   };
+ 
+   const remove = useMutation({
+@@ -317,7 +314,8 @@ export function PostCard({
+       </div>
+       {!isVideo && post.image_url && (
+         <>
+-          {/* Photo sits right under the profile row, full width, shown whole (never cropped). */}
++          {/* Photo sits right under the profile row, edge to edge, filling the width. A very tall
++              photo is trimmed at 80% of the screen height; tapping it opens the whole picture. */}
+           <div className="relative mt-3 overflow-hidden bg-black/30">
+             <button
+               type="button"
+@@ -330,7 +328,7 @@ export function PostCard({
+                 alt=""
+                 loading="lazy"
+                 draggable={false}
+-                className="mx-auto block h-auto max-h-[80dvh] w-full object-contain"
++                className="mx-auto block h-auto max-h-[80dvh] w-full object-cover"
+               />
+             </button>
+             {/* Decorative: the same photo, blurred, fills any side gaps. Same file, so one download. */}
+@@ -491,7 +489,7 @@ function SoundIcon({ muted }: { muted: boolean }) {
+   return (
+     <svg
+       viewBox="0 0 24 24"
+-      className="h-5 w-5"
++      className="h-3 w-3"
+       fill="none"
+       stroke="currentColor"
+       strokeWidth="2"
+@@ -615,7 +613,9 @@ function FeedVideo({
+         search={{ video: to }}
+         aria-label={label}
+         className="relative block w-full overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+-        style={{ aspectRatio: ratio, maxHeight: "80dvh" }}
++        // Like Instagram: the frame is never narrower than 4:5 or wider than 1.91:1, and the video
++        // fills it edge to edge (cropped a little) instead of showing blurred side bars.
++        style={{ aspectRatio: Math.min(Math.max(ratio, 4 / 5), 1.91), maxHeight: "80dvh" }}
+       >
+         {poster && (
+           <img
+@@ -638,7 +638,7 @@ function FeedVideo({
+             const { videoWidth: w, videoHeight: h } = e.currentTarget;
+             if (w && h) setRatio(w / h);
+           }}
+-          className="absolute inset-0 h-full w-full object-contain"
++          className="absolute inset-0 h-full w-full object-cover"
+         />
+       </Link>
+       <button
+@@ -646,7 +646,7 @@ function FeedVideo({
+         onClick={toggleSound}
+         aria-label={muted ? "Turn sound on" : "Turn sound off"}
+         aria-pressed={!muted}
+-        className="absolute bottom-3 right-3 z-20 grid h-9 w-9 place-items-center rounded-full bg-black/55 text-white backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
++        className="absolute bottom-2 right-2 z-20 grid h-6 w-6 place-items-center rounded-full bg-black/55 text-white backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+       >
+         <SoundIcon muted={muted} />
+       </button>
+diff --git a/src/components/profile-view.tsx b/src/components/profile-view.tsx
+index aa7af0e..fe7bf3d 100644
+--- a/src/components/profile-view.tsx
++++ b/src/components/profile-view.tsx
+@@ -1,5 +1,5 @@
+ import { Link, useNavigate } from "@tanstack/react-router";
+-import { useState } from "react";
++import { useCallback, useRef, useState } from "react";
+ import { CirclePhotoViewer } from "@/components/circle-photo-viewer";
+ import { useQuery } from "@tanstack/react-query";
+ import {
+@@ -21,10 +21,17 @@ import {
+   Video,
+ } from "lucide-react";
+ import { toast } from "sonner";
+-import { BottomNav, SideNav, UserRow } from "@/components/ediraa";
++import {
++  BottomNav,
++  SideNav,
++  STORY_RING_CSS,
++  STORY_RING_SEEN,
++  UserRow,
++} from "@/components/ediraa";
+ import { ComposerLauncher } from "@/components/composer";
+ import { ReelsIcon, ShareIcon } from "@/components/icons";
+ import { Gallery, type GalleryItem } from "@/components/gallery";
++import { Stories } from "@/components/stories";
+ import { ProfileQrSheet } from "@/components/profile-qr";
+ import { FollowedBy } from "@/components/followed-by";
+ import { formatCount } from "@/lib/format-count";
+@@ -45,17 +52,18 @@ import {
+   fetchFollowingIds,
+   fetchFollowList,
+   fetchIsFollowing,
++  fetchStories,
+   fetchTaggedPosts,
+   fetchUserPosts,
+ } from "@/lib/social";
+ import { followLabel, isProfileLocked } from "@/lib/follow-state";
++import { useSeenStories } from "@/lib/story-seen";
+ import { useFollow } from "@/lib/use-follow";
+ import { startConversation } from "@/lib/chat";
+ import { UserSafetyMenu, useRefreshAfterSafetyChange } from "@/components/user-safety-menu";
+ import { blockedMessage, fetchBlockState, unblockUser } from "@/lib/safety";
+ import { fetchUserVideos, fetchVideoViewCounts } from "@/lib/videos";
+ import type { Profile } from "@/integrations/supabase/types";
+-import emptyPostsUrl from "@/assets/empty-posts.jpg";
+ import { userMessage } from "@/lib/security";
+ 
+ const tabs = ["Posts", "Reels", "Tagged"] as const;
+@@ -78,6 +86,19 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
+         year: "numeric",
+       });
+ 
++  // The photo only gets a ring while this person has a live story (same data as the Home story
++  // row, so it costs no extra request). Watched = brown ring, new = the brand-colour ring.
++  const meId = user?.id ?? "";
++  const seenStories = useSeenStories(meId);
++  const stories = useQuery({
++    queryKey: ["stories", meId],
++    queryFn: () => fetchStories(meId),
++    enabled: !!meId,
++  });
++  const storyGroup = stories.data?.find((g) => g.authorId === profile.id);
++  const hasStory = !!storyGroup && storyGroup.items.length > 0;
++  const storySeen = hasStory && storyGroup.items.every((st) => seenStories.has(st.id));
++
+   const followState = useQuery({
+     queryKey: ["is-following", user?.id, profile.id],
+     queryFn: () => fetchIsFollowing(user!.id, profile.id),
+@@ -138,6 +159,11 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
+   // Every photo and video post, in grid order, for the full-screen gallery.
+   const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
+   const [photoOpen, setPhotoOpen] = useState(false);
++  // Opens the story picker owned by the hidden <Stories mode="creator"> below (my profile only).
++  const addStoryRef = useRef<(() => void) | null>(null);
++  const onStoryReady = useCallback((fn: () => void) => {
++    addStoryRef.current = fn;
++  }, []);
+   const galleryItems: GalleryItem[] = [];
+   const galleryIndexByPost = new Map<string, number>();
+   // The Posts and Tagged tabs share one grid and one full-screen gallery.
+@@ -272,9 +298,15 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
+               <div className="relative shrink-0">
+                 <ProfileNoteBubble note={profileNote.note} isMe={isMe} />
+                 <div
+-                  className="aspect-square h-20 w-20 rounded-full p-[3px] md:h-24 md:w-24"
+-                  // thick solid grey ring, same as the story highlights (outer size unchanged)
+-                  style={{ backgroundColor: "#E4E7EB" }}
++                  className={`aspect-square h-20 w-20 rounded-full md:h-24 md:w-24 ${hasStory ? "p-[3px]" : ""}`}
++                  // no ring unless there is a story; then the brand colours (brown once watched)
++                  style={
++                    hasStory
++                      ? storySeen
++                        ? { backgroundColor: STORY_RING_SEEN }
++                        : { backgroundImage: STORY_RING_CSS }
++                      : undefined
++                  }
+                 >
+                   {profile.avatar_url ? (
+                     <button
+@@ -286,27 +318,29 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
+                       <img
+                         src={profile.avatar_url}
+                         alt={name}
+-                        className="block aspect-square h-full w-full shrink-0 rounded-full border-[3px] border-background object-cover"
++                        className={`block aspect-square h-full w-full shrink-0 rounded-full object-cover ${hasStory ? "border-[3px] border-background" : ""}`}
+                       />
+                     </button>
+                   ) : (
+-                    <div className="grid aspect-square h-full w-full shrink-0 place-items-center rounded-full border-[3px] border-background bg-elevated text-2xl font-bold">
++                    <div className={`grid aspect-square h-full w-full shrink-0 place-items-center rounded-full bg-elevated text-2xl font-bold ${hasStory ? "border-[3px] border-background" : ""}`}>
+                       {name.slice(0, 1).toUpperCase() || "?"}
+                     </div>
+                   )}
+                 </div>
+                 {isMe && (
+-                  <Link
+-                    to="/settings"
+-                    aria-label="Change profile photo"
+-                    className="absolute bottom-0.5 right-0.5 grid h-6 w-6 place-items-center rounded-full border-2 border-background bg-primary md:h-7 md:w-7 text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
++                  // Like Instagram: the "+" sits just outside the ring and adds a new story.
++                  <button
++                    type="button"
++                    onClick={() => addStoryRef.current?.()}
++                    aria-label="Add to your story"
++                    className="absolute -bottom-1 -right-1 grid h-6 w-6 place-items-center rounded-full border-2 border-background bg-primary md:h-7 md:w-7 text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                   >
+                     <Plus
+                       className="h-3.5 w-3.5 md:h-4 md:w-4"
+                       strokeWidth={2.75}
+                       aria-hidden="true"
+                     />
+-                  </Link>
++                  </button>
+                 )}
+               </div>
+               <div className="min-w-0 flex-1">
+@@ -547,13 +581,6 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
+                 aria-label="No posts yet"
+                 className="mt-3 flex flex-col items-center px-4 py-6 text-center"
+               >
+-                <img
+-                  src={emptyPostsUrl}
+-                  alt=""
+-                  aria-hidden="true"
+-                  draggable={false}
+-                  className="w-64 max-w-full select-none mix-blend-multiply [mask-image:radial-gradient(closest-side,black_78%,transparent)] dark:mix-blend-normal sm:w-72"
+-                />
+                 <h2 className="mt-2 text-2xl font-bold">
+                   {isMe ? "Create your first post" : "No posts yet"}
+                 </h2>
+@@ -594,10 +621,11 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
+                     </span>
+                   </button>
+                 ) : p.image_url ? (
+-                  <button
+-                    type="button"
++                  // A photo opens its post page (photo, likes, comments), not a black viewer.
++                  <Link
+                     key={p.id}
+-                    onClick={() => setGalleryIndex(galleryIndexByPost.get(p.id) ?? 0)}
++                    to="/post/$id"
++                    params={{ id: p.id }}
+                     aria-label={`Open photo${p.content ? `: ${p.content.slice(0, 60)}` : ""}`}
+                     className="block aspect-square w-full overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                   >
+@@ -607,7 +635,7 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
+                       loading="lazy"
+                       className="h-full w-full object-cover"
+                     />
+-                  </button>
++                  </Link>
+                 ) : (
+                   <div key={p.id} className="flex aspect-square items-center bg-elevated p-3">
+                     <p className="line-clamp-5 break-words text-xs font-medium leading-snug">
+@@ -620,7 +648,7 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
+           </>
+         )}
+       </main>
+-      <BottomNav showCreate={isMe} />
++      <BottomNav />
+       {qrOpen && (
+         <ProfileQrSheet
+           username={profile.username}
+@@ -636,6 +664,7 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
+           name={name}
+         />
+       )}
++      {isMe && <Stories mode="creator" onReady={onStoryReady} />}
+       <Gallery
+         items={galleryItems}
+         startIndex={galleryIndex}
+diff --git a/src/components/stories.tsx b/src/components/stories.tsx
+index 81a22be..de5e521 100644
+--- a/src/components/stories.tsx
++++ b/src/components/stories.tsx
+@@ -5,8 +5,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+ import { toast } from "sonner";
+ import {
+   BarChart3,
+-  ChevronLeft,
+-  ChevronRight,
+   Eye,
+   Heart,
+   Loader2,
+@@ -69,7 +67,20 @@ function isVideoFile(file: File): boolean {
+   return VIDEO_EXTENSIONS.includes(file.name.split(".").pop()?.toLowerCase() ?? "");
+ }
+ 
+-export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
++export function Stories({
++  onLocalHub,
++  mode = "row",
++  onReady,
++}: {
++  onLocalHub?: () => void;
++  /**
++   * "row" (Home) draws the story bubbles. "creator" draws nothing visible: it only owns the
++   * photo / video picker, the story editor and the upload, so another page (my profile) can
++   * start a new story. The page receives the function that opens the picker through `onReady`.
++   */
++  mode?: "row" | "creator";
++  onReady?: (addStory: () => void) => void;
++} = {}) {
+   const isMobile = useIsMobile();
+   const AVATAR = isMobile ? AVATAR_MOBILE : AVATAR_DESKTOP;
+   const COLUMN = AVATAR + 16; // 72px on desktop, 80px on phones
+@@ -139,9 +150,12 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
+   // story moves along this list.
+   const viewList = myGroup ? [myGroup, ...others] : others;
+   const viewIdx = viewing ? viewList.findIndex((g) => g.authorId === viewing.authorId) : -1;
+-  const swipeToPerson = (dir: 1 | -1) => {
++  // Moves to the next / previous person; false when there is nobody in that direction.
++  const swipeToPerson = (dir: 1 | -1): boolean => {
+     const next = viewList[viewIdx + dir];
+-    if (viewIdx >= 0 && next) setViewing(next);
++    if (viewIdx < 0 || !next) return false;
++    setViewing(next);
++    return true;
+   };
+ 
+   const upload = useMutation({
+@@ -257,25 +271,35 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
+     pick();
+   };
+ 
++  // Used by the creator mode: always opens the picker (even when I already have a story).
++  const addStory = () => {
++    if (!busy) pick();
++  };
++  const addStoryRef = useRef(addStory);
++  addStoryRef.current = addStory;
++  useEffect(() => {
++    onReady?.(() => addStoryRef.current());
++  }, [onReady]);
++
+   return (
+     <>
++      <input
++        ref={fileRef}
++        type="file"
++        accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
++        multiple
++        hidden
++        onChange={(e) => {
++          void onPick(Array.from(e.target.files ?? []));
++          e.target.value = "";
++        }}
++      />
++      {mode === "row" && (
+       <div
+         role="list"
+         aria-label="Stories"
+         className="-mx-4 flex snap-x gap-0 overflow-x-auto scroll-px-4 sm:gap-3 px-4 pb-1 [scrollbar-width:none] md:mx-0 md:px-0 [&::-webkit-scrollbar]:hidden"
+       >
+-        <input
+-          ref={fileRef}
+-          type="file"
+-          accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
+-          multiple
+-          hidden
+-          onChange={(e) => {
+-            void onPick(Array.from(e.target.files ?? []));
+-            e.target.value = "";
+-          }}
+-        />
+-
+         <div role="listitem" className="relative shrink-0 snap-start" style={{ width: COLUMN }}>
+           <StoryButton
+             label="Create Story"
+@@ -347,10 +371,10 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
+         {onLocalHub && (
+           <div role="listitem" className="shrink-0 snap-start" style={{ width: COLUMN }}>
+             <StoryButton label="Local Hub" ariaLabel="Open the Local feed" onClick={onLocalHub}>
+-              <div className="rounded-full bg-gradient-brand p-[2px]">
++              <div className="rounded-full bg-gradient-brand p-[2.5px]">
+                 <div
+                   className="grid place-items-center rounded-full bg-card"
+-                  style={{ height: AVATAR - 4, width: AVATAR - 4 }}
++                  style={{ height: AVATAR - 5, width: AVATAR - 5 }}
+                 >
+                   <MapPin
+                     className="text-primary"
+@@ -362,6 +386,7 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
+           </div>
+         )}
+       </div>
++      )}
+ 
+       {editing && (
+         <StoryEditor
+@@ -456,7 +481,7 @@ function StoryViewer({
+   meId: string;
+   onClose: () => void;
+   /** swipe sideways: 1 = next person's story (swipe left), -1 = previous person's (swipe right) */
+-  onSwipePerson?: (dir: 1 | -1) => void;
++  onSwipePerson?: (dir: 1 | -1) => boolean;
+   /** add another photo / video to my own story */
+   onAdd: () => void;
+ }) {
+@@ -512,12 +537,15 @@ function StoryViewer({
+     onError: () => toast.error("Couldn't delete the story."),
+   });
+ 
++  const tapNavRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
++  useEffect(() => () => clearTimeout(tapNavRef.current), []);
+   const go = (next: number) => {
+     setFraction(0);
+     setViewersOpen(false);
+     setBurst(0);
+     setHeld(false);
+     lastTapRef.current = null;
++    clearTimeout(tapNavRef.current);
+     setI(next);
+   };
+   const advance = () => (i < last ? go(i + 1) : onClose());
+@@ -684,11 +712,13 @@ function StoryViewer({
+       />
+     </button>
+   ) : null;
+-  // Double tap on the story itself: like it (never unlike) and show the heart. On a story I
+-  // already liked it only shows the heart again, so no second like is sent. Taps on the
+-  // buttons over the story don't count. There are no swipe / tap-to-navigate zones here.
++  // Tapping the story works like Instagram: the left third goes back, the rest goes forward
++  // (back on the first story = the previous person, forward on the last = the next person, then
++  // close). On someone else's story a quick double tap still likes it (never unlikes) and shows
++  // the heart; to tell the two apart, their single tap waits a moment. Taps on the buttons over
++  // the story don't count, and neither does a press-and-hold (pause) or a swipe.
+   const onStoryTap = (e: React.MouseEvent<HTMLDivElement>) => {
+-    if (isMine || !stats || viewersOpen) return;
++    if (viewersOpen) return;
+     if ((e.target as HTMLElement).closest("button")) return;
+     const now = performance.now();
+     const pressedAt = pressStartRef.current;
+@@ -703,14 +733,35 @@ function StoryViewer({
+       lastTapRef.current = null;
+       return;
+     }
++    const canLike = !isMine && !!stats;
+     const prev = lastTapRef.current;
+-    if (prev && now - prev.t < 300 && Math.hypot(e.clientX - prev.x, e.clientY - prev.y) < 48) {
++    if (
++      canLike &&
++      prev &&
++      now - prev.t < 300 &&
++      Math.hypot(e.clientX - prev.x, e.clientY - prev.y) < 48
++    ) {
++      clearTimeout(tapNavRef.current);
+       lastTapRef.current = null;
+       setBurst((n) => n + 1);
+       if (!stats.likedByMe) requestLike(true);
+       return;
+     }
+-    lastTapRef.current = { t: now, x: e.clientX, y: e.clientY };
++    const rect = e.currentTarget.getBoundingClientRect();
++    const goBack = e.clientX - rect.left < rect.width * 0.3;
++    const move = () => {
++      lastTapRef.current = null;
++      if (goBack) {
++        if (i > 0) go(i - 1);
++        else onSwipePerson?.(-1);
++      } else if (i < last) go(i + 1);
++      else if (!onSwipePerson?.(1)) onClose();
++    };
++    clearTimeout(tapNavRef.current);
++    if (canLike) {
++      lastTapRef.current = { t: now, x: e.clientX, y: e.clientY };
++      tapNavRef.current = setTimeout(move, 300);
++    } else move();
+   };
+ 
+   return (
+@@ -893,24 +944,6 @@ function StoryViewer({
+             onBlocked={setMusicBlocked}
+           />
+         )}
+-        {i > 0 && (
+-          <button
+-            onClick={() => go(i - 1)}
+-            aria-label="Previous"
+-            className="absolute left-2 rounded-full bg-black/40 p-2.5 ring-1 ring-white/15 backdrop-blur transition-colors hover:bg-black/60"
+-          >
+-            <ChevronLeft className="h-6 w-6" />
+-          </button>
+-        )}
+-        {i < last && (
+-          <button
+-            onClick={() => go(i + 1)}
+-            aria-label="Next"
+-            className="absolute right-2 rounded-full bg-black/40 p-2.5 ring-1 ring-white/15 backdrop-blur transition-colors hover:bg-black/60"
+-          >
+-            <ChevronRight className="h-6 w-6" />
+-          </button>
+-        )}
+         {burst > 0 && <StoryHeartBurst key={burst} onDone={() => setBurst(0)} />}
+         {poll.query.data && (
+           // taps on the poll are for voting, never for pausing or double-tap liking
+@@ -933,14 +966,14 @@ function StoryViewer({
+               type="button"
+               onClick={() => setViewersOpen(true)}
+               aria-label={`Viewers: ${stats.views} ${stats.views === 1 ? "view" : "views"}, ${stats.likes} ${stats.likes === 1 ? "like" : "likes"}`}
+-              className="flex min-h-11 items-center gap-4 rounded-full bg-white/10 px-4 text-sm font-semibold ring-1 ring-white/10 backdrop-blur transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
++              className="flex min-h-8 items-center gap-3 rounded-full bg-white/10 px-3 text-xs font-semibold ring-1 ring-white/10 backdrop-blur transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+             >
+-              <span className="flex items-center gap-1.5">
+-                <Eye className="h-5 w-5" aria-hidden="true" />
++              <span className="flex items-center gap-1">
++                <Eye className="h-4 w-4" aria-hidden="true" />
+                 {stats.views}
+               </span>
+-              <span className="flex items-center gap-1.5">
+-                <Heart className="h-5 w-5" aria-hidden="true" />
++              <span className="flex items-center gap-1">
++                <Heart className="h-4 w-4" aria-hidden="true" />
+                 {stats.likes}
+               </span>
+             </button>
+@@ -950,9 +983,9 @@ function StoryViewer({
+               type="button"
+               onClick={() => setPollSheetOpen(true)}
+               aria-label="Add a poll to this story"
+-              className="ml-auto flex min-h-11 items-center gap-2 rounded-full bg-white/10 px-4 text-sm font-semibold ring-1 ring-white/10 backdrop-blur transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
++              className="ml-auto flex min-h-8 items-center gap-1.5 rounded-full bg-white/10 px-3 text-xs font-semibold ring-1 ring-white/10 backdrop-blur transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+             >
+-              <BarChart3 className="h-5 w-5" aria-hidden="true" />
++              <BarChart3 className="h-4 w-4" aria-hidden="true" />
+               Poll
+             </button>
+           )}
+diff --git a/src/components/story-editor.tsx b/src/components/story-editor.tsx
+index aa05215..6c91cb6 100644
+--- a/src/components/story-editor.tsx
++++ b/src/components/story-editor.tsx
+@@ -17,6 +17,7 @@ import {
+   Pencil,
+   Send,
+   Smile,
++  Sparkles,
+   Star,
+   Trash2,
+   Type,
+@@ -24,6 +25,7 @@ import {
+   X,
+ } from "lucide-react";
+ import { StoryGifPicker } from "@/components/story-gif-picker";
++import { PHOTO_FILTERS, canvasFilterSupported, filterCss } from "@/lib/photo-filters";
+ import { StoryMusicPicker } from "@/components/story-music-picker";
+ import {
+   GIF_BASE_W,
+@@ -97,7 +99,7 @@ const EMOJI_GROUPS: { label: string; items: string[] }[] = [
+   },
+ ];
+ 
+-type Tool = "none" | "draw";
++type Tool = "none" | "draw" | "filter";
+ type Sheet = "none" | "emoji" | "music" | "gif";
+ type TextDraft = { id: string | null; text: string; color: string; box: boolean; font: string };
+ 
+@@ -161,6 +163,8 @@ export function StoryEditor({
+   const [strokes, setStrokes] = useState<Stroke[]>([]);
+   const [caption, setCaption] = useState("");
+   const [tool, setTool] = useState<Tool>("none");
++  const [filterKey, setFilterKey] = useState("none");
++  const canFilter = useMemo(() => canvasFilterSupported(), []);
+   const [sheet, setSheet] = useState<Sheet>("none");
+   const [textDraft, setTextDraft] = useState<TextDraft | null>(null);
+   const textBoxRef = useRef<HTMLTextAreaElement>(null);
+@@ -231,7 +235,11 @@ export function StoryEditor({
+   const [view, setView] = useState<PhotoView>({ zoom: 1, x: 0, y: 0 });
+   const viewChanged = Math.abs(view.zoom - 1) > 0.001;
+   const hasEdits =
+-    items.length > 0 || strokes.length > 0 || caption.trim().length > 0 || viewChanged;
++    items.length > 0 ||
++    strokes.length > 0 ||
++    caption.trim().length > 0 ||
++    viewChanged ||
++    filterKey !== "none";
+   const music: StoryMusic | null = useMemo(
+     () => items.find((i) => i.kind === "music")?.music ?? null,
+     [items],
+@@ -680,7 +688,7 @@ export function StoryEditor({
+     }
+     setSharing(true);
+     try {
+-      const out = await renderStoryFile({ photo, strokes, items, caption, view });
++      const out = await renderStoryFile({ photo, strokes, items, caption, view, filter: filterCss(filterKey) });
+       if (closeFriends) onShare(out, chosen, gifs.length > 0 ? gifs : undefined, true);
+       else if (gifs.length > 0) onShare(out, chosen, gifs);
+       else onShare(out, chosen);
+@@ -860,6 +868,17 @@ export function StoryEditor({
+       icon: <Pencil className="h-[18px] w-[18px] sm:h-5 sm:w-5" />,
+       onClick: () => setTool("draw"),
+     },
++    ...(canFilter
++      ? [
++          {
++            key: "filters",
++            label: "Filters",
++            icon: <Sparkles className="h-[18px] w-[18px] sm:h-5 sm:w-5" />,
++            onClick: () => setTool("filter"),
++            active: filterKey !== "none",
++          },
++        ]
++      : []),
+   ];
+ 
+   const root = (
+@@ -909,6 +928,7 @@ export function StoryEditor({
+                     marginTop: -photoBox.h / 2,
+                     transform: `translate(${view.x * stage.w}px, ${view.y * stage.h}px) scale(${view.zoom})`,
+                     transformOrigin: "center",
++                    filter: filterCss(filterKey),
+                   }}
+                 />
+               </>
+@@ -1101,15 +1121,66 @@ export function StoryEditor({
+           </div>
+         )}
+ 
++        {/* filters: pick a look, the photo changes right away */}
++        {tool === "filter" && (
++          <>
++            <button
++              type="button"
++              onClick={() => setTool("none")}
++              className="absolute right-3 top-[max(env(safe-area-inset-top),0.5rem)] z-10 flex h-7 animate-in items-center gap-1 rounded-full bg-gradient-brand px-3 text-xs font-bold text-primary-foreground sm:h-8 sm:px-3.5 duration-200 fade-in active:scale-95"
++            >
++              <Check className="h-3.5 w-3.5" /> Done
++            </button>
++            <div className="absolute inset-x-0 bottom-3 z-10 animate-in duration-300 fade-in slide-in-from-bottom-3">
++              <div
++                role="listbox"
++                aria-label="Photo filters"
++                className="flex gap-2.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
++              >
++                {PHOTO_FILTERS.map((f) => (
++                  <button
++                    key={f.key}
++                    type="button"
++                    role="option"
++                    aria-selected={filterKey === f.key}
++                    onClick={() => setFilterKey(f.key)}
++                    className="flex w-16 shrink-0 flex-col items-center gap-1 text-[11px] font-semibold active:scale-95"
++                  >
++                    <span
++                      className={cn(
++                        "block h-16 w-16 overflow-hidden rounded-xl ring-2 transition",
++                        filterKey === f.key ? "ring-white" : "ring-white/20",
++                      )}
++                    >
++                      {photoUrl && (
++                        <img
++                          src={photoUrl}
++                          alt=""
++                          draggable={false}
++                          className="h-full w-full object-cover"
++                          style={{ filter: f.css }}
++                        />
++                      )}
++                    </span>
++                    <span className={filterKey === f.key ? "text-white" : "text-white/70"}>
++                      {f.label}
++                    </span>
++                  </button>
++                ))}
++              </div>
++            </div>
++          </>
++        )}
++
+         {/* drawing toolbar */}
+         {tool === "draw" && (
+           <>
+             <button
+               type="button"
+               onClick={() => setTool("none")}
+-              className="absolute right-3 top-[max(env(safe-area-inset-top),0.5rem)] z-10 flex h-9 animate-in items-center gap-1.5 rounded-full bg-gradient-brand px-4 text-[13px] font-bold text-primary-foreground sm:h-11 sm:px-5 sm:text-sm duration-200 fade-in active:scale-95"
++              className="absolute right-3 top-[max(env(safe-area-inset-top),0.5rem)] z-10 flex h-7 animate-in items-center gap-1 rounded-full bg-gradient-brand px-3 text-xs font-bold text-primary-foreground sm:h-8 sm:px-3.5 duration-200 fade-in active:scale-95"
+             >
+-              <Check className="h-4 w-4" /> Done
++              <Check className="h-3.5 w-3.5" /> Done
+             </button>
+             <div className="absolute inset-x-0 bottom-3 z-10 flex animate-in flex-col items-center gap-3 duration-300 fade-in slide-in-from-bottom-3">
+               <div className="flex items-center gap-3 rounded-full bg-black/45 px-3 py-2 ring-1 ring-white/15 backdrop-blur-md">
+@@ -1174,7 +1245,7 @@ export function StoryEditor({
+             placeholder="Add a caption…"
+             aria-label="Add a caption"
+             enterKeyHint="done"
+-            className="h-10 min-w-0 flex-1 rounded-full bg-white/10 px-4 text-[14px] text-white outline-none sm:h-12 sm:px-5 sm:text-[15px] ring-1 ring-white/10 transition placeholder:text-white/50 focus:bg-white/15 focus:ring-primary/60"
++            className="h-9 min-w-0 flex-1 rounded-full bg-white/10 px-4 text-[13px] text-white outline-none sm:h-10 sm:px-5 sm:text-[14px] ring-1 ring-white/10 transition placeholder:text-white/50 focus:bg-white/15 focus:ring-primary/60"
+           />
+           {onPickCloseFriends && (
+             <button
+@@ -1182,9 +1253,9 @@ export function StoryEditor({
+               onClick={() => void share(true)}
+               disabled={sharing || load === "error"}
+               aria-label="Share with Close Friends"
+-              className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-success px-3.5 text-[13px] font-bold text-success-foreground shadow-lg transition active:scale-95 disabled:opacity-60 sm:h-12 sm:px-4 sm:text-[15px]"
++              className="flex h-8 shrink-0 items-center gap-1 rounded-full bg-success px-3 text-[12px] font-bold text-success-foreground shadow-lg transition active:scale-95 disabled:opacity-60 sm:h-10 sm:px-3.5 sm:text-[13px]"
+             >
+-              <Star className="h-[18px] w-[18px] fill-current sm:h-5 sm:w-5" />
++              <Star className="h-4 w-4 fill-current sm:h-[18px] sm:w-[18px]" />
+               <span className="max-sm:sr-only">Close Friends</span>
+             </button>
+           )}
+@@ -1193,13 +1264,13 @@ export function StoryEditor({
+             onClick={() => void share()}
+             disabled={sharing || load === "error"}
+             aria-label="Share story"
+-            className="flex h-10 shrink-0 items-center gap-1.5 rounded-full px-4 text-[13px] font-bold text-primary-foreground shadow-lg sm:h-12 sm:gap-2 sm:px-5 sm:text-[15px] shadow-primary/30 transition active:scale-95 disabled:opacity-60"
++            className="flex h-8 shrink-0 items-center gap-1 rounded-full px-3.5 text-[12px] font-bold text-primary-foreground shadow-lg sm:h-10 sm:gap-1.5 sm:px-4 sm:text-[13px] shadow-primary/30 transition active:scale-95 disabled:opacity-60"
+             style={{ background: "var(--gradient-primary)" }}
+           >
+             {sharing ? (
+-              <Loader2 className="h-4 w-4 animate-spin sm:h-5 sm:w-5" />
++              <Loader2 className="h-4 w-4 animate-spin sm:h-[18px] sm:w-[18px]" />
+             ) : (
+-              <Send className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
++              <Send className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
+             )}
+             {sharing ? "Preparing…" : "Share"}
+           </button>
+diff --git a/src/components/video-viewer.tsx b/src/components/video-viewer.tsx
+index 2ed2b74..e964901 100644
+--- a/src/components/video-viewer.tsx
++++ b/src/components/video-viewer.tsx
+@@ -289,8 +289,32 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
+   const lastTap = useRef({ id: "", time: 0 });
+   const tapTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+   useEffect(() => () => clearTimeout(tapTimer.current), []);
+-  const onVideoTap = (post: VideoFeedRow, active: boolean) => {
++  // Press and hold: the reel stays paused while the finger is down and plays again on release.
++  const holdTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
++  const holdPaused = useRef(false);
++  const startHold = (active: boolean) => {
+     if (!active) return;
++    clearTimeout(holdTimer.current);
++    holdTimer.current = setTimeout(() => {
++      holdPaused.current = true;
++      clearTimeout(tapTimer.current);
++      lastTap.current = { id: "", time: 0 };
++      setPlaying(false);
++    }, 300);
++  };
++  const endHold = () => {
++    clearTimeout(holdTimer.current);
++    if (!holdPaused.current) return;
++    setPlaying(true);
++    // The release is followed by a "click"; it must not count as a tap (which would pause again).
++    setTimeout(() => {
++      holdPaused.current = false;
++    }, 120);
++  };
++  useEffect(() => () => clearTimeout(holdTimer.current), []);
++
++  const onVideoTap = (post: VideoFeedRow, active: boolean) => {
++    if (!active || holdPaused.current) return;
+     const now = Date.now();
+     if (lastTap.current.id === post.id && now - lastTap.current.time < 300) {
+       lastTap.current = { id: "", time: 0 };
+@@ -405,8 +429,13 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
+               className="relative h-[100dvh] min-h-[100dvh] snap-start snap-always overflow-hidden bg-black text-white"
+             >
+               <div
+-                className="absolute inset-0 grid touch-manipulation select-none place-items-center"
++                className="absolute inset-0 grid touch-manipulation select-none place-items-center [-webkit-touch-callout:none]"
+                 onClick={() => onVideoTap(post, active)}
++                onPointerDown={() => startHold(active)}
++                onPointerUp={endHold}
++                onPointerCancel={endHold}
++                onPointerLeave={endHold}
++                onContextMenu={(event) => event.preventDefault()}
+               >
+                 <span
+                   ref={(element) => {
+@@ -456,7 +485,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
+                       event.stopPropagation();
+                       onVideoTap(post, active);
+                     }}
+-                    className="h-full w-full object-contain"
++                    className="h-full w-full object-cover"
+                     aria-label={`Video by ${post.author_name || post.author_username}`}
+                   />
+                 ) : (
+@@ -464,7 +493,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
+                     src={post.thumbnail_url ?? ""}
+                     alt=""
+                     loading="lazy"
+-                    className="h-full w-full object-contain"
++                    className="h-full w-full object-cover"
+                   />
+                 )}
+                 {videoErrors[post.id] && (
+@@ -508,7 +537,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
+               </div>
+ 
+               {active && (
+-                <div className="absolute inset-x-0 bottom-[57px] z-20 px-0 leading-none md:bottom-0 md:px-3">
++                <div className="absolute inset-x-0 bottom-[calc(53px+max(0.375rem,env(safe-area-inset-bottom)))] z-20 px-0 leading-none md:bottom-0 md:px-3">
+                   <div className="flex items-center gap-2 text-xs tabular-nums text-white/85">
+                     <span aria-hidden="true" className="hidden md:inline">
+                       {formatTime(currentTime)}
+@@ -522,7 +551,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
+                       onChange={(event) => seekTo(post, Number(event.target.value))}
+                       aria-label="Seek video"
+                       aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
+-                      className="video-seek h-1 w-full flex-1 cursor-pointer accent-white focus-visible:outline-none md:h-6 md:focus-visible:ring-2 md:focus-visible:ring-white"
++                      className="video-seek h-0.5 w-full flex-1 cursor-pointer accent-white focus-visible:outline-none md:h-6 md:focus-visible:ring-2 md:focus-visible:ring-white"
+                       style={{ ["--seek-progress" as string]: `${progress}%` }}
+                     />
+                     <span aria-hidden="true" className="hidden md:inline">
+@@ -531,21 +560,22 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
+                   </div>
+                 </div>
+               )}
+-              <header className="absolute inset-x-0 top-0 z-10 flex items-center justify-end p-3 pt-[max(env(safe-area-inset-top),0.75rem)]">
+-                <div className="flex items-center gap-2">
++              {/* The sound button only appears while the reel is stopped (tap or hold). */}
++              {active && !playing && (
++                <header className="absolute inset-x-0 top-0 z-10 flex items-center justify-end p-3 pt-[max(env(safe-area-inset-top),0.75rem)]">
+                   <button
+                     type="button"
+                     onClick={toggleMute}
+                     aria-label={muted ? "Unmute video" : "Mute video"}
+                     aria-pressed={!muted}
+-                    className="grid h-11 w-11 cursor-pointer place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
++                    className="grid h-8 w-8 cursor-pointer place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                   >
+-                    {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
++                    {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                   </button>
+-                </div>
+-              </header>
++                </header>
++              )}
+ 
+-              <div className="absolute bottom-24 left-3 right-20 z-10 space-y-2 pb-2 [text-shadow:0_1px_3px_rgba(0,0,0,0.75)] sm:left-5">
++              <div className="absolute bottom-[calc(58px+max(0.375rem,env(safe-area-inset-bottom)))] left-3 right-20 z-10 space-y-2 pb-2 [text-shadow:0_1px_3px_rgba(0,0,0,0.75)] sm:left-5">
+                 <div className="flex items-center gap-2.5">
+                   <Link
+                     to="/u/$username"
+@@ -562,7 +592,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
+                       type="button"
+                       disabled={follow.isPending(post.author_id)}
+                       onClick={() => follow.toggle(post.author_id, following)}
+-                      className="min-h-11 rounded-full border border-white/80 px-4 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
++                      className="h-7 rounded-full border border-white/80 px-3 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
+                     >
+                       {followLabel(following, follow.isRequested(post.author_id))}
+                     </button>
+@@ -588,9 +618,6 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
+                   </p>
+                 )}
+                 <PostMeta post={post} tone="overlay" />
+-                <time className="block text-sm text-white/75" dateTime={post.created_at}>
+-                  {timeAgo(post.created_at)}
+-                </time>
+                 {user?.id && (
+                   <ReelFollowedBy
+                     meId={user.id}
+diff --git a/src/lib/social.ts b/src/lib/social.ts
+index dc06bc7..172d92b 100644
+--- a/src/lib/social.ts
++++ b/src/lib/social.ts
+@@ -172,6 +172,34 @@ export async function fetchTaggedPosts(userId: string): Promise<PostRow[]> {
+     .filter((post): post is PostRow => !!post);
+ }
+ 
++/** Posts I liked (newest like first). Row-level security on `posts` still applies through the join. */
++export async function fetchLikedPosts(userId: string): Promise<PostRow[]> {
++  const { data, error } = await supabase
++    .from("post_likes")
++    .select("created_at, post:posts!inner(*)")
++    .eq("user_id", userId)
++    .order("created_at", { ascending: false })
++    .limit(60);
++  if (error) fail("Loading liked posts", error);
++  return ((data ?? []) as unknown as { post: PostRow | null }[])
++    .map((row) => row.post)
++    .filter((post): post is PostRow => !!post);
++}
++
++export type MyComment = { id: string; post_id: string; content: string; created_at: string };
++
++/** The comments I wrote, newest first. */
++export async function fetchMyComments(userId: string): Promise<MyComment[]> {
++  const { data, error } = await supabase
++    .from("post_comments")
++    .select("id, post_id, content, created_at")
++    .eq("author_id", userId)
++    .order("created_at", { ascending: false })
++    .limit(100);
++  if (error) fail("Loading your comments", error);
++  return (data ?? []) as MyComment[];
++}
++
+ // ---------------------------------------------------------------------- likes
+ export async function setLike(postId: string, userId: string, like: boolean): Promise<void> {
+   const { error } = like
+diff --git a/src/lib/story-render.ts b/src/lib/story-render.ts
+index 8d80905..a8dc0f9 100644
+--- a/src/lib/story-render.ts
++++ b/src/lib/story-render.ts
+@@ -436,6 +436,8 @@ export type RenderInput = {
+   photo: HTMLImageElement;
+   /** zoom and position of the photo (omitted = whole photo) */
+   view?: PhotoView;
++  /** CSS filter for the photo only (see lib/photo-filters.ts); omitted or "none" = unchanged */
++  filter?: string;
+   strokes: Stroke[];
+   items: StoryOverlay[];
+   caption: string;
+@@ -459,7 +461,11 @@ export function drawStory(ctx: CanvasRenderingContext2D, input: RenderInput) {
+   const pr = photoRect(iw, ih, W, SH);
+   const dw = pr.w * v.zoom;
+   const dh = pr.h * v.zoom;
++  // the filter touches the photo only: strokes, stickers, text and the caption stay as they are
++  const filtered = !!input.filter && input.filter !== "none" && "filter" in ctx;
++  if (filtered) ctx.filter = input.filter!;
+   ctx.drawImage(photo, (W - dw) / 2 + v.x * W, (SH - dh) / 2 + v.y * SH, dw, dh);
++  if (filtered) ctx.filter = "none";
+ 
+   drawStrokes(ctx, strokes, W, SH);
+ 
+diff --git a/src/routeTree.gen.ts b/src/routeTree.gen.ts
+index 8084272..818bacf 100644
+--- a/src/routeTree.gen.ts
++++ b/src/routeTree.gen.ts
+@@ -30,6 +30,8 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
+ import { Route as ProfileRouteImport } from './routes/profile'
+ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+ import { Route as SavedRouteImport } from './routes/saved'
++import { Route as MyProfileRouteImport } from './routes/my-profile'
++import { Route as MyActivityRouteImport } from './routes/my-activity'
+ import { Route as SettingsRouteImport } from './routes/settings'
+ import { Route as SignupRouteImport } from './routes/signup'
+ import { Route as TermsRouteImport } from './routes/terms'
+@@ -147,6 +149,16 @@ const SavedRoute = SavedRouteImport.update({
+   path: '/saved',
+   getParentRoute: () => rootRouteImport,
+ } as any)
++const MyProfileRoute = MyProfileRouteImport.update({
++  id: '/my-profile',
++  path: '/my-profile',
++  getParentRoute: () => rootRouteImport,
++} as any)
++const MyActivityRoute = MyActivityRouteImport.update({
++  id: '/my-activity',
++  path: '/my-activity',
++  getParentRoute: () => rootRouteImport,
++} as any)
+ const SettingsRoute = SettingsRouteImport.update({
+   id: '/settings',
+   path: '/settings',
+@@ -225,6 +237,8 @@ export interface FileRoutesByFullPath {
+   '/profile': typeof ProfileRoute
+   '/reset-password': typeof ResetPasswordRoute
+   '/saved': typeof SavedRoute
++  '/my-profile': typeof MyProfileRoute
++  '/my-activity': typeof MyActivityRoute
+   '/settings': typeof SettingsRoute
+   '/signup': typeof SignupRoute
+   '/terms': typeof TermsRoute
+@@ -259,6 +273,8 @@ export interface FileRoutesByTo {
+   '/profile': typeof ProfileRoute
+   '/reset-password': typeof ResetPasswordRoute
+   '/saved': typeof SavedRoute
++  '/my-profile': typeof MyProfileRoute
++  '/my-activity': typeof MyActivityRoute
+   '/settings': typeof SettingsRoute
+   '/signup': typeof SignupRoute
+   '/terms': typeof TermsRoute
+@@ -294,6 +310,8 @@ export interface FileRoutesById {
+   '/profile': typeof ProfileRoute
+   '/reset-password': typeof ResetPasswordRoute
+   '/saved': typeof SavedRoute
++  '/my-profile': typeof MyProfileRoute
++  '/my-activity': typeof MyActivityRoute
+   '/settings': typeof SettingsRoute
+   '/signup': typeof SignupRoute
+   '/terms': typeof TermsRoute
+@@ -330,6 +348,8 @@ export interface FileRouteTypes {
+     | '/profile'
+     | '/reset-password'
+     | '/saved'
++    | '/my-profile'
++    | '/my-activity'
+     | '/settings'
+     | '/signup'
+     | '/terms'
+@@ -364,6 +384,8 @@ export interface FileRouteTypes {
+     | '/profile'
+     | '/reset-password'
+     | '/saved'
++    | '/my-profile'
++    | '/my-activity'
+     | '/settings'
+     | '/signup'
+     | '/terms'
+@@ -398,6 +420,8 @@ export interface FileRouteTypes {
+     | '/profile'
+     | '/reset-password'
+     | '/saved'
++    | '/my-profile'
++    | '/my-activity'
+     | '/settings'
+     | '/signup'
+     | '/terms'
+@@ -433,6 +457,8 @@ export interface RootRouteChildren {
+   ProfileRoute: typeof ProfileRoute
+   ResetPasswordRoute: typeof ResetPasswordRoute
+   SavedRoute: typeof SavedRoute
++  MyProfileRoute: typeof MyProfileRoute
++  MyActivityRoute: typeof MyActivityRoute
+   SettingsRoute: typeof SettingsRoute
+   SignupRoute: typeof SignupRoute
+   TermsRoute: typeof TermsRoute
+@@ -595,6 +621,20 @@ declare module '@tanstack/react-router' {
+       preLoaderRoute: typeof SavedRouteImport
+       parentRoute: typeof rootRouteImport
+     }
++    '/my-profile': {
++      id: '/my-profile'
++      path: '/my-profile'
++      fullPath: '/my-profile'
++      preLoaderRoute: typeof MyProfileRouteImport
++      parentRoute: typeof rootRouteImport
++    }
++    '/my-activity': {
++      id: '/my-activity'
++      path: '/my-activity'
++      fullPath: '/my-activity'
++      preLoaderRoute: typeof MyActivityRouteImport
++      parentRoute: typeof rootRouteImport
++    }
+     '/settings': {
+       id: '/settings'
+       path: '/settings'
+@@ -697,6 +737,8 @@ const rootRouteChildren: RootRouteChildren = {
+   ProfileRoute: ProfileRoute,
+   ResetPasswordRoute: ResetPasswordRoute,
+   SavedRoute: SavedRoute,
++  MyProfileRoute: MyProfileRoute,
++  MyActivityRoute: MyActivityRoute,
+   SettingsRoute: SettingsRoute,
+   SignupRoute: SignupRoute,
+   TermsRoute: TermsRoute,
+diff --git a/src/routes/home.tsx b/src/routes/home.tsx
+index 4663be4..a74abd9 100644
+--- a/src/routes/home.tsx
++++ b/src/routes/home.tsx
+@@ -8,13 +8,12 @@ import {
+   Newspaper,
+   Plus,
+   RefreshCw,
+-  Search as SearchIcon,
+   WifiOff,
++  X,
+ } from "lucide-react";
+ import type { ReactNode } from "react";
+ import { Avatar, BrandLockup, UserRow, Verified } from "@/components/ediraa";
+ import { CommunityHomeStrip } from "@/components/community-home";
+-import { LocalTiles } from "@/components/local-tiles";
+ import { LocalityPicker } from "@/components/locality-picker";
+ import { PageShell } from "@/components/page-shell";
+ import { PostCard } from "@/components/post-card";
+@@ -181,45 +180,37 @@ function HomePage() {
+             <BrandLockup compact />
+           </h1>
+           <div className="flex shrink-0 items-center gap-1.5">
+-            <Link
+-              to="/discover"
+-              aria-label="Search"
+-              className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card/70 transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+-            >
+-              <SearchIcon className="h-5 w-5" />
+-            </Link>
+             <BellLink unread={unreadCount} />
+           </div>
+         </div>
+-        <div className="flex items-center gap-3">
+-          <div
+-            role="group"
+-            aria-label="Feed"
+-            className="grid min-w-0 flex-1 grid-cols-4 gap-1 rounded-2xl bg-secondary/70 p-1 md:flex md:flex-none"
+-          >
+-            {TABS.map((t) => (
+-              <button
+-                key={t.key}
+-                type="button"
+-                aria-pressed={tab === t.key}
+-                onClick={() => setTab(t.key)}
+-                className={`min-h-9 truncate rounded-xl px-2 text-[12.5px] font-semibold transition-colors md:px-4 md:text-sm ${
+-                  tab === t.key
+-                    ? "bg-card text-foreground shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_6px_16px_-8px_rgba(0,0,0,0.8)] ring-1 ring-primary/30"
+-                    : "text-muted-foreground hover:text-foreground"
+-                }`}
+-              >
+-                {t.label}
+-              </button>
+-            ))}
++        {/* The For You / Following / Local / Business switcher is gone from Home (search has the
++            Business filter). The Local Hub shortcut still opens the Local feed; this chip shows
++            which feed that is and brings you back to For You. */}
++        {tab !== "for_you" && (
++          <div className="flex items-center gap-2">
++            <span className="rounded-full bg-secondary/70 px-3 py-1 text-xs font-semibold">
++              {TABS.find((t) => t.key === tab)?.label}
++            </span>
++            <button
++              type="button"
++              onClick={() => setTab("for_you")}
++              aria-label="Back to For You"
++              className="grid h-6 w-6 place-items-center rounded-full border border-border text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
++            >
++              <X className="h-3.5 w-3.5" />
++            </button>
++            <div className="ml-auto hidden md:block">
++              <BellLink unread={unreadCount} />
++            </div>
+           </div>
+-          <div className="ml-auto hidden md:block">
++        )}
++        {tab === "for_you" && (
++          <div className="hidden justify-end md:flex">
+             <BellLink unread={unreadCount} />
+           </div>
+-        </div>
++        )}
+       </header>
+ 
+-      <LocalTiles area={activeLocality} />
+       <Stories onLocalHub={() => setTab("local")} />
+ 
+       <section className="glass-card p-3 sm:p-4">
+diff --git a/src/routes/more.tsx b/src/routes/more.tsx
+index 0e87a39..5337c1b 100644
+--- a/src/routes/more.tsx
++++ b/src/routes/more.tsx
+@@ -11,10 +11,11 @@ import {
+   Share2,
+   Star,
+   User,
+-  UserPlus,
+   Users,
+ } from "lucide-react";
++import { DeleteAccountButton } from "@/components/delete-account";
+ import { Avatar } from "@/components/ediraa";
++import { LocalTiles } from "@/components/local-tiles";
+ import { PageShell } from "@/components/page-shell";
+ import { useAuth } from "@/lib/auth";
+ 
+@@ -29,7 +30,7 @@ export const Route = createFileRoute("/more")({
+ });
+ 
+ const links = [
+-  { label: "My Profile", icon: User, to: "/profile" },
++  { label: "My Profile", icon: User, to: "/my-profile" },
+   { label: "Community", icon: UsersRound, to: "/community" },
+   { label: "Business Page", icon: Building2, to: "/business" },
+   { label: "Saved Posts", icon: Star, to: "/saved" },
+@@ -55,33 +56,21 @@ function MorePage() {
+     }
+   };
+ 
+-  const invite = async () => {
+-    const url = `${window.location.origin}/signup`;
+-    const text = "Join me on SabZone — connect with people and businesses around you.";
+-    try {
+-      if (navigator.share) await navigator.share({ title: "SabZone", text, url });
+-      else {
+-        await navigator.clipboard.writeText(`${text} ${url}`);
+-        toast.success("Invite link copied to clipboard");
+-      }
+-    } catch {
+-      /* user cancelled the share sheet */
+-    }
+-  };
+-
+   const name = profile?.full_name || profile?.username || "";
+ 
+   return (
+     <PageShell>
+       <h1 className="text-xl font-bold">More</h1>
+       <Link to="/profile" className="glass-card more-profile-card flex items-center gap-3 p-4">
+-        <Avatar src={profile?.avatar_url} name={name} size={48} ring />
++        <Avatar src={profile?.avatar_url} name={name} size={48} />
+         <div className="min-w-0 flex-1">
+           <p className="truncate font-semibold">{name}</p>
+           <p className="truncate text-sm text-muted-foreground">@{profile?.username}</p>
+         </div>
+         <ChevronRight className="h-5 w-5 text-muted-foreground" />
+       </Link>
++      {/* The "Around you" shortcuts used to sit on the Home feed. */}
++      <LocalTiles area={null} grid />
+       <section className="glass-card divide-y divide-border">
+         {links.map((r) => (
+           <Link
+@@ -94,15 +83,6 @@ function MorePage() {
+             <ChevronRight className="ml-auto h-5 w-5 text-muted-foreground" />
+           </Link>
+         ))}
+-        <button
+-          type="button"
+-          onClick={invite}
+-          className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-sm"
+-        >
+-          <UserPlus className="h-5 w-5" />
+-          Invite Friends
+-          <ChevronRight className="ml-auto h-5 w-5 text-muted-foreground" />
+-        </button>
+       </section>
+       <button
+         type="button"
+@@ -112,6 +92,8 @@ function MorePage() {
+       >
+         {busy && <Loader2 className="h-4 w-4 animate-spin" />}Log Out
+       </button>
++      {/* Asks to type DELETE (and the password) before anything is removed. */}
++      <DeleteAccountButton />
+     </PageShell>
+   );
+ }
+diff --git a/src/routes/notifications.tsx b/src/routes/notifications.tsx
+index c132bf4..59d24c1 100644
+--- a/src/routes/notifications.tsx
++++ b/src/routes/notifications.tsx
+@@ -151,7 +151,7 @@ function NotificationsPage() {
+           </button>
+           <h1 className="text-2xl font-bold">Notifications</h1>
+         </header>
+-        <div className="flex gap-2 overflow-x-auto pb-1">
++        <div className="scrollbar-hidden flex gap-2 overflow-x-auto pb-1">
+           {tabs.map((t) => (
+             <Pill key={t} active={tab === t} onClick={() => setTab(t)}>
+               {t}
+diff --git a/src/routes/post.$id.tsx b/src/routes/post.$id.tsx
+index f610af8..b52f104 100644
+--- a/src/routes/post.$id.tsx
++++ b/src/routes/post.$id.tsx
+@@ -1,4 +1,4 @@
+-import { createFileRoute, Link } from "@tanstack/react-router";
++import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
+ import { useQuery } from "@tanstack/react-query";
+ import { ArrowLeft, Loader2 } from "lucide-react";
+ import { PageShell } from "@/components/page-shell";
+@@ -20,6 +20,13 @@ function PostPage() {
+   const { id } = Route.useParams();
+   const { comments } = Route.useSearch();
+   const { user } = useAuth();
++  const router = useRouter();
++  const navigate = useNavigate();
++  // Back to wherever the person came from (their profile grid, a notification...).
++  const goBack = () => {
++    if (window.history.length > 1) router.history.back();
++    else void navigate({ to: "/home" });
++  };
+   const post = useQuery({
+     queryKey: ["post", id, user?.id],
+     queryFn: () => fetchPostById(id, user!.id),
+@@ -29,13 +36,14 @@ function PostPage() {
+   return (
+     <PageShell>
+       <header className="flex items-center gap-3">
+-        <Link
+-          to="/notifications"
++        <button
++          type="button"
++          onClick={goBack}
+           aria-label="Back"
+           className="grid h-11 w-11 place-items-center rounded-full hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+         >
+           <ArrowLeft className="h-5 w-5" />
+-        </Link>
++        </button>
+         <h1 className="text-2xl font-bold">Post</h1>
+       </header>
+ 
+diff --git a/src/styles.css b/src/styles.css
+index 792e945..6c25214 100644
+--- a/src/styles.css
++++ b/src/styles.css
+@@ -802,7 +802,7 @@ html {
+     display: block;
+   }
+   .video-seek::-webkit-slider-runnable-track {
+-    height: 4px;
++    height: 2px;
+     border-radius: 0;
+     background: linear-gradient(
+       to right,
+@@ -811,11 +811,11 @@ html {
+     );
+   }
+   .video-seek::-moz-range-track {
+-    height: 4px;
++    height: 2px;
+     background: rgba(255, 255, 255, 0.3);
+   }
+   .video-seek::-moz-range-progress {
+-    height: 4px;
++    height: 2px;
+     background: #fff;
+   }
+   .video-seek::-webkit-slider-thumb {
+@@ -1018,13 +1018,11 @@ html {
+   backdrop-filter: blur(18px) saturate(1.4);
+ }
+ .sz-dock {
+-  background-color: color-mix(in oklab, var(--card), transparent 14%);
++  /* Bottom bar: full width, flat, with only a thin line on top (no rounded floating pill). */
++  background-color: color-mix(in oklab, var(--background), transparent 6%);
+   -webkit-backdrop-filter: blur(22px) saturate(1.5);
+   backdrop-filter: blur(22px) saturate(1.5);
+-  border: 1px solid var(--border);
+-  box-shadow:
+-    0 18px 40px -16px rgba(0, 0, 0, 0.7),
+-    0 1px 0 rgba(255, 255, 255, 0.06) inset;
++  border-top: 1px solid var(--border);
+ }
+ 
+ /* ======================================================================
+diff --git a/src/lib/photo-filters.ts b/src/lib/photo-filters.ts
+new file mode 100644
+index 0000000..0860f3f
+--- /dev/null
++++ b/src/lib/photo-filters.ts
+@@ -0,0 +1,38 @@
++/**
++ * Photo filters for stories (Instagram-style looks). Each one is a CSS `filter` string, so the same
++ * text drives the live preview (<img style="filter">) and the exported picture (canvas ctx.filter).
++ */
++export type PhotoFilter = { key: string; label: string; css: string };
++
++export const PHOTO_FILTERS: readonly PhotoFilter[] = [
++  { key: "none", label: "Normal", css: "none" },
++  { key: "clarendon", label: "Clarendon", css: "contrast(1.2) saturate(1.35) brightness(1.05)" },
++  { key: "gingham", label: "Gingham", css: "brightness(1.05) hue-rotate(-10deg) saturate(0.9) contrast(0.95)" },
++  { key: "moon", label: "Moon", css: "grayscale(1) contrast(1.1) brightness(1.1)" },
++  { key: "lark", label: "Lark", css: "brightness(1.1) contrast(0.9) saturate(1.25)" },
++  { key: "reyes", label: "Reyes", css: "sepia(0.22) brightness(1.1) contrast(0.85) saturate(0.75)" },
++  { key: "juno", label: "Juno", css: "contrast(1.1) saturate(1.5) sepia(0.08) brightness(1.02)" },
++  { key: "slumber", label: "Slumber", css: "saturate(0.66) brightness(1.05) sepia(0.15)" },
++  { key: "crema", label: "Crema", css: "sepia(0.2) contrast(0.95) brightness(1.05) saturate(0.9)" },
++  { key: "ludwig", label: "Ludwig", css: "contrast(1.05) brightness(1.05) saturate(1.2) sepia(0.05)" },
++  { key: "aden", label: "Aden", css: "hue-rotate(-20deg) contrast(0.9) saturate(0.85) brightness(1.2)" },
++  { key: "noir", label: "Noir", css: "grayscale(1) contrast(1.3) brightness(0.9)" },
++];
++
++/** The CSS filter for a key ("none" for Normal or anything unknown). */
++export function filterCss(key: string): string {
++  return PHOTO_FILTERS.find((f) => f.key === key)?.css ?? "none";
++}
++
++/**
++ * True when this browser can apply a filter while drawing on a canvas. Without it a filtered
++ * story would be saved WITHOUT the filter, so the filter button is hidden instead.
++ */
++export function canvasFilterSupported(): boolean {
++  try {
++    const ctx = document.createElement("canvas").getContext("2d");
++    return !!ctx && "filter" in ctx;
++  } catch {
++    return false;
++  }
++}
+diff --git a/src/routes/my-profile.tsx b/src/routes/my-profile.tsx
+new file mode 100644
+index 0000000..a8cac5b
+--- /dev/null
++++ b/src/routes/my-profile.tsx
+@@ -0,0 +1,190 @@
++import { createFileRoute, Link } from "@tanstack/react-router";
++import {
++  Ban,
++  Building2,
++  ChevronRight,
++  Heart,
++  MessageCircle,
++  Star,
++  Tag,
++  VolumeX,
++  type LucideIcon,
++} from "lucide-react";
++import { useState } from "react";
++import { Avatar } from "@/components/ediraa";
++import { CloseFriendsSheet } from "@/components/close-friends-sheet";
++import { PageHeader, PageShell } from "@/components/page-shell";
++import { SafetyListsSheet } from "@/components/safety-lists-sheet";
++import { useAuth } from "@/lib/auth";
++
++export const Route = createFileRoute("/my-profile")({
++  head: () => ({
++    meta: [
++      { title: "My Profile — SabZone" },
++      { name: "description", content: "Your close friends, blocked and muted accounts and activity." },
++    ],
++  }),
++  component: MyProfilePage,
++});
++
++const rowClass =
++  "flex w-full items-center gap-3 px-4 py-3.5 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset";
++
++function Row({
++  icon: Icon,
++  label,
++  hint,
++  onClick,
++}: {
++  icon: LucideIcon;
++  label: string;
++  hint?: string;
++  onClick: () => void;
++}) {
++  return (
++    <button type="button" onClick={onClick} className={rowClass}>
++      <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
++      <span className="min-w-0 flex-1">
++        <span className="block">{label}</span>
++        {hint && <span className="block text-xs text-muted-foreground">{hint}</span>}
++      </span>
++      <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
++    </button>
++  );
++}
++
++function LinkRow({
++  icon: Icon,
++  label,
++  hint,
++  to,
++  tab,
++}: {
++  icon: LucideIcon;
++  label: string;
++  hint?: string;
++  to: "/my-activity" | "/business";
++  tab?: "comments" | "tags" | "likes";
++}) {
++  const inner = (
++    <>
++      <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
++      <span className="min-w-0 flex-1">
++        <span className="block">{label}</span>
++        {hint && <span className="block text-xs text-muted-foreground">{hint}</span>}
++      </span>
++      <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
++    </>
++  );
++  return to === "/my-activity" ? (
++    <Link to="/my-activity" search={{ tab: tab ?? "comments" }} className={rowClass}>
++      {inner}
++    </Link>
++  ) : (
++    <Link to="/business" className={rowClass}>
++      {inner}
++    </Link>
++  );
++}
++
++function Group({ title, children }: { title: string; children: React.ReactNode }) {
++  return (
++    <section className="space-y-1.5">
++      <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
++        {title}
++      </h2>
++      <div className="glass-card divide-y divide-border">{children}</div>
++    </section>
++  );
++}
++
++function MyProfilePage() {
++  const { profile } = useAuth();
++  const [friendsOpen, setFriendsOpen] = useState(false);
++  const [safety, setSafety] = useState<"blocked" | "muted" | null>(null);
++  const name = profile?.full_name || profile?.username || "";
++
++  return (
++    <PageShell>
++      <PageHeader title="My Profile" />
++      <Link to="/profile" className="glass-card flex items-center gap-3 p-4">
++        <Avatar src={profile?.avatar_url} name={name} size={48} />
++        <div className="min-w-0 flex-1">
++          <p className="truncate font-semibold">{name}</p>
++          <p className="truncate text-sm text-muted-foreground">View your profile</p>
++        </div>
++        <ChevronRight className="h-5 w-5 text-muted-foreground" />
++      </Link>
++
++      <Group title="Who can see your content">
++        <Row
++          icon={Star}
++          label="Close Friends"
++          hint="Choose who sees your Close Friends stories"
++          onClick={() => setFriendsOpen(true)}
++        />
++        <Row
++          icon={Ban}
++          label="Blocked"
++          hint="People you blocked"
++          onClick={() => setSafety("blocked")}
++        />
++      </Group>
++
++      <Group title="What you see">
++        <Row
++          icon={VolumeX}
++          label="Muted"
++          hint="People whose posts you muted"
++          onClick={() => setSafety("muted")}
++        />
++      </Group>
++
++      <Group title="Your activity">
++        <LinkRow
++          icon={MessageCircle}
++          label="Comments"
++          hint="Comments you wrote"
++          to="/my-activity"
++          tab="comments"
++        />
++        <LinkRow
++          icon={Tag}
++          label="Tags"
++          hint="Posts you are tagged in"
++          to="/my-activity"
++          tab="tags"
++        />
++        <LinkRow
++          icon={Heart}
++          label="Likes"
++          hint="Posts you liked"
++          to="/my-activity"
++          tab="likes"
++        />
++      </Group>
++
++      <Group title="Profiles">
++        <LinkRow
++          icon={Building2}
++          label="Add profile"
++          hint="Create a Business Page"
++          to="/business"
++        />
++      </Group>
++
++      {friendsOpen && profile && (
++        <CloseFriendsSheet open onOpenChange={setFriendsOpen} meId={profile.id} />
++      )}
++      {safety && (
++        <SafetyListsSheet
++          open
++          initial={safety}
++          onOpenChange={(open) => {
++            if (!open) setSafety(null);
++          }}
++        />
++      )}
++    </PageShell>
++  );
++}
+diff --git a/src/routes/my-activity.tsx b/src/routes/my-activity.tsx
+new file mode 100644
+index 0000000..49aeb5c
+--- /dev/null
++++ b/src/routes/my-activity.tsx
+@@ -0,0 +1,191 @@
++import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
++import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
++import { Loader2, Play, Trash2 } from "lucide-react";
++import { toast } from "sonner";
++import { Pill } from "@/components/ediraa";
++import { PageHeader, PageShell } from "@/components/page-shell";
++import { useAuth } from "@/lib/auth";
++import type { PostRow } from "@/integrations/supabase/types";
++import { userMessage } from "@/lib/security";
++import {
++  deleteComment,
++  fetchLikedPosts,
++  fetchMyComments,
++  fetchTaggedPosts,
++} from "@/lib/social";
++import { timeAgo } from "@/lib/time";
++
++type Tab = "comments" | "tags" | "likes";
++const TABS: { key: Tab; label: string }[] = [
++  { key: "comments", label: "Comments" },
++  { key: "tags", label: "Tags" },
++  { key: "likes", label: "Likes" },
++];
++
++export const Route = createFileRoute("/my-activity")({
++  head: () => ({ meta: [{ title: "Your activity — SabZone" }] }),
++  validateSearch: (search: Record<string, unknown>): { tab: Tab } => ({
++    tab: search["tab"] === "tags" || search["tab"] === "likes" ? search["tab"] : "comments",
++  }),
++  component: MyActivityPage,
++});
++
++function Loading() {
++  return (
++    <div className="grid place-items-center py-10">
++      <Loader2 className="h-6 w-6 animate-spin text-primary" aria-label="Loading" />
++    </div>
++  );
++}
++
++function Empty({ text }: { text: string }) {
++  return <p className="glass-card p-6 text-center text-sm text-muted-foreground">{text}</p>;
++}
++
++function Failed({ text, onRetry }: { text: string; onRetry: () => void }) {
++  return (
++    <div role="alert" className="glass-card space-y-3 p-4 text-center text-sm">
++      <p className="text-muted-foreground">{text}</p>
++      <button
++        type="button"
++        onClick={onRetry}
++        className="rounded-full border border-primary px-4 py-1.5 font-medium text-primary"
++      >
++        Try again
++      </button>
++    </div>
++  );
++}
++
++/** Photos and videos in a 3-column grid; each one opens its post page. */
++function PostGrid({ posts }: { posts: PostRow[] }) {
++  return (
++    <div className="-mx-4 grid grid-cols-3 gap-0.5 bg-card sm:mx-0">
++      {posts.map((p) => {
++        const cover = p.media_type === "video" ? p.thumbnail_url : p.image_url;
++        return (
++          <Link
++            key={p.id}
++            to="/post/$id"
++            params={{ id: p.id }}
++            aria-label={`Open post${p.content ? `: ${p.content.slice(0, 60)}` : ""}`}
++            className="relative block aspect-square w-full overflow-hidden bg-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
++          >
++            {cover ? (
++              <img src={cover} alt="" loading="lazy" className="h-full w-full object-cover" />
++            ) : (
++              <p className="line-clamp-5 break-words p-3 text-xs font-medium leading-snug">
++                {p.content}
++              </p>
++            )}
++            {p.media_type === "video" && (
++              <span
++                aria-hidden="true"
++                className="pointer-events-none absolute right-1 top-1 grid h-4 w-4 place-items-center rounded-[5px] bg-white shadow-sm"
++              >
++                <Play className="h-2 w-2 fill-black text-black" />
++              </span>
++            )}
++          </Link>
++        );
++      })}
++    </div>
++  );
++}
++
++function MyComments({ meId }: { meId: string }) {
++  const qc = useQueryClient();
++  const list = useQuery({
++    queryKey: ["my-comments", meId],
++    queryFn: () => fetchMyComments(meId),
++    enabled: !!meId,
++  });
++  const remove = useMutation({
++    mutationFn: (id: string) => deleteComment(id),
++    onSuccess: () => {
++      toast.success("Comment deleted");
++      void qc.invalidateQueries({ queryKey: ["my-comments", meId] });
++    },
++    onError: (e) => toast.error(userMessage(e, "Couldn't delete the comment.")),
++  });
++  if (list.isLoading) return <Loading />;
++  if (list.isError) return <Failed text="Couldn't load your comments." onRetry={() => list.refetch()} />;
++  if (!list.data?.length) return <Empty text="You haven't commented on anything yet." />;
++  return (
++    <ul className="glass-card divide-y divide-border">
++      {list.data.map((c) => (
++        <li key={c.id} className="flex items-start gap-3 px-4 py-3">
++          <Link
++            to="/post/$id"
++            params={{ id: c.post_id }}
++            search={{ comments: true }}
++            className="min-w-0 flex-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
++          >
++            <p className="break-words text-sm">{c.content}</p>
++            <p className="mt-0.5 text-xs text-muted-foreground">{timeAgo(c.created_at)}</p>
++          </Link>
++          <button
++            type="button"
++            onClick={() => remove.mutate(c.id)}
++            disabled={remove.isPending}
++            aria-label="Delete comment"
++            className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-card hover:text-destructive disabled:opacity-50"
++          >
++            <Trash2 className="h-4 w-4" />
++          </button>
++        </li>
++      ))}
++    </ul>
++  );
++}
++
++function PostsTab({ kind, meId }: { kind: "tags" | "likes"; meId: string }) {
++  const list = useQuery({
++    queryKey: [kind === "tags" ? "my-tagged-posts" : "my-liked-posts", meId],
++    queryFn: () => (kind === "tags" ? fetchTaggedPosts(meId) : fetchLikedPosts(meId)),
++    enabled: !!meId,
++  });
++  if (list.isLoading) return <Loading />;
++  if (list.isError)
++    return (
++      <Failed
++        text={kind === "tags" ? "Couldn't load tagged posts." : "Couldn't load liked posts."}
++        onRetry={() => list.refetch()}
++      />
++    );
++  if (!list.data?.length)
++    return (
++      <Empty
++        text={
++          kind === "tags"
++            ? "No posts you're tagged in yet."
++            : "No likes yet. Posts you like will show up here."
++        }
++      />
++    );
++  return <PostGrid posts={list.data} />;
++}
++
++function MyActivityPage() {
++  const { tab } = Route.useSearch();
++  const navigate = useNavigate();
++  const { user } = useAuth();
++  const meId = user?.id ?? "";
++  return (
++    <PageShell>
++      <PageHeader title="Your activity" smartBack />
++      <div role="tablist" aria-label="Activity" className="flex gap-2">
++        {TABS.map((t) => (
++          <Pill
++            key={t.key}
++            active={tab === t.key}
++            onClick={() => void navigate({ to: "/my-activity", search: { tab: t.key }, replace: true })}
++          >
++            {t.label}
++          </Pill>
++        ))}
++      </div>
++      {tab === "comments" ? <MyComments meId={meId} /> : <PostsTab kind={tab} meId={meId} />}
++    </PageShell>
++  );
++}

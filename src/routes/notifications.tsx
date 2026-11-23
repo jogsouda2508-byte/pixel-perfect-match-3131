@@ -151,7 +151,7 @@ function NotificationsPage() {
           </button>
           <h1 className="text-2xl font-bold">Notifications</h1>
         </header>
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div className="scrollbar-hidden flex gap-2 overflow-x-auto pb-1">
           {tabs.map((t) => (
             <Pill key={t} active={tab === t} onClick={() => setTab(t)}>
               {t}

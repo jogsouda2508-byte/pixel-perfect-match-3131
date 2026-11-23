@@ -31,7 +31,7 @@ function DeleteAccountPage() {
         <ol className="list-decimal space-y-1 pl-5 text-sm">
           <li>Open More, then Settings &amp; Privacy.</li>
           <li>Scroll to Delete account and tap Delete my account.</li>
-          <li>Type DELETE and enter your password to confirm. If you signed in with Google, sign in again first.</li>
+          <li>Type DELETE and enter your password to confirm. If you signed in with Google, you will be asked to confirm with Google first.</li>
         </ol>
       </section>
 

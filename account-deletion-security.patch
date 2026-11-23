@@ -1,6 +1,7 @@
-diff -ruN a/src/components/delete-account.tsx b/src/components/delete-account.tsx
---- a/src/components/delete-account.tsx	2026-11-21 20:47:57.379219243 +0000
-+++ b/src/components/delete-account.tsx	2026-11-21 20:56:29.908655561 +0000
+diff --git a/src/components/delete-account.tsx b/src/components/delete-account.tsx
+index d96c8dc..2462367 100644
+--- a/src/components/delete-account.tsx
++++ b/src/components/delete-account.tsx
 @@ -1,6 +1,6 @@
  import { useNavigate } from "@tanstack/react-router";
  import { Loader2, Trash2 } from "lucide-react";
@@ -9,7 +10,7 @@ diff -ruN a/src/components/delete-account.tsx b/src/components/delete-account.ts
  import { toast } from "sonner";
  import {
    AlertDialog,
-@@ -14,58 +14,112 @@
+@@ -14,58 +14,118 @@ import {
  import { useAuth } from "@/lib/auth";
  import {
    AccountDeletionError,
@@ -20,6 +21,7 @@ diff -ruN a/src/components/delete-account.tsx b/src/components/delete-account.ts
    deleteMyAccount,
    hasPasswordLogin,
    isDeleteConfirmed,
++  signInMarker,
  } from "@/lib/account";
  
 +const SIGN_OUT_FAILED_MESSAGE =
@@ -38,13 +40,13 @@ diff -ruN a/src/components/delete-account.tsx b/src/components/delete-account.ts
    const [busy, setBusy] = useState(false);
 +
 +  const userId = user?.id ?? null;
-+  const accessToken = session?.access_token ?? null;
++  const marker = signInMarker(session);
 +
 +  // Coming back from Google ("confirm it's you"): a new sign-in for the SAME account reopens the
 +  // dialog so the person can finish; a different account is refused and nothing is deleted.
 +  useEffect(() => {
 +    if (!userId) return;
-+    const status = checkGoogleReauth(userId, accessToken);
++    const status = checkGoogleReauth(userId, session);
 +    if (status === "confirmed") {
 +      setText("");
 +      setPassword("");
@@ -58,7 +60,9 @@ diff -ruN a/src/components/delete-account.tsx b/src/components/delete-account.ts
 +      setProblem({ code: "identity_mismatch", message: WRONG_ACCOUNT_MESSAGE });
 +      setOpen(true);
 +    }
-+  }, [userId, accessToken]);
++    // `session` is read only when the user or the sign-in changes, which `marker` captures.
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [userId, marker]);
 +
    if (!user) return null;
  
@@ -68,7 +72,11 @@ diff -ruN a/src/components/delete-account.tsx b/src/components/delete-account.ts
 +  // username log-in the app uses, so it is rate limited). Google-only accounts have no password;
 +  // they confirm with Google, and the server insists the sign-in is only minutes old.
    const needsPassword = hasPasswordLogin(user);
-   const ready = isDeleteConfirmed(text) && (!needsPassword || password.length > 0);
+-  const ready = isDeleteConfirmed(text) && (!needsPassword || password.length > 0);
++  // A wrong-account result locks the button: the person is now signed in as someone else, so
++  // they must sign out (or close and reopen this dialog on purpose) before anything is deleted.
++  const blocked = problem?.code === "identity_mismatch";
++  const ready = isDeleteConfirmed(text) && (!needsPassword || password.length > 0) && !blocked;
  
    const run = async () => {
      setBusy(true);
@@ -137,7 +145,7 @@ diff -ruN a/src/components/delete-account.tsx b/src/components/delete-account.ts
      void navigate({ to: "/login", replace: true });
    };
  
-@@ -77,6 +131,7 @@
+@@ -77,6 +137,7 @@ export function DeleteAccountButton() {
            setText("");
            setPassword("");
            setProblem(null);
@@ -145,7 +153,7 @@ diff -ruN a/src/components/delete-account.tsx b/src/components/delete-account.ts
            setOpen(true);
          }}
          className="flex w-full items-center justify-center gap-2 rounded-full border border-destructive py-3 text-sm font-semibold text-destructive transition hover:bg-destructive/10"
-@@ -89,11 +144,21 @@
+@@ -89,11 +150,21 @@ export function DeleteAccountButton() {
            <AlertDialogHeader>
              <AlertDialogTitle>Delete your account for good?</AlertDialogTitle>
              <AlertDialogDescription>
@@ -167,19 +175,23 @@ diff -ruN a/src/components/delete-account.tsx b/src/components/delete-account.ts
            <label className="block text-sm">
              Type <b>{DELETE_WORD}</b> to confirm
              <input
-@@ -119,15 +184,26 @@
+@@ -119,15 +190,36 @@ export function DeleteAccountButton() {
            {problem && (
              <div role="alert" className="space-y-2 text-sm text-destructive">
                <p>{problem.message}</p>
 -              {problem.code === "reauth_required" && (
--                <button
--                  type="button"
--                  onClick={signOutToRetry}
++              {problem.code === "identity_mismatch" && (
+                 <button
+                   type="button"
+                   onClick={signOutToRetry}
 -                  className="rounded-full border border-destructive px-3 py-1 text-xs font-semibold"
--                >
++                  disabled={busy}
++                  className="rounded-full border border-destructive px-3 py-1 text-xs font-semibold disabled:opacity-50"
+                 >
 -                  Sign out and sign in again
--                </button>
--              )}
++                  Sign out
+                 </button>
+               )}
 +              {problem.code === "reauth_required" &&
 +                (needsPassword ? (
 +                  <button
@@ -203,9 +215,10 @@ diff -ruN a/src/components/delete-account.tsx b/src/components/delete-account.ts
              </div>
            )}
            <AlertDialogFooter>
-diff -ruN a/src/lib/account.ts b/src/lib/account.ts
---- a/src/lib/account.ts	2026-11-21 20:47:57.374920143 +0000
-+++ b/src/lib/account.ts	2026-11-21 20:56:29.905180410 +0000
+diff --git a/src/lib/account.ts b/src/lib/account.ts
+index d8ffded..e270fc7 100644
+--- a/src/lib/account.ts
++++ b/src/lib/account.ts
 @@ -1,21 +1,48 @@
  import type { SupabaseClient, User } from "@supabase/supabase-js";
  import { supabase } from "@/integrations/supabase/client";
@@ -257,7 +270,7 @@ diff -ruN a/src/lib/account.ts b/src/lib/account.ts
  
  /** Every storage bucket that keeps files under a "<user id>/" folder. */
  export const USER_BUCKETS = ["avatars", "media", "videos", "voice", "chat-media"] as const;
-@@ -23,6 +50,8 @@
+@@ -23,6 +50,8 @@ export const USER_BUCKETS = ["avatars", "media", "videos", "voice", "chat-media"
  export type AccountDeletionErrorCode =
    | "wrong_password"
    | "reauth_required"
@@ -266,7 +279,7 @@ diff -ruN a/src/lib/account.ts b/src/lib/account.ts
    | "files_failed"
    | "migration_missing"
    | "failed";
-@@ -50,8 +79,107 @@
+@@ -50,8 +79,118 @@ export function hasPasswordLogin(user: Pick<User, "app_metadata" | "identities">
    return (user.identities ?? []).some((i) => i.provider === "email");
  }
  
@@ -294,19 +307,33 @@ diff -ruN a/src/lib/account.ts b/src/lib/account.ts
 +  return typeof id === "string" && id.length > 0 ? id : null;
 +}
 +
++/**
++ * Identifies the current sign-in: the session id inside the token, or (for tokens without one)
++ * the time the server says the person last signed in. It changes only on a real new sign-in.
++ */
++export function signInMarker(
++  session: { access_token?: string | null; user?: { last_sign_in_at?: string | null } } | null,
++): string | null {
++  if (!session) return null;
++  const id = sessionIdOf(session.access_token);
++  if (id) return `s:${id}`;
++  const at = session.user?.last_sign_in_at;
++  return at ? `t:${at}` : null;
++}
++
 +const GOOGLE_REAUTH_KEY = "sabzone.deleteAccount.googleReauth";
 +const GOOGLE_REAUTH_TTL_MS = 10 * 60 * 1000;
 +
-+type GoogleReauthMark = { userId: string; sessionId: string; at: number };
++type GoogleReauthMark = { userId: string; marker: string; at: number };
 +
 +/**
 + * Written just before sending the person to Google to confirm it's them. It remembers WHO is
-+ * deleting and WHICH sign-in they had, so the return can be checked: a brand-new sign-in for the
++ * deleting and WHICH sign-in they had (see signInMarker), so the return can be checked: a brand-new sign-in for the
 + * same account counts, a sign-in for another Google account does not.
 + */
-+export function markGoogleReauth(userId: string, sessionId: string): void {
++export function markGoogleReauth(userId: string, marker: string): void {
 +  try {
-+    const mark: GoogleReauthMark = { userId, sessionId, at: Date.now() };
++    const mark: GoogleReauthMark = { userId, marker, at: Date.now() };
 +    window.sessionStorage.setItem(GOOGLE_REAUTH_KEY, JSON.stringify(mark));
 +  } catch {
 +    /* storage unavailable: the server's recent-sign-in check still protects the account */
@@ -334,15 +361,15 @@ diff -ruN a/src/lib/account.ts b/src/lib/account.ts
 +/** Looks at where a Google confirmation stands. Settles (and forgets) it once it is decided. */
 +export function checkGoogleReauth(
 +  currentUserId: string,
-+  accessToken: string | null | undefined,
++  session: Parameters<typeof signInMarker>[0],
 +): GoogleReauthStatus {
 +  let mark: GoogleReauthMark | null = null;
 +  try {
 +    const raw = window.sessionStorage.getItem(GOOGLE_REAUTH_KEY);
 +    const parsed: unknown = raw ? JSON.parse(raw) : null;
 +    const m = parsed as Partial<GoogleReauthMark> | null;
-+    if (m && typeof m.userId === "string" && typeof m.sessionId === "string" && typeof m.at === "number")
-+      mark = { userId: m.userId, sessionId: m.sessionId, at: m.at };
++    if (m && typeof m.userId === "string" && typeof m.marker === "string" && typeof m.at === "number")
++      mark = { userId: m.userId, marker: m.marker, at: m.at };
 +  } catch {
 +    mark = null;
 +  }
@@ -351,12 +378,9 @@ diff -ruN a/src/lib/account.ts b/src/lib/account.ts
 +    clearGoogleReauth();
 +    return "none";
 +  }
-+  const nowSession = sessionIdOf(accessToken);
-+  if (!nowSession) {
-+    clearGoogleReauth();
-+    return "none";
-+  }
-+  if (nowSession === mark.sessionId) return "pending";
++  const now = signInMarker(session);
++  if (!now) return "pending";
++  if (now === mark.marker) return "pending";
 +  clearGoogleReauth();
 +  return currentUserId === mark.userId ? "confirmed" : "wrong_account";
 +}
@@ -374,7 +398,7 @@ diff -ruN a/src/lib/account.ts b/src/lib/account.ts
  /** A bucket that doesn't exist (or has nothing for this person) simply has no files to remove. */
  function isNotFound(error: {
    message?: string | undefined;
-@@ -62,16 +190,17 @@
+@@ -62,16 +201,17 @@ function isNotFound(error: {
  
  /**
   * Lists every file under `prefix`, going into sub-folders (folders come back with a null id).
@@ -397,7 +421,7 @@ diff -ruN a/src/lib/account.ts b/src/lib/account.ts
      if (error) {
        if (isNotFound(error)) return files;
        throw error;
-@@ -81,100 +210,175 @@
+@@ -81,100 +221,175 @@ async function listFiles(bucket: string, prefix: string, depth = 0): Promise<str
        if (e.id) files.push(`${prefix}/${e.name}`);
        else files.push(...(await listFiles(bucket, `${prefix}/${e.name}`, depth + 1)));
      }
@@ -575,8 +599,6 @@ diff -ruN a/src/lib/account.ts b/src/lib/account.ts
  export async function deleteMyAccount(input: DeleteAccountInput): Promise<void> {
 -  const { userId, email, password } = input;
 +  const { userId, username, password } = input;
-+
-+  let user = await verifiedUser(userId);
  
 -  if (password !== undefined) {
 -    if (!email || password.length === 0)
@@ -584,6 +606,8 @@ diff -ruN a/src/lib/account.ts b/src/lib/account.ts
 -    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 -    if (error || data.user?.id !== userId)
 -      throw new AccountDeletionError("wrong_password", WRONG_PASSWORD_MESSAGE);
++  let user = await verifiedUser(userId);
++
 +  // The password requirement comes from the server's view of the account, not from the screen.
 +  if (hasPasswordLogin(user)) {
 +    await reauthWithPassword(userId, username, password);
@@ -613,7 +637,7 @@ diff -ruN a/src/lib/account.ts b/src/lib/account.ts
    } catch (e) {
      console.error("couldn't remove uploaded files", e);
      throw new AccountDeletionError("files_failed", FILES_FAILED_MESSAGE);
-@@ -184,15 +388,17 @@
+@@ -184,15 +399,17 @@ export async function deleteMyAccount(input: DeleteAccountInput): Promise<void>
    if (error) {
      console.error("delete_my_account failed", error);
      const message = error.message ?? "";
@@ -640,18 +664,19 @@ diff -ruN a/src/lib/account.ts b/src/lib/account.ts
 -  clearLocalUserData(userId);
 +  clearLocalUserData(user.id);
  }
-diff -ruN a/src/lib/auth.tsx b/src/lib/auth.tsx
---- a/src/lib/auth.tsx	2026-11-21 20:47:57.377068085 +0000
-+++ b/src/lib/auth.tsx	2026-11-21 20:48:48.282787631 +0000
-@@ -18,6 +18,7 @@
+diff --git a/src/lib/auth.tsx b/src/lib/auth.tsx
+index 2964bd1..c5d540e 100644
+--- a/src/lib/auth.tsx
++++ b/src/lib/auth.tsx
+@@ -18,6 +18,7 @@ import { consumeNativeAuthPending, parseNativeAuthUrl } from "@/lib/native-auth-
  import { removePushOnLogout } from "@/lib/push";
  import { friendlyAuthError } from "@/lib/auth-errors";
  import { callGateway, gatewayProblem, startSession, tokensFrom } from "@/lib/auth-gateway";
-+import { clearGoogleReauth, markGoogleReauth, sessionIdOf } from "@/lib/account";
++import { clearGoogleReauth, markGoogleReauth, signInMarker } from "@/lib/account";
  
  type Result = { error: string | null };
  type LoginResult = Result & {
-@@ -70,6 +71,13 @@
+@@ -70,6 +71,13 @@ type AuthContextValue = {
    signUp: (input: SignUpInput) => Promise<SignUpResult>;
    signIn: (identifier: string, password: string) => Promise<LoginResult>;
    signInWithGoogle: () => Promise<Result>;
@@ -665,7 +690,7 @@ diff -ruN a/src/lib/auth.tsx b/src/lib/auth.tsx
    signOut: () => Promise<void>;
    refreshProfile: () => Promise<void>;
  };
-@@ -255,32 +263,76 @@
+@@ -255,32 +263,76 @@ export function AuthProvider({ children }: { children: ReactNode }) {
      return { error: gatewayProblem(r, "Couldn't log in. Please try again.") };
    }, []);
  
@@ -674,19 +699,22 @@ diff -ruN a/src/lib/auth.tsx b/src/lib/auth.tsx
 -    // page after Google finishes. Open Google in the phone browser and come back via sabzone://.
 -    if (isNativeApp()) {
 -      const { data, error } = await supabase.auth.signInWithOAuth({
-+  /** One Google flow for sign-in and for re-confirming. `webPath` is a fixed path on our own site. */
++  /**
++   * One Google flow for sign-in and for re-confirming. `webPath` is a fixed path on our own site.
++   * The return address comes from authRedirect (src/lib/auth-redirect.ts): the website path on the
++   * web, sabzone://auth-callback in the Android app. In the app it also sets the short-lived
++   * "pending" flag, without which the callback handler above refuses the link.
++   */
 +  const startGoogle = useCallback(
 +    async (webPath: string, queryParams?: Record<string, string>): Promise<Result> => {
++      const redirectTo = authRedirect(webPath);
++      const extra = queryParams ? { queryParams } : {};
 +      // Native app: window.location.origin is "http://localhost" inside the app, which is not a real
 +      // page after Google finishes. Open Google in the phone browser and come back via sabzone://.
 +      if (isNativeApp()) {
 +        const { data, error } = await supabase.auth.signInWithOAuth({
 +          provider: "google",
-+          options: {
-+            redirectTo: NATIVE_AUTH_REDIRECT,
-+            skipBrowserRedirect: true,
-+            ...(queryParams ? { queryParams } : {}),
-+          },
++          options: { redirectTo, skipBrowserRedirect: true, ...extra },
 +        });
 +        if (error || !data?.url) return { error: friendlyAuthError(error ?? new Error("No URL")) };
 +        const { Browser } = await import("@capacitor/browser");
@@ -696,10 +724,7 @@ diff -ruN a/src/lib/auth.tsx b/src/lib/auth.tsx
 +      const { error } = await supabase.auth.signInWithOAuth({
          provider: "google",
 -        options: { redirectTo: NATIVE_AUTH_REDIRECT, skipBrowserRedirect: true },
-+        options: {
-+          redirectTo: `${window.location.origin}${webPath}`,
-+          ...(queryParams ? { queryParams } : {}),
-+        },
++        options: { redirectTo, ...extra },
        });
 -      if (error || !data?.url) return { error: friendlyAuthError(error ?? new Error("No URL")) };
 -      const { Browser } = await import("@capacitor/browser");
@@ -731,9 +756,9 @@ diff -ruN a/src/lib/auth.tsx b/src/lib/auth.tsx
 +    // NEW sign-in for the SAME account happened (see checkGoogleReauth).
 +    const { data } = await supabase.auth.getSession();
 +    const current = data.session;
-+    const sessionId = sessionIdOf(current?.access_token);
-+    if (!current || !sessionId) return { error: "Please sign in first." };
-+    markGoogleReauth(current.user.id, sessionId);
++    const marker = signInMarker(current);
++    if (!current || !marker) return { error: "Please sign in first." };
++    markGoogleReauth(current.user.id, marker);
 +    // select_account lets the person pick the right Google account instead of silently reusing one.
 +    const result = await startGoogle("/delete-account", { prompt: "select_account" });
 +    if (result.error) clearGoogleReauth();
@@ -763,7 +788,7 @@ diff -ruN a/src/lib/auth.tsx b/src/lib/auth.tsx
      setProfile(null);
    }, []);
  
-@@ -293,6 +345,7 @@
+@@ -293,6 +345,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
        signUp,
        signIn,
        signInWithGoogle,
@@ -771,7 +796,7 @@ diff -ruN a/src/lib/auth.tsx b/src/lib/auth.tsx
        signOut,
        refreshProfile,
      }),
-@@ -304,6 +357,7 @@
+@@ -304,6 +357,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
        signUp,
        signIn,
        signInWithGoogle,
@@ -779,3 +804,16 @@ diff -ruN a/src/lib/auth.tsx b/src/lib/auth.tsx
        signOut,
        refreshProfile,
      ],
+diff --git a/src/routes/delete-account.tsx b/src/routes/delete-account.tsx
+index c4e65fb..c6f287b 100644
+--- a/src/routes/delete-account.tsx
++++ b/src/routes/delete-account.tsx
+@@ -31,7 +31,7 @@ function DeleteAccountPage() {
+         <ol className="list-decimal space-y-1 pl-5 text-sm">
+           <li>Open More, then Settings &amp; Privacy.</li>
+           <li>Scroll to Delete account and tap Delete my account.</li>
+-          <li>Type DELETE and enter your password to confirm. If you signed in with Google, sign in again first.</li>
++          <li>Type DELETE and enter your password to confirm. If you signed in with Google, you will be asked to confirm with Google first.</li>
+         </ol>
+       </section>
+ 

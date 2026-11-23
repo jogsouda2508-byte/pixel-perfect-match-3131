@@ -18,6 +18,7 @@ import { consumeNativeAuthPending, parseNativeAuthUrl } from "@/lib/native-auth-
 import { removePushOnLogout } from "@/lib/push";
 import { friendlyAuthError } from "@/lib/auth-errors";
 import { callGateway, gatewayProblem, startSession, tokensFrom } from "@/lib/auth-gateway";
+import { clearGoogleReauth, markGoogleReauth, signInMarker } from "@/lib/account";
 
 type Result = { error: string | null };
 type LoginResult = Result & {
@@ -70,6 +71,13 @@ type AuthContextValue = {
   signUp: (input: SignUpInput) => Promise<SignUpResult>;
   signIn: (identifier: string, password: string) => Promise<LoginResult>;
   signInWithGoogle: () => Promise<Result>;
+  /**
+   * Sends the signed-in person through Google again so a fresh sign-in exists (account deletion
+   * needs one). On the website it returns to /delete-account. The result is checked afterwards
+   * with checkGoogleReauth (src/lib/account.ts): it must be the same account.
+   */
+  reauthenticateWithGoogle: () => Promise<Result>;
+  /** Signs out everywhere if it can, otherwise at least on this device. Throws only if even that fails. */
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 };
@@ -255,32 +263,76 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: gatewayProblem(r, "Couldn't log in. Please try again.") };
   }, []);
 
-  const signInWithGoogle = useCallback<AuthContextValue["signInWithGoogle"]>(async () => {
-    // Native app: window.location.origin is "http://localhost" inside the app, which is not a real
-    // page after Google finishes. Open Google in the phone browser and come back via sabzone://.
-    if (isNativeApp()) {
-      const { data, error } = await supabase.auth.signInWithOAuth({
+  /**
+   * One Google flow for sign-in and for re-confirming. `webPath` is a fixed path on our own site.
+   * The return address comes from authRedirect (src/lib/auth-redirect.ts): the website path on the
+   * web, sabzone://auth-callback in the Android app. In the app it also sets the short-lived
+   * "pending" flag, without which the callback handler above refuses the link.
+   */
+  const startGoogle = useCallback(
+    async (webPath: string, queryParams?: Record<string, string>): Promise<Result> => {
+      const redirectTo = authRedirect(webPath);
+      const extra = queryParams ? { queryParams } : {};
+      // Native app: window.location.origin is "http://localhost" inside the app, which is not a real
+      // page after Google finishes. Open Google in the phone browser and come back via sabzone://.
+      if (isNativeApp()) {
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: { redirectTo, skipBrowserRedirect: true, ...extra },
+        });
+        if (error || !data?.url) return { error: friendlyAuthError(error ?? new Error("No URL")) };
+        const { Browser } = await import("@capacitor/browser");
+        await Browser.open({ url: data.url });
+        return { error: null };
+      }
+      const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: NATIVE_AUTH_REDIRECT, skipBrowserRedirect: true },
+        options: { redirectTo, ...extra },
       });
-      if (error || !data?.url) return { error: friendlyAuthError(error ?? new Error("No URL")) };
-      const { Browser } = await import("@capacitor/browser");
-      await Browser.open({ url: data.url });
-      return { error: null };
-    }
-    // Website: land on /onboarding. AuthGate sends people who already finished it on to /home.
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${window.location.origin}/onboarding` },
-    });
-    return { error: error ? friendlyAuthError(error) : null };
-  }, []);
+      return { error: error ? friendlyAuthError(error) : null };
+    },
+    [],
+  );
+
+  // Website: land on /onboarding. AuthGate sends people who already finished it on to /home.
+  const signInWithGoogle = useCallback<AuthContextValue["signInWithGoogle"]>(
+    () => startGoogle("/onboarding"),
+    [startGoogle],
+  );
+
+  const reauthenticateWithGoogle = useCallback<
+    AuthContextValue["reauthenticateWithGoogle"]
+  >(async () => {
+    // Remember who is deleting and which sign-in they have now, so the way back can prove that a
+    // NEW sign-in for the SAME account happened (see checkGoogleReauth).
+    const { data } = await supabase.auth.getSession();
+    const current = data.session;
+    const marker = signInMarker(current);
+    if (!current || !marker) return { error: "Please sign in first." };
+    markGoogleReauth(current.user.id, marker);
+    // select_account lets the person pick the right Google account instead of silently reusing one.
+    const result = await startGoogle("/delete-account", { prompt: "select_account" });
+    if (result.error) clearGoogleReauth();
+    return result;
+  }, [startGoogle]);
 
   const signOut = useCallback(async () => {
     // Stop this device getting the signed-out person's notifications (needs the session, so
-    // it runs first; it never throws and never blocks logging out).
-    await removePushOnLogout();
-    await supabase.auth.signOut();
+    // it runs first). It must never block logging out, so a failure is only logged.
+    try {
+      await removePushOnLogout();
+    } catch (e) {
+      console.error("Couldn't remove push registration on sign-out", e);
+    }
+    // signOut() reports problems (offline, server error) in `error` instead of throwing, and
+    // then keeps the session on the device. Fall back to clearing this device so the person is
+    // never left looking signed in after asking to leave.
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error("Sign-out failed, clearing this device only", error);
+      const local = await supabase.auth.signOut({ scope: "local" });
+      if (local.error) throw local.error;
+    }
     setProfile(null);
   }, []);
 
@@ -293,6 +345,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signUp,
       signIn,
       signInWithGoogle,
+      reauthenticateWithGoogle,
       signOut,
       refreshProfile,
     }),
@@ -304,6 +357,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signUp,
       signIn,
       signInWithGoogle,
+      reauthenticateWithGoogle,
       signOut,
       refreshProfile,
     ],

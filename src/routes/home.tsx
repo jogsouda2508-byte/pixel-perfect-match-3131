@@ -8,13 +8,12 @@ import {
   Newspaper,
   Plus,
   RefreshCw,
-  Search as SearchIcon,
   WifiOff,
+  X,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { Avatar, BrandLockup, UserRow, Verified } from "@/components/ediraa";
 import { CommunityHomeStrip } from "@/components/community-home";
-import { LocalTiles } from "@/components/local-tiles";
 import { LocalityPicker } from "@/components/locality-picker";
 import { PageShell } from "@/components/page-shell";
 import { PostCard } from "@/components/post-card";
@@ -181,45 +180,37 @@ function HomePage() {
             <BrandLockup compact />
           </h1>
           <div className="flex shrink-0 items-center gap-1.5">
-            <Link
-              to="/discover"
-              aria-label="Search"
-              className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card/70 transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            <BellLink unread={unreadCount} />
+          </div>
+        </div>
+        {/* The For You / Following / Local / Business switcher is gone from Home (search has the
+            Business filter). The Local Hub shortcut still opens the Local feed; this chip shows
+            which feed that is and brings you back to For You. */}
+        {tab !== "for_you" && (
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-secondary/70 px-3 py-1 text-xs font-semibold">
+              {TABS.find((t) => t.key === tab)?.label}
+            </span>
+            <button
+              type="button"
+              onClick={() => setTab("for_you")}
+              aria-label="Back to For You"
+              className="grid h-6 w-6 place-items-center rounded-full border border-border text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <SearchIcon className="h-5 w-5" />
-            </Link>
+              <X className="h-3.5 w-3.5" />
+            </button>
+            <div className="ml-auto hidden md:block">
+              <BellLink unread={unreadCount} />
+            </div>
+          </div>
+        )}
+        {tab === "for_you" && (
+          <div className="hidden justify-end md:flex">
             <BellLink unread={unreadCount} />
           </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <div
-            role="group"
-            aria-label="Feed"
-            className="grid min-w-0 flex-1 grid-cols-4 gap-1 rounded-2xl bg-secondary/70 p-1 md:flex md:flex-none"
-          >
-            {TABS.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                aria-pressed={tab === t.key}
-                onClick={() => setTab(t.key)}
-                className={`min-h-9 truncate rounded-xl px-2 text-[12.5px] font-semibold transition-colors md:px-4 md:text-sm ${
-                  tab === t.key
-                    ? "bg-card text-foreground shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_6px_16px_-8px_rgba(0,0,0,0.8)] ring-1 ring-primary/30"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-          <div className="ml-auto hidden md:block">
-            <BellLink unread={unreadCount} />
-          </div>
-        </div>
+        )}
       </header>
 
-      <LocalTiles area={activeLocality} />
       <Stories onLocalHub={() => setTab("local")} />
 
       <section className="glass-card p-3 sm:p-4">

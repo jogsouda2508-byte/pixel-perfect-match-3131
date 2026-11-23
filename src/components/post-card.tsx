@@ -170,11 +170,8 @@ export function PostCard({
       void setLike(true);
       return;
     }
+    // A single tap does nothing (like Instagram); only a double tap likes the photo.
     lastPhotoClick.current = now;
-    openTimer.current = setTimeout(() => {
-      lastPhotoClick.current = 0;
-      setGalleryOpen(true);
-    }, 300);
   };
 
   const remove = useMutation({
@@ -317,7 +314,8 @@ export function PostCard({
       </div>
       {!isVideo && post.image_url && (
         <>
-          {/* Photo sits right under the profile row, full width, shown whole (never cropped). */}
+          {/* Photo sits right under the profile row, edge to edge, filling the width. A very tall
+              photo is trimmed at 80% of the screen height; tapping it opens the whole picture. */}
           <div className="relative mt-3 overflow-hidden bg-black/30">
             <button
               type="button"
@@ -330,7 +328,7 @@ export function PostCard({
                 alt=""
                 loading="lazy"
                 draggable={false}
-                className="mx-auto block h-auto max-h-[80dvh] w-full object-contain"
+                className="mx-auto block h-auto max-h-[80dvh] w-full object-cover"
               />
             </button>
             {/* Decorative: the same photo, blurred, fills any side gaps. Same file, so one download. */}
@@ -491,7 +489,7 @@ function SoundIcon({ muted }: { muted: boolean }) {
   return (
     <svg
       viewBox="0 0 24 24"
-      className="h-5 w-5"
+      className="h-3 w-3"
       fill="none"
       stroke="currentColor"
       strokeWidth="2"
@@ -615,7 +613,9 @@ function FeedVideo({
         search={{ video: to }}
         aria-label={label}
         className="relative block w-full overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        style={{ aspectRatio: ratio, maxHeight: "80dvh" }}
+        // Like Instagram: the frame is never narrower than 4:5 or wider than 1.91:1, and the video
+        // fills it edge to edge (cropped a little) instead of showing blurred side bars.
+        style={{ aspectRatio: Math.min(Math.max(ratio, 4 / 5), 1.91), maxHeight: "80dvh" }}
       >
         {poster && (
           <img
@@ -638,7 +638,7 @@ function FeedVideo({
             const { videoWidth: w, videoHeight: h } = e.currentTarget;
             if (w && h) setRatio(w / h);
           }}
-          className="absolute inset-0 h-full w-full object-contain"
+          className="absolute inset-0 h-full w-full object-cover"
         />
       </Link>
       <button
@@ -646,7 +646,7 @@ function FeedVideo({
         onClick={toggleSound}
         aria-label={muted ? "Turn sound on" : "Turn sound off"}
         aria-pressed={!muted}
-        className="absolute bottom-3 right-3 z-20 grid h-9 w-9 place-items-center rounded-full bg-black/55 text-white backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+        className="absolute bottom-2 right-2 z-20 grid h-6 w-6 place-items-center rounded-full bg-black/55 text-white backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
       >
         <SoundIcon muted={muted} />
       </button>

@@ -802,7 +802,7 @@ html {
     display: block;
   }
   .video-seek::-webkit-slider-runnable-track {
-    height: 4px;
+    height: 2px;
     border-radius: 0;
     background: linear-gradient(
       to right,
@@ -811,11 +811,11 @@ html {
     );
   }
   .video-seek::-moz-range-track {
-    height: 4px;
+    height: 2px;
     background: rgba(255, 255, 255, 0.3);
   }
   .video-seek::-moz-range-progress {
-    height: 4px;
+    height: 2px;
     background: #fff;
   }
   .video-seek::-webkit-slider-thumb {
@@ -1018,13 +1018,11 @@ html {
   backdrop-filter: blur(18px) saturate(1.4);
 }
 .sz-dock {
-  background-color: color-mix(in oklab, var(--card), transparent 14%);
+  /* Bottom bar: full width, flat, with only a thin line on top (no rounded floating pill). */
+  background-color: color-mix(in oklab, var(--background), transparent 6%);
   -webkit-backdrop-filter: blur(22px) saturate(1.5);
   backdrop-filter: blur(22px) saturate(1.5);
-  border: 1px solid var(--border);
-  box-shadow:
-    0 18px 40px -16px rgba(0, 0, 0, 0.7),
-    0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  border-top: 1px solid var(--border);
 }
 
 /* ======================================================================

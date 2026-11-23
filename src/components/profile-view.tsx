@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { CirclePhotoViewer } from "@/components/circle-photo-viewer";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -21,10 +21,17 @@ import {
   Video,
 } from "lucide-react";
 import { toast } from "sonner";
-import { BottomNav, SideNav, UserRow } from "@/components/ediraa";
+import {
+  BottomNav,
+  SideNav,
+  STORY_RING_CSS,
+  STORY_RING_SEEN,
+  UserRow,
+} from "@/components/ediraa";
 import { ComposerLauncher } from "@/components/composer";
 import { ReelsIcon, ShareIcon } from "@/components/icons";
 import { Gallery, type GalleryItem } from "@/components/gallery";
+import { Stories } from "@/components/stories";
 import { ProfileQrSheet } from "@/components/profile-qr";
 import { FollowedBy } from "@/components/followed-by";
 import { formatCount } from "@/lib/format-count";
@@ -45,17 +52,18 @@ import {
   fetchFollowingIds,
   fetchFollowList,
   fetchIsFollowing,
+  fetchStories,
   fetchTaggedPosts,
   fetchUserPosts,
 } from "@/lib/social";
 import { followLabel, isProfileLocked } from "@/lib/follow-state";
+import { useSeenStories } from "@/lib/story-seen";
 import { useFollow } from "@/lib/use-follow";
 import { startConversation } from "@/lib/chat";
 import { UserSafetyMenu, useRefreshAfterSafetyChange } from "@/components/user-safety-menu";
 import { blockedMessage, fetchBlockState, unblockUser } from "@/lib/safety";
 import { fetchUserVideos, fetchVideoViewCounts } from "@/lib/videos";
 import type { Profile } from "@/integrations/supabase/types";
-import emptyPostsUrl from "@/assets/empty-posts.jpg";
 import { userMessage } from "@/lib/security";
 
 const tabs = ["Posts", "Reels", "Tagged"] as const;
@@ -77,6 +85,19 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
         month: "long",
         year: "numeric",
       });
+
+  // The photo only gets a ring while this person has a live story (same data as the Home story
+  // row, so it costs no extra request). Watched = brown ring, new = the brand-colour ring.
+  const meId = user?.id ?? "";
+  const seenStories = useSeenStories(meId);
+  const stories = useQuery({
+    queryKey: ["stories", meId],
+    queryFn: () => fetchStories(meId),
+    enabled: !!meId,
+  });
+  const storyGroup = stories.data?.find((g) => g.authorId === profile.id);
+  const hasStory = !!storyGroup && storyGroup.items.length > 0;
+  const storySeen = hasStory && storyGroup.items.every((st) => seenStories.has(st.id));
 
   const followState = useQuery({
     queryKey: ["is-following", user?.id, profile.id],
@@ -138,6 +159,11 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
   // Every photo and video post, in grid order, for the full-screen gallery.
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
   const [photoOpen, setPhotoOpen] = useState(false);
+  // Opens the story picker owned by the hidden <Stories mode="creator"> below (my profile only).
+  const addStoryRef = useRef<(() => void) | null>(null);
+  const onStoryReady = useCallback((fn: () => void) => {
+    addStoryRef.current = fn;
+  }, []);
   const galleryItems: GalleryItem[] = [];
   const galleryIndexByPost = new Map<string, number>();
   // The Posts and Tagged tabs share one grid and one full-screen gallery.
@@ -272,9 +298,15 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
               <div className="relative shrink-0">
                 <ProfileNoteBubble note={profileNote.note} isMe={isMe} />
                 <div
-                  className="aspect-square h-20 w-20 rounded-full p-[3px] md:h-24 md:w-24"
-                  // thick solid grey ring, same as the story highlights (outer size unchanged)
-                  style={{ backgroundColor: "#E4E7EB" }}
+                  className={`aspect-square h-20 w-20 rounded-full md:h-24 md:w-24 ${hasStory ? "p-[3px]" : ""}`}
+                  // no ring unless there is a story; then the brand colours (brown once watched)
+                  style={
+                    hasStory
+                      ? storySeen
+                        ? { backgroundColor: STORY_RING_SEEN }
+                        : { backgroundImage: STORY_RING_CSS }
+                      : undefined
+                  }
                 >
                   {profile.avatar_url ? (
                     <button
@@ -286,27 +318,29 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
                       <img
                         src={profile.avatar_url}
                         alt={name}
-                        className="block aspect-square h-full w-full shrink-0 rounded-full border-[3px] border-background object-cover"
+                        className={`block aspect-square h-full w-full shrink-0 rounded-full object-cover ${hasStory ? "border-[3px] border-background" : ""}`}
                       />
                     </button>
                   ) : (
-                    <div className="grid aspect-square h-full w-full shrink-0 place-items-center rounded-full border-[3px] border-background bg-elevated text-2xl font-bold">
+                    <div className={`grid aspect-square h-full w-full shrink-0 place-items-center rounded-full bg-elevated text-2xl font-bold ${hasStory ? "border-[3px] border-background" : ""}`}>
                       {name.slice(0, 1).toUpperCase() || "?"}
                     </div>
                   )}
                 </div>
                 {isMe && (
-                  <Link
-                    to="/settings"
-                    aria-label="Change profile photo"
-                    className="absolute bottom-0.5 right-0.5 grid h-6 w-6 place-items-center rounded-full border-2 border-background bg-primary md:h-7 md:w-7 text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  // Like Instagram: the "+" sits just outside the ring and adds a new story.
+                  <button
+                    type="button"
+                    onClick={() => addStoryRef.current?.()}
+                    aria-label="Add to your story"
+                    className="absolute -bottom-1 -right-1 grid h-6 w-6 place-items-center rounded-full border-2 border-background bg-primary md:h-7 md:w-7 text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <Plus
                       className="h-3.5 w-3.5 md:h-4 md:w-4"
                       strokeWidth={2.75}
                       aria-hidden="true"
                     />
-                  </Link>
+                  </button>
                 )}
               </div>
               <div className="min-w-0 flex-1">
@@ -547,13 +581,6 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
                 aria-label="No posts yet"
                 className="mt-3 flex flex-col items-center px-4 py-6 text-center"
               >
-                <img
-                  src={emptyPostsUrl}
-                  alt=""
-                  aria-hidden="true"
-                  draggable={false}
-                  className="w-64 max-w-full select-none mix-blend-multiply [mask-image:radial-gradient(closest-side,black_78%,transparent)] dark:mix-blend-normal sm:w-72"
-                />
                 <h2 className="mt-2 text-2xl font-bold">
                   {isMe ? "Create your first post" : "No posts yet"}
                 </h2>
@@ -594,10 +621,11 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
                     </span>
                   </button>
                 ) : p.image_url ? (
-                  <button
-                    type="button"
+                  // A photo opens its post page (photo, likes, comments), not a black viewer.
+                  <Link
                     key={p.id}
-                    onClick={() => setGalleryIndex(galleryIndexByPost.get(p.id) ?? 0)}
+                    to="/post/$id"
+                    params={{ id: p.id }}
                     aria-label={`Open photo${p.content ? `: ${p.content.slice(0, 60)}` : ""}`}
                     className="block aspect-square w-full overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
@@ -607,7 +635,7 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
                       loading="lazy"
                       className="h-full w-full object-cover"
                     />
-                  </button>
+                  </Link>
                 ) : (
                   <div key={p.id} className="flex aspect-square items-center bg-elevated p-3">
                     <p className="line-clamp-5 break-words text-xs font-medium leading-snug">
@@ -620,7 +648,7 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
           </>
         )}
       </main>
-      <BottomNav showCreate={isMe} />
+      <BottomNav />
       {qrOpen && (
         <ProfileQrSheet
           username={profile.username}
@@ -636,6 +664,7 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
           name={name}
         />
       )}
+      {isMe && <Stories mode="creator" onReady={onStoryReady} />}
       <Gallery
         items={galleryItems}
         startIndex={galleryIndex}

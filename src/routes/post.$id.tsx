@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { PageShell } from "@/components/page-shell";
@@ -20,6 +20,13 @@ function PostPage() {
   const { id } = Route.useParams();
   const { comments } = Route.useSearch();
   const { user } = useAuth();
+  const router = useRouter();
+  const navigate = useNavigate();
+  // Back to wherever the person came from (their profile grid, a notification...).
+  const goBack = () => {
+    if (window.history.length > 1) router.history.back();
+    else void navigate({ to: "/home" });
+  };
   const post = useQuery({
     queryKey: ["post", id, user?.id],
     queryFn: () => fetchPostById(id, user!.id),
@@ -29,13 +36,14 @@ function PostPage() {
   return (
     <PageShell>
       <header className="flex items-center gap-3">
-        <Link
-          to="/notifications"
+        <button
+          type="button"
+          onClick={goBack}
           aria-label="Back"
           className="grid h-11 w-11 place-items-center rounded-full hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <ArrowLeft className="h-5 w-5" />
-        </Link>
+        </button>
         <h1 className="text-2xl font-bold">Post</h1>
       </header>
 

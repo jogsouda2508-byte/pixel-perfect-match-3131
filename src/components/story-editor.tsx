@@ -17,6 +17,7 @@ import {
   Pencil,
   Send,
   Smile,
+  Sparkles,
   Star,
   Trash2,
   Type,
@@ -24,6 +25,7 @@ import {
   X,
 } from "lucide-react";
 import { StoryGifPicker } from "@/components/story-gif-picker";
+import { PHOTO_FILTERS, canvasFilterSupported, filterCss } from "@/lib/photo-filters";
 import { StoryMusicPicker } from "@/components/story-music-picker";
 import {
   GIF_BASE_W,
@@ -97,7 +99,7 @@ const EMOJI_GROUPS: { label: string; items: string[] }[] = [
   },
 ];
 
-type Tool = "none" | "draw";
+type Tool = "none" | "draw" | "filter";
 type Sheet = "none" | "emoji" | "music" | "gif";
 type TextDraft = { id: string | null; text: string; color: string; box: boolean; font: string };
 
@@ -161,6 +163,8 @@ export function StoryEditor({
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [caption, setCaption] = useState("");
   const [tool, setTool] = useState<Tool>("none");
+  const [filterKey, setFilterKey] = useState("none");
+  const canFilter = useMemo(() => canvasFilterSupported(), []);
   const [sheet, setSheet] = useState<Sheet>("none");
   const [textDraft, setTextDraft] = useState<TextDraft | null>(null);
   const textBoxRef = useRef<HTMLTextAreaElement>(null);
@@ -231,7 +235,11 @@ export function StoryEditor({
   const [view, setView] = useState<PhotoView>({ zoom: 1, x: 0, y: 0 });
   const viewChanged = Math.abs(view.zoom - 1) > 0.001;
   const hasEdits =
-    items.length > 0 || strokes.length > 0 || caption.trim().length > 0 || viewChanged;
+    items.length > 0 ||
+    strokes.length > 0 ||
+    caption.trim().length > 0 ||
+    viewChanged ||
+    filterKey !== "none";
   const music: StoryMusic | null = useMemo(
     () => items.find((i) => i.kind === "music")?.music ?? null,
     [items],
@@ -680,7 +688,7 @@ export function StoryEditor({
     }
     setSharing(true);
     try {
-      const out = await renderStoryFile({ photo, strokes, items, caption, view });
+      const out = await renderStoryFile({ photo, strokes, items, caption, view, filter: filterCss(filterKey) });
       if (closeFriends) onShare(out, chosen, gifs.length > 0 ? gifs : undefined, true);
       else if (gifs.length > 0) onShare(out, chosen, gifs);
       else onShare(out, chosen);
@@ -860,6 +868,17 @@ export function StoryEditor({
       icon: <Pencil className="h-[18px] w-[18px] sm:h-5 sm:w-5" />,
       onClick: () => setTool("draw"),
     },
+    ...(canFilter
+      ? [
+          {
+            key: "filters",
+            label: "Filters",
+            icon: <Sparkles className="h-[18px] w-[18px] sm:h-5 sm:w-5" />,
+            onClick: () => setTool("filter"),
+            active: filterKey !== "none",
+          },
+        ]
+      : []),
   ];
 
   const root = (
@@ -909,6 +928,7 @@ export function StoryEditor({
                     marginTop: -photoBox.h / 2,
                     transform: `translate(${view.x * stage.w}px, ${view.y * stage.h}px) scale(${view.zoom})`,
                     transformOrigin: "center",
+                    filter: filterCss(filterKey),
                   }}
                 />
               </>
@@ -1101,15 +1121,66 @@ export function StoryEditor({
           </div>
         )}
 
+        {/* filters: pick a look, the photo changes right away */}
+        {tool === "filter" && (
+          <>
+            <button
+              type="button"
+              onClick={() => setTool("none")}
+              className="absolute right-3 top-[max(env(safe-area-inset-top),0.5rem)] z-10 flex h-7 animate-in items-center gap-1 rounded-full bg-gradient-brand px-3 text-xs font-bold text-primary-foreground sm:h-8 sm:px-3.5 duration-200 fade-in active:scale-95"
+            >
+              <Check className="h-3.5 w-3.5" /> Done
+            </button>
+            <div className="absolute inset-x-0 bottom-3 z-10 animate-in duration-300 fade-in slide-in-from-bottom-3">
+              <div
+                role="listbox"
+                aria-label="Photo filters"
+                className="flex gap-2.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
+                {PHOTO_FILTERS.map((f) => (
+                  <button
+                    key={f.key}
+                    type="button"
+                    role="option"
+                    aria-selected={filterKey === f.key}
+                    onClick={() => setFilterKey(f.key)}
+                    className="flex w-16 shrink-0 flex-col items-center gap-1 text-[11px] font-semibold active:scale-95"
+                  >
+                    <span
+                      className={cn(
+                        "block h-16 w-16 overflow-hidden rounded-xl ring-2 transition",
+                        filterKey === f.key ? "ring-white" : "ring-white/20",
+                      )}
+                    >
+                      {photoUrl && (
+                        <img
+                          src={photoUrl}
+                          alt=""
+                          draggable={false}
+                          className="h-full w-full object-cover"
+                          style={{ filter: f.css }}
+                        />
+                      )}
+                    </span>
+                    <span className={filterKey === f.key ? "text-white" : "text-white/70"}>
+                      {f.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
         {/* drawing toolbar */}
         {tool === "draw" && (
           <>
             <button
               type="button"
               onClick={() => setTool("none")}
-              className="absolute right-3 top-[max(env(safe-area-inset-top),0.5rem)] z-10 flex h-9 animate-in items-center gap-1.5 rounded-full bg-gradient-brand px-4 text-[13px] font-bold text-primary-foreground sm:h-11 sm:px-5 sm:text-sm duration-200 fade-in active:scale-95"
+              className="absolute right-3 top-[max(env(safe-area-inset-top),0.5rem)] z-10 flex h-7 animate-in items-center gap-1 rounded-full bg-gradient-brand px-3 text-xs font-bold text-primary-foreground sm:h-8 sm:px-3.5 duration-200 fade-in active:scale-95"
             >
-              <Check className="h-4 w-4" /> Done
+              <Check className="h-3.5 w-3.5" /> Done
             </button>
             <div className="absolute inset-x-0 bottom-3 z-10 flex animate-in flex-col items-center gap-3 duration-300 fade-in slide-in-from-bottom-3">
               <div className="flex items-center gap-3 rounded-full bg-black/45 px-3 py-2 ring-1 ring-white/15 backdrop-blur-md">
@@ -1174,7 +1245,7 @@ export function StoryEditor({
             placeholder="Add a caption…"
             aria-label="Add a caption"
             enterKeyHint="done"
-            className="h-10 min-w-0 flex-1 rounded-full bg-white/10 px-4 text-[14px] text-white outline-none sm:h-12 sm:px-5 sm:text-[15px] ring-1 ring-white/10 transition placeholder:text-white/50 focus:bg-white/15 focus:ring-primary/60"
+            className="h-9 min-w-0 flex-1 rounded-full bg-white/10 px-4 text-[13px] text-white outline-none sm:h-10 sm:px-5 sm:text-[14px] ring-1 ring-white/10 transition placeholder:text-white/50 focus:bg-white/15 focus:ring-primary/60"
           />
           {onPickCloseFriends && (
             <button
@@ -1182,9 +1253,9 @@ export function StoryEditor({
               onClick={() => void share(true)}
               disabled={sharing || load === "error"}
               aria-label="Share with Close Friends"
-              className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-success px-3.5 text-[13px] font-bold text-success-foreground shadow-lg transition active:scale-95 disabled:opacity-60 sm:h-12 sm:px-4 sm:text-[15px]"
+              className="flex h-8 shrink-0 items-center gap-1 rounded-full bg-success px-3 text-[12px] font-bold text-success-foreground shadow-lg transition active:scale-95 disabled:opacity-60 sm:h-10 sm:px-3.5 sm:text-[13px]"
             >
-              <Star className="h-[18px] w-[18px] fill-current sm:h-5 sm:w-5" />
+              <Star className="h-4 w-4 fill-current sm:h-[18px] sm:w-[18px]" />
               <span className="max-sm:sr-only">Close Friends</span>
             </button>
           )}
@@ -1193,13 +1264,13 @@ export function StoryEditor({
             onClick={() => void share()}
             disabled={sharing || load === "error"}
             aria-label="Share story"
-            className="flex h-10 shrink-0 items-center gap-1.5 rounded-full px-4 text-[13px] font-bold text-primary-foreground shadow-lg sm:h-12 sm:gap-2 sm:px-5 sm:text-[15px] shadow-primary/30 transition active:scale-95 disabled:opacity-60"
+            className="flex h-8 shrink-0 items-center gap-1 rounded-full px-3.5 text-[12px] font-bold text-primary-foreground shadow-lg sm:h-10 sm:gap-1.5 sm:px-4 sm:text-[13px] shadow-primary/30 transition active:scale-95 disabled:opacity-60"
             style={{ background: "var(--gradient-primary)" }}
           >
             {sharing ? (
-              <Loader2 className="h-4 w-4 animate-spin sm:h-5 sm:w-5" />
+              <Loader2 className="h-4 w-4 animate-spin sm:h-[18px] sm:w-[18px]" />
             ) : (
-              <Send className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
+              <Send className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
             )}
             {sharing ? "Preparing…" : "Share"}
           </button>

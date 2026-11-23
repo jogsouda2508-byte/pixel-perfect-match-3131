@@ -60,20 +60,19 @@ export function BrandLockup({
   );
 }
 
-/** Story ring: marigold -> ember -> rose -> violet -> lagoon. */
+/** Story ring: the same gold -> ember look as the Local Hub ring (the brand gradient). */
 const STORY_RING_STOPS: [string, string][] = [
   ["0%", "#f9b233"],
-  ["30%", "#f2705a"],
-  ["58%", "#e2528f"],
-  ["82%", "#9b6bff"],
-  ["100%", "#35d0ba"],
+  ["100%", "#f2705a"],
 ];
+/** A story that has been watched: the ring turns brown. */
+export const STORY_RING_SEEN = "#8b5e3c";
 /** The lagoon-green ring of a Close Friends story. */
 const CLOSE_RING_STOPS: [string, string][] = [
   ["0%", "#5eead4"],
   ["100%", "#1fae7a"],
 ];
-const STORY_RING_CSS = `linear-gradient(45deg, ${STORY_RING_STOPS.map(([o, c]) => `${c} ${o}`).join(", ")})`;
+export const STORY_RING_CSS = `linear-gradient(45deg, ${STORY_RING_STOPS.map(([o, c]) => `${c} ${o}`).join(", ")})`;
 
 /**
  * Story ring split into one arc per story (like Instagram): 2 stories = 2 arcs with a small gap
@@ -97,7 +96,9 @@ function SegmentedRing({
   children: ReactNode;
 }) {
   const id = useId();
-  const r = 48.6;
+  // Same thickness as the Local Hub ring: 2.5px on the Home row, a little less on small avatars.
+  const sw = ((size >= 56 ? 2.5 : 1.75) / size) * 100;
+  const r = 50 - sw / 2;
   const circumference = 2 * Math.PI * r;
   // No gaps: the arcs touch, so several stories still look like ONE unbroken ring.
   const arc = circumference / segments;
@@ -121,9 +122,8 @@ function SegmentedRing({
                 cy="50"
                 r={r}
                 fill="none"
-                stroke={isSeen ? undefined : `url(#${id})`}
-                className={isSeen ? "stroke-neutral-300 dark:stroke-neutral-600" : undefined}
-                strokeWidth="2.6"
+                stroke={isSeen ? STORY_RING_SEEN : `url(#${id})`}
+                strokeWidth={sw}
                 // a hair of overlap hides the seam between neighbouring arcs
                 strokeDasharray={`${Math.min(circumference, arc + 0.4)} ${circumference}`}
                 strokeDashoffset={-(i * arc)}
@@ -133,7 +133,9 @@ function SegmentedRing({
         </g>
       </svg>
       {loading && <RingLoader />}
-      <div className="absolute inset-[3%]">{children}</div>
+      <div className="absolute" style={{ inset: `${sw + 0.6}%` }}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -208,7 +210,7 @@ export function Avatar({
   const ringClass = !ring
     ? ""
     : seen?.[0]
-      ? "rounded-full bg-neutral-300 p-[2px] dark:bg-neutral-600"
+      ? "rounded-full p-[2px]"
       : "rounded-full bg-gradient-brand p-[2px]";
   return (
     <div
@@ -336,8 +338,9 @@ const items = [
 export function BottomNav({ showCreate = false }: { showCreate?: boolean }) {
   return (
     <>
-      <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:hidden">
-        <div className="sz-dock pointer-events-auto mx-auto flex max-w-sm items-center justify-around rounded-[1.75rem] p-1.5">
+      {/* Docked to the bottom edge, full width (like Instagram): no floating gap on any side. */}
+      <nav className="fixed inset-x-0 bottom-0 z-50 md:hidden">
+        <div className="sz-dock flex w-full items-center justify-around px-2 pt-1 pb-[max(0.375rem,env(safe-area-inset-bottom))]">
           {items.map((i) => (
             <NavItem key={i.label} {...i} />
           ))}
@@ -395,7 +398,7 @@ function NavItem({
                 src={avatar}
                 alt=""
                 aria-hidden="true"
-                className={`h-7 w-7 rounded-full object-cover ring-offset-2 ring-offset-card ${isActive ? "ring-2 ring-primary" : "opacity-90"}`}
+                className={`h-7 w-7 rounded-full object-cover ${isActive ? "" : "opacity-90"}`}
               />
             ) : isActive && to === "/home" ? (
               <HomeSelectedIcon />

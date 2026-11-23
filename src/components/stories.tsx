@@ -5,8 +5,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   BarChart3,
-  ChevronLeft,
-  ChevronRight,
   Eye,
   Heart,
   Loader2,
@@ -69,7 +67,20 @@ function isVideoFile(file: File): boolean {
   return VIDEO_EXTENSIONS.includes(file.name.split(".").pop()?.toLowerCase() ?? "");
 }
 
-export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
+export function Stories({
+  onLocalHub,
+  mode = "row",
+  onReady,
+}: {
+  onLocalHub?: () => void;
+  /**
+   * "row" (Home) draws the story bubbles. "creator" draws nothing visible: it only owns the
+   * photo / video picker, the story editor and the upload, so another page (my profile) can
+   * start a new story. The page receives the function that opens the picker through `onReady`.
+   */
+  mode?: "row" | "creator";
+  onReady?: (addStory: () => void) => void;
+} = {}) {
   const isMobile = useIsMobile();
   const AVATAR = isMobile ? AVATAR_MOBILE : AVATAR_DESKTOP;
   const COLUMN = AVATAR + 16; // 72px on desktop, 80px on phones
@@ -139,9 +150,12 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
   // story moves along this list.
   const viewList = myGroup ? [myGroup, ...others] : others;
   const viewIdx = viewing ? viewList.findIndex((g) => g.authorId === viewing.authorId) : -1;
-  const swipeToPerson = (dir: 1 | -1) => {
+  // Moves to the next / previous person; false when there is nobody in that direction.
+  const swipeToPerson = (dir: 1 | -1): boolean => {
     const next = viewList[viewIdx + dir];
-    if (viewIdx >= 0 && next) setViewing(next);
+    if (viewIdx < 0 || !next) return false;
+    setViewing(next);
+    return true;
   };
 
   const upload = useMutation({
@@ -257,25 +271,35 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
     pick();
   };
 
+  // Used by the creator mode: always opens the picker (even when I already have a story).
+  const addStory = () => {
+    if (!busy) pick();
+  };
+  const addStoryRef = useRef(addStory);
+  addStoryRef.current = addStory;
+  useEffect(() => {
+    onReady?.(() => addStoryRef.current());
+  }, [onReady]);
+
   return (
     <>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
+        multiple
+        hidden
+        onChange={(e) => {
+          void onPick(Array.from(e.target.files ?? []));
+          e.target.value = "";
+        }}
+      />
+      {mode === "row" && (
       <div
         role="list"
         aria-label="Stories"
         className="-mx-4 flex snap-x gap-0 overflow-x-auto scroll-px-4 sm:gap-3 px-4 pb-1 [scrollbar-width:none] md:mx-0 md:px-0 [&::-webkit-scrollbar]:hidden"
       >
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
-          multiple
-          hidden
-          onChange={(e) => {
-            void onPick(Array.from(e.target.files ?? []));
-            e.target.value = "";
-          }}
-        />
-
         <div role="listitem" className="relative shrink-0 snap-start" style={{ width: COLUMN }}>
           <StoryButton
             label="Create Story"
@@ -347,10 +371,10 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
         {onLocalHub && (
           <div role="listitem" className="shrink-0 snap-start" style={{ width: COLUMN }}>
             <StoryButton label="Local Hub" ariaLabel="Open the Local feed" onClick={onLocalHub}>
-              <div className="rounded-full bg-gradient-brand p-[2px]">
+              <div className="rounded-full bg-gradient-brand p-[2.5px]">
                 <div
                   className="grid place-items-center rounded-full bg-card"
-                  style={{ height: AVATAR - 4, width: AVATAR - 4 }}
+                  style={{ height: AVATAR - 5, width: AVATAR - 5 }}
                 >
                   <MapPin
                     className="text-primary"
@@ -362,6 +386,7 @@ export function Stories({ onLocalHub }: { onLocalHub?: () => void } = {}) {
           </div>
         )}
       </div>
+      )}
 
       {editing && (
         <StoryEditor
@@ -456,7 +481,7 @@ function StoryViewer({
   meId: string;
   onClose: () => void;
   /** swipe sideways: 1 = next person's story (swipe left), -1 = previous person's (swipe right) */
-  onSwipePerson?: (dir: 1 | -1) => void;
+  onSwipePerson?: (dir: 1 | -1) => boolean;
   /** add another photo / video to my own story */
   onAdd: () => void;
 }) {
@@ -512,12 +537,15 @@ function StoryViewer({
     onError: () => toast.error("Couldn't delete the story."),
   });
 
+  const tapNavRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(tapNavRef.current), []);
   const go = (next: number) => {
     setFraction(0);
     setViewersOpen(false);
     setBurst(0);
     setHeld(false);
     lastTapRef.current = null;
+    clearTimeout(tapNavRef.current);
     setI(next);
   };
   const advance = () => (i < last ? go(i + 1) : onClose());
@@ -684,11 +712,13 @@ function StoryViewer({
       />
     </button>
   ) : null;
-  // Double tap on the story itself: like it (never unlike) and show the heart. On a story I
-  // already liked it only shows the heart again, so no second like is sent. Taps on the
-  // buttons over the story don't count. There are no swipe / tap-to-navigate zones here.
+  // Tapping the story works like Instagram: the left third goes back, the rest goes forward
+  // (back on the first story = the previous person, forward on the last = the next person, then
+  // close). On someone else's story a quick double tap still likes it (never unlikes) and shows
+  // the heart; to tell the two apart, their single tap waits a moment. Taps on the buttons over
+  // the story don't count, and neither does a press-and-hold (pause) or a swipe.
   const onStoryTap = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (isMine || !stats || viewersOpen) return;
+    if (viewersOpen) return;
     if ((e.target as HTMLElement).closest("button")) return;
     const now = performance.now();
     const pressedAt = pressStartRef.current;
@@ -703,14 +733,35 @@ function StoryViewer({
       lastTapRef.current = null;
       return;
     }
+    const canLike = !isMine && !!stats;
     const prev = lastTapRef.current;
-    if (prev && now - prev.t < 300 && Math.hypot(e.clientX - prev.x, e.clientY - prev.y) < 48) {
+    if (
+      canLike &&
+      prev &&
+      now - prev.t < 300 &&
+      Math.hypot(e.clientX - prev.x, e.clientY - prev.y) < 48
+    ) {
+      clearTimeout(tapNavRef.current);
       lastTapRef.current = null;
       setBurst((n) => n + 1);
       if (!stats.likedByMe) requestLike(true);
       return;
     }
-    lastTapRef.current = { t: now, x: e.clientX, y: e.clientY };
+    const rect = e.currentTarget.getBoundingClientRect();
+    const goBack = e.clientX - rect.left < rect.width * 0.3;
+    const move = () => {
+      lastTapRef.current = null;
+      if (goBack) {
+        if (i > 0) go(i - 1);
+        else onSwipePerson?.(-1);
+      } else if (i < last) go(i + 1);
+      else if (!onSwipePerson?.(1)) onClose();
+    };
+    clearTimeout(tapNavRef.current);
+    if (canLike) {
+      lastTapRef.current = { t: now, x: e.clientX, y: e.clientY };
+      tapNavRef.current = setTimeout(move, 300);
+    } else move();
   };
 
   return (
@@ -893,24 +944,6 @@ function StoryViewer({
             onBlocked={setMusicBlocked}
           />
         )}
-        {i > 0 && (
-          <button
-            onClick={() => go(i - 1)}
-            aria-label="Previous"
-            className="absolute left-2 rounded-full bg-black/40 p-2.5 ring-1 ring-white/15 backdrop-blur transition-colors hover:bg-black/60"
-          >
-            <ChevronLeft className="h-6 w-6" />
-          </button>
-        )}
-        {i < last && (
-          <button
-            onClick={() => go(i + 1)}
-            aria-label="Next"
-            className="absolute right-2 rounded-full bg-black/40 p-2.5 ring-1 ring-white/15 backdrop-blur transition-colors hover:bg-black/60"
-          >
-            <ChevronRight className="h-6 w-6" />
-          </button>
-        )}
         {burst > 0 && <StoryHeartBurst key={burst} onDone={() => setBurst(0)} />}
         {poll.query.data && (
           // taps on the poll are for voting, never for pausing or double-tap liking
@@ -933,14 +966,14 @@ function StoryViewer({
               type="button"
               onClick={() => setViewersOpen(true)}
               aria-label={`Viewers: ${stats.views} ${stats.views === 1 ? "view" : "views"}, ${stats.likes} ${stats.likes === 1 ? "like" : "likes"}`}
-              className="flex min-h-11 items-center gap-4 rounded-full bg-white/10 px-4 text-sm font-semibold ring-1 ring-white/10 backdrop-blur transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              className="flex min-h-8 items-center gap-3 rounded-full bg-white/10 px-3 text-xs font-semibold ring-1 ring-white/10 backdrop-blur transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
-              <span className="flex items-center gap-1.5">
-                <Eye className="h-5 w-5" aria-hidden="true" />
+              <span className="flex items-center gap-1">
+                <Eye className="h-4 w-4" aria-hidden="true" />
                 {stats.views}
               </span>
-              <span className="flex items-center gap-1.5">
-                <Heart className="h-5 w-5" aria-hidden="true" />
+              <span className="flex items-center gap-1">
+                <Heart className="h-4 w-4" aria-hidden="true" />
                 {stats.likes}
               </span>
             </button>
@@ -950,9 +983,9 @@ function StoryViewer({
               type="button"
               onClick={() => setPollSheetOpen(true)}
               aria-label="Add a poll to this story"
-              className="ml-auto flex min-h-11 items-center gap-2 rounded-full bg-white/10 px-4 text-sm font-semibold ring-1 ring-white/10 backdrop-blur transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              className="ml-auto flex min-h-8 items-center gap-1.5 rounded-full bg-white/10 px-3 text-xs font-semibold ring-1 ring-white/10 backdrop-blur transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
-              <BarChart3 className="h-5 w-5" aria-hidden="true" />
+              <BarChart3 className="h-4 w-4" aria-hidden="true" />
               Poll
             </button>
           )}

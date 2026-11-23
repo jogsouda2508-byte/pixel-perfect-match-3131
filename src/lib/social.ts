@@ -172,6 +172,34 @@ export async function fetchTaggedPosts(userId: string): Promise<PostRow[]> {
     .filter((post): post is PostRow => !!post);
 }
 
+/** Posts I liked (newest like first). Row-level security on `posts` still applies through the join. */
+export async function fetchLikedPosts(userId: string): Promise<PostRow[]> {
+  const { data, error } = await supabase
+    .from("post_likes")
+    .select("created_at, post:posts!inner(*)")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(60);
+  if (error) fail("Loading liked posts", error);
+  return ((data ?? []) as unknown as { post: PostRow | null }[])
+    .map((row) => row.post)
+    .filter((post): post is PostRow => !!post);
+}
+
+export type MyComment = { id: string; post_id: string; content: string; created_at: string };
+
+/** The comments I wrote, newest first. */
+export async function fetchMyComments(userId: string): Promise<MyComment[]> {
+  const { data, error } = await supabase
+    .from("post_comments")
+    .select("id, post_id, content, created_at")
+    .eq("author_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(100);
+  if (error) fail("Loading your comments", error);
+  return (data ?? []) as MyComment[];
+}
+
 // ---------------------------------------------------------------------- likes
 export async function setLike(postId: string, userId: string, like: boolean): Promise<void> {
   const { error } = like

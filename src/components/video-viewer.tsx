@@ -289,8 +289,32 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
   const lastTap = useRef({ id: "", time: 0 });
   const tapTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(tapTimer.current), []);
-  const onVideoTap = (post: VideoFeedRow, active: boolean) => {
+  // Press and hold: the reel stays paused while the finger is down and plays again on release.
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const holdPaused = useRef(false);
+  const startHold = (active: boolean) => {
     if (!active) return;
+    clearTimeout(holdTimer.current);
+    holdTimer.current = setTimeout(() => {
+      holdPaused.current = true;
+      clearTimeout(tapTimer.current);
+      lastTap.current = { id: "", time: 0 };
+      setPlaying(false);
+    }, 300);
+  };
+  const endHold = () => {
+    clearTimeout(holdTimer.current);
+    if (!holdPaused.current) return;
+    setPlaying(true);
+    // The release is followed by a "click"; it must not count as a tap (which would pause again).
+    setTimeout(() => {
+      holdPaused.current = false;
+    }, 120);
+  };
+  useEffect(() => () => clearTimeout(holdTimer.current), []);
+
+  const onVideoTap = (post: VideoFeedRow, active: boolean) => {
+    if (!active || holdPaused.current) return;
     const now = Date.now();
     if (lastTap.current.id === post.id && now - lastTap.current.time < 300) {
       lastTap.current = { id: "", time: 0 };
@@ -405,8 +429,13 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
               className="relative h-[100dvh] min-h-[100dvh] snap-start snap-always overflow-hidden bg-black text-white"
             >
               <div
-                className="absolute inset-0 grid touch-manipulation select-none place-items-center"
+                className="absolute inset-0 grid touch-manipulation select-none place-items-center [-webkit-touch-callout:none]"
                 onClick={() => onVideoTap(post, active)}
+                onPointerDown={() => startHold(active)}
+                onPointerUp={endHold}
+                onPointerCancel={endHold}
+                onPointerLeave={endHold}
+                onContextMenu={(event) => event.preventDefault()}
               >
                 <span
                   ref={(element) => {
@@ -456,7 +485,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                       event.stopPropagation();
                       onVideoTap(post, active);
                     }}
-                    className="h-full w-full object-contain"
+                    className="h-full w-full object-cover"
                     aria-label={`Video by ${post.author_name || post.author_username}`}
                   />
                 ) : (
@@ -464,7 +493,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                     src={post.thumbnail_url ?? ""}
                     alt=""
                     loading="lazy"
-                    className="h-full w-full object-contain"
+                    className="h-full w-full object-cover"
                   />
                 )}
                 {videoErrors[post.id] && (
@@ -508,7 +537,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
               </div>
 
               {active && (
-                <div className="absolute inset-x-0 bottom-[57px] z-20 px-0 leading-none md:bottom-0 md:px-3">
+                <div className="absolute inset-x-0 bottom-[calc(53px+max(0.375rem,env(safe-area-inset-bottom)))] z-20 px-0 leading-none md:bottom-0 md:px-3">
                   <div className="flex items-center gap-2 text-xs tabular-nums text-white/85">
                     <span aria-hidden="true" className="hidden md:inline">
                       {formatTime(currentTime)}
@@ -522,7 +551,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                       onChange={(event) => seekTo(post, Number(event.target.value))}
                       aria-label="Seek video"
                       aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
-                      className="video-seek h-1 w-full flex-1 cursor-pointer accent-white focus-visible:outline-none md:h-6 md:focus-visible:ring-2 md:focus-visible:ring-white"
+                      className="video-seek h-0.5 w-full flex-1 cursor-pointer accent-white focus-visible:outline-none md:h-6 md:focus-visible:ring-2 md:focus-visible:ring-white"
                       style={{ ["--seek-progress" as string]: `${progress}%` }}
                     />
                     <span aria-hidden="true" className="hidden md:inline">
@@ -531,21 +560,22 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                   </div>
                 </div>
               )}
-              <header className="absolute inset-x-0 top-0 z-10 flex items-center justify-end p-3 pt-[max(env(safe-area-inset-top),0.75rem)]">
-                <div className="flex items-center gap-2">
+              {/* The sound button only appears while the reel is stopped (tap or hold). */}
+              {active && !playing && (
+                <header className="absolute inset-x-0 top-0 z-10 flex items-center justify-end p-3 pt-[max(env(safe-area-inset-top),0.75rem)]">
                   <button
                     type="button"
                     onClick={toggleMute}
                     aria-label={muted ? "Unmute video" : "Mute video"}
                     aria-pressed={!muted}
-                    className="grid h-11 w-11 cursor-pointer place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    className="grid h-8 w-8 cursor-pointer place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                   >
-                    {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+                    {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                   </button>
-                </div>
-              </header>
+                </header>
+              )}
 
-              <div className="absolute bottom-24 left-3 right-20 z-10 space-y-2 pb-2 [text-shadow:0_1px_3px_rgba(0,0,0,0.75)] sm:left-5">
+              <div className="absolute bottom-[calc(58px+max(0.375rem,env(safe-area-inset-bottom)))] left-3 right-20 z-10 space-y-2 pb-2 [text-shadow:0_1px_3px_rgba(0,0,0,0.75)] sm:left-5">
                 <div className="flex items-center gap-2.5">
                   <Link
                     to="/u/$username"
@@ -562,7 +592,7 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                       type="button"
                       disabled={follow.isPending(post.author_id)}
                       onClick={() => follow.toggle(post.author_id, following)}
-                      className="min-h-11 rounded-full border border-white/80 px-4 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
+                      className="h-7 rounded-full border border-white/80 px-3 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
                     >
                       {followLabel(following, follow.isRequested(post.author_id))}
                     </button>
@@ -588,9 +618,6 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                   </p>
                 )}
                 <PostMeta post={post} tone="overlay" />
-                <time className="block text-sm text-white/75" dateTime={post.created_at}>
-                  {timeAgo(post.created_at)}
-                </time>
                 {user?.id && (
                   <ReelFollowedBy
                     meId={user.id}
