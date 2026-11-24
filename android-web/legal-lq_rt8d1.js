@@ -1,0 +1,1 @@
+var e=`Jarakande Technology`,t=`SabZone`,n=`jarakandetechnology@gmail.com`,r=`18 November 2026`;export{n as i,e as n,r,t};
