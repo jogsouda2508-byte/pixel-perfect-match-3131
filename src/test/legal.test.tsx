@@ -4,11 +4,23 @@ import { LegalPage } from "@/components/legal-page";
 import { APP_NAME, COMPANY_NAME, MIN_AGE, SUPPORT_EMAIL } from "@/lib/legal";
 
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ to, children, ...rest }: { to: string; children: React.ReactNode }) => (
+  Link: ({
+    to,
+    children,
+    replace: _replace,
+    ...rest
+  }: {
+    to: string;
+    children: React.ReactNode;
+    replace?: boolean;
+  }) => (
     <a href={to} {...rest}>
       {children}
     </a>
   ),
+  useRouter: () => ({ history: { back: vi.fn() } }),
+  useCanGoBack: () => true,
+  useNavigate: () => vi.fn(),
 }));
 
 describe("legal details", () => {
