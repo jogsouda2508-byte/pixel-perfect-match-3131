@@ -17,7 +17,7 @@ export function PhoneAuth() {
   if (!open) {
     return (
       <OutlineButton type="button" onClick={() => setOpen(true)}>
-        <Phone className="h-4 w-4" />
+        <Phone className="h-4 w-4 max-sm:h-3.5 max-sm:w-3.5" />
         Continue with Phone
       </OutlineButton>
     );

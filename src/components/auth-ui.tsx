@@ -1,8 +1,36 @@
 import { forwardRef, useState, type ComponentProps, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import { BrandName, Logo } from "@/components/ediraa";
 import { passwordStrength } from "@/lib/validation";
+
+/** The same logo as the Welcome screen (public/welcome-logo.png), so every auth page matches. */
+function AuthLogo({ top = false }: { top?: boolean }) {
+  return (
+    <Link
+      to="/"
+      aria-label="SabZone home"
+      className={`relative mx-auto flex w-fit items-center justify-center ${
+        top ? "mt-[max(1.25rem,env(safe-area-inset-top))]" : ""
+      }`}
+    >
+      <img
+        src="/welcome-logo.png"
+        width={640}
+        height={547}
+        alt="SabZone"
+        decoding="async"
+        draggable={false}
+        className="select-none object-contain"
+        style={{
+          width: "min(30vw, 112px)",
+          height: "auto",
+          // moves the logo down toward the title without moving the title
+          transform: top ? "translateY(22px)" : undefined,
+        }}
+      />
+    </Link>
+  );
+}
 
 const SCRIPT_FONT = '"Ephesis", "Alex Brush", "Dancing Script", cursive';
 
@@ -35,17 +63,7 @@ export function AuthShell({
               "radial-gradient(70% 34% at 50% 0%, rgba(124,58,237,0.55), transparent 72%), radial-gradient(46% 28% at 104% 34%, rgba(168,85,247,0.24), transparent 70%), radial-gradient(40% 26% at -4% 20%, rgba(249,178,51,0.15), transparent 70%)",
           }}
         />
-        <Link
-          to="/"
-          aria-label="SabZone home"
-          className="relative mx-auto mt-[max(1.25rem,env(safe-area-inset-top))] flex w-fit items-center gap-2.5"
-        >
-          <Logo
-            size={52}
-            className="[filter:drop-shadow(0_0_12px_rgba(139,92,246,0.6))] lg:h-14 lg:w-14"
-          />
-          <BrandName />
-        </Link>
+        <AuthLogo top />
 
         <div className="relative mx-auto mt-3 w-full max-w-md px-5 text-center">
           <h1
@@ -76,7 +94,7 @@ export function AuthShell({
         >
           {children}
           {footer && (
-            <div className="mt-auto pt-6 text-center text-[0.95rem] text-muted-foreground">
+            <div className="mt-auto pt-6 text-center text-[0.95rem] text-muted-foreground max-sm:text-[0.8rem]">
               {footer}
             </div>
           )}
@@ -97,10 +115,7 @@ export function AuthShell({
         aria-hidden="true"
       />
       <div className="relative w-full max-w-md">
-        <Link to="/" className="mx-auto flex w-fit items-center gap-2.5" aria-label="SabZone home">
-          <Logo size={48} className="lg:h-14 lg:w-14" />
-          <BrandName />
-        </Link>
+        <AuthLogo />
         <div className="glass-card mt-7 p-6 sm:p-8">
           <h1 className="text-[1.65rem] font-extrabold leading-tight sm:text-3xl">{title}</h1>
           {subtitle && (
@@ -234,7 +249,7 @@ export function OutlineButton({
     <button
       {...rest}
       disabled={disabled || loading}
-      className="flex w-full items-center justify-center gap-2 rounded-[10px] border border-input bg-card/60 py-3.5 text-[0.95rem] font-semibold text-foreground transition hover:border-primary/50 hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-60"
+      className="flex w-full items-center justify-center gap-2 rounded-[10px] border border-input bg-card/60 py-3.5 text-[0.95rem] font-semibold max-sm:gap-1.5 max-sm:py-3 max-sm:text-[0.8rem] text-foreground transition hover:border-primary/50 hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-60"
     >
       {loading && <Loader2 className="h-4 w-4 animate-spin" />}
       {children}
@@ -254,7 +269,7 @@ export function OrDivider() {
 
 export function GoogleIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden>
+    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden className="max-sm:h-4 max-sm:w-4">
       <path
         fill="#FFC107"
         d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"

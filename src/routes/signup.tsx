@@ -164,7 +164,7 @@ function SignUpForm() {
       subtitle="Connect • Share • Grow"
       footer={
         <>
-          Already have an account?{" "}
+          Already signed up?{" "}
           <Link to="/login" className="font-semibold text-primary">
             Log in
           </Link>

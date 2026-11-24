@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { LogIn, UserPlus } from "lucide-react";
 
 export const Route = createFileRoute("/welcome")({
   head: () => ({
@@ -9,56 +10,97 @@ export const Route = createFileRoute("/welcome")({
         content: "Connect with your community, share moments, and grow together.",
       },
     ],
-    links: [{ rel: "preload", as: "image", href: "/welcome-screen.png" }],
+    links: [
+      { rel: "preload", as: "image", href: "/welcome-logo.png" },
+      { rel: "preload", as: "image", href: "/welcome-title.png" },
+    ],
   }),
   component: WelcomePage,
 });
 
-/** The welcome screen is the exact design image (public/welcome-screen.png), 1145 x 1374 px. */
-const IMG_W = 1145;
-const IMG_H = 1374;
-
-/** Tap areas laid over the buttons / links that are drawn inside the image (pixel box in the image). */
-const HOTSPOTS = [
-  { to: "/signup", label: "Sign Up", x: 153, y: 928, w: 838, h: 117, round: true },
-  { to: "/login", label: "Log In", x: 153, y: 1076, w: 838, h: 116, round: true },
-  { to: "/terms", label: "Terms of Service", x: 305, y: 1248, w: 255, h: 50, round: false },
-  { to: "/privacy", label: "Privacy Policy", x: 628, y: 1248, w: 212, h: 50, round: false },
-] as const;
-
+/**
+ * The welcome screen fills the whole phone screen: logo on top, the "Welcome to SabZone" title,
+ * the two buttons, then the Terms / Privacy links. The spacing between them stretches with the
+ * screen height, so there is no big empty band at the top or bottom on tall phones.
+ *
+ * public/welcome-logo.png and public/welcome-title.png have transparent backgrounds.
+ */
 function WelcomePage() {
   return (
     <main
-      className="flex min-h-screen min-h-dvh items-center justify-center"
-      style={{ backgroundColor: "#05010f" }}
+      className="relative flex min-h-screen min-h-dvh justify-center overflow-hidden"
+      style={{
+        backgroundColor: "#05010f",
+        backgroundImage:
+          "radial-gradient(120% 55% at 0% 0%, rgba(124,58,237,0.28) 0%, rgba(124,58,237,0) 60%)," +
+          "radial-gradient(90% 45% at 100% 100%, rgba(147,51,234,0.30) 0%, rgba(147,51,234,0) 65%)," +
+          "radial-gradient(70% 35% at 50% 22%, rgba(109,40,217,0.22) 0%, rgba(109,40,217,0) 70%)",
+      }}
     >
-      <div className="relative w-full max-w-[560px]" style={{ aspectRatio: `${IMG_W} / ${IMG_H}` }}>
+      <div
+        className="flex w-full max-w-[460px] flex-col items-center justify-center px-6"
+        style={{
+          paddingTop: "max(1.75rem, env(safe-area-inset-top))",
+          paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))",
+        }}
+      >
+        {/* Logo */}
+        <div className="flex w-full items-center justify-center">
+          <img
+            src="/welcome-logo.png"
+            width={640}
+            height={547}
+            alt="SabZone logo"
+            decoding="async"
+            draggable={false}
+            className="select-none object-contain"
+            style={{ width: "min(46vw, 22dvh, 200px)", height: "auto" }}
+          />
+        </div>
+
+        {/* Welcome to SabZone + tagline */}
         <img
-          src="/welcome-screen.png"
-          width={IMG_W}
-          height={IMG_H}
+          src="/welcome-title.png"
+          width={810}
+          height={410}
           alt="Welcome to SabZone. Connect, share, and grow together."
           decoding="async"
           draggable={false}
-          className="block h-full w-full select-none"
+          className="mt-3 select-none"
+          style={{ width: "min(92vw, 430px)", height: "auto" }}
         />
-        {HOTSPOTS.map((h) => (
+
+        {/* Buttons */}
+        <div className="mt-8 w-full space-y-3.5">
           <Link
-            key={h.to}
-            to={h.to}
+            to="/signup"
             preload="render"
-            aria-label={h.label}
-            className={`absolute focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
-              h.round ? "rounded-full" : "rounded-md"
-            }`}
-            style={{
-              left: `${(h.x / IMG_W) * 100}%`,
-              top: `${(h.y / IMG_H) * 100}%`,
-              width: `${(h.w / IMG_W) * 100}%`,
-              height: `${(h.h / IMG_H) * 100}%`,
-            }}
-          />
-        ))}
+            className="flex h-14 w-full items-center justify-center gap-3 rounded-full text-base font-semibold text-[#1a0a1f] shadow-[0_0_28px_rgba(255,120,80,0.35)] transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+            style={{ backgroundImage: "linear-gradient(90deg,#ffb020 0%,#ff6b6b 55%,#c63cff 100%)" }}
+          >
+            <UserPlus className="h-5 w-5" aria-hidden="true" />
+            Sign Up
+          </Link>
+          <Link
+            to="/login"
+            preload="render"
+            className="flex h-14 w-full items-center justify-center gap-3 rounded-full border border-[#3b2a78] bg-[#07021a]/70 text-base font-semibold text-white transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+          >
+            <LogIn className="h-5 w-5" aria-hidden="true" />
+            Log In
+          </Link>
+        </div>
+
+        {/* Legal links */}
+        <nav aria-label="Legal" className="mt-5 flex items-center gap-4 text-sm text-[#8c7fd0]">
+          <Link to="/terms" preload="render" className="py-2 hover:underline">
+            Terms of Service
+          </Link>
+          <span aria-hidden="true" className="h-4 w-px bg-[#3b2a78]" />
+          <Link to="/privacy" preload="render" className="py-2 hover:underline">
+            Privacy Policy
+          </Link>
+        </nav>
       </div>
     </main>
   );
