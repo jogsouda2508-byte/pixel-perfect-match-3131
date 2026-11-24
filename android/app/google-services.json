@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "1079362468880",
-    "project_id": "ediraa-ed3b8",
-    "storage_bucket": "ediraa-ed3b8.firebasestorage.app"
+    "project_number": "45073875720",
+    "project_id": "sabzone-737a8",
+    "storage_bucket": "sabzone-737a8.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1079362468880:android:f7b37139b2a6de94041e95",
+        "mobilesdk_app_id": "1:45073875720:android:4a8f43af4fd37543c622bd",
         "android_client_info": {
-          "package_name": "com.yasminSusheel.guccichat"
+          "package_name": "com.sabzone.app"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBgM2ip5SE0oYHzi6Q-dWV0Xw6ZJ-E76oQ"
+          "current_key": "AIzaSyAREZyFF_mE5UkjaqPj5OcRuKusKpzLfa8"
         }
       ],
       "services": {

@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.yasminSusheel.guccichat',
+  appId: 'com.sabzone.app',
   appName: 'SabZone',
   webDir: 'android-web',
   plugins: {

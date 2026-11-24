@@ -1,6 +1,4 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Logo } from "@/components/ediraa";
-import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/welcome")({
   head: () => ({
@@ -11,46 +9,56 @@ export const Route = createFileRoute("/welcome")({
         content: "Connect with your community, share moments, and grow together.",
       },
     ],
+    links: [{ rel: "preload", as: "image", href: "/welcome-screen.png" }],
   }),
   component: WelcomePage,
 });
 
+/** The welcome screen is the exact design image (public/welcome-screen.png), 1145 x 1374 px. */
+const IMG_W = 1145;
+const IMG_H = 1374;
+
+/** Tap areas laid over the buttons / links that are drawn inside the image (pixel box in the image). */
+const HOTSPOTS = [
+  { to: "/signup", label: "Sign Up", x: 153, y: 928, w: 838, h: 117, round: true },
+  { to: "/login", label: "Log In", x: 153, y: 1076, w: 838, h: 116, round: true },
+  { to: "/terms", label: "Terms of Service", x: 305, y: 1248, w: 255, h: 50, round: false },
+  { to: "/privacy", label: "Privacy Policy", x: 628, y: 1248, w: 212, h: 50, round: false },
+] as const;
+
 function WelcomePage() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center px-6 py-12 text-center">
-      <div className="flex w-full max-w-sm flex-col items-center">
-        <Logo size={104} />
-        <h1 className="mt-3 text-4xl font-bold tracking-tight">Welcome to SabZone</h1>
-        <p className="mt-3 text-sm text-muted-foreground">Connect, share, and grow together.</p>
-        <div className="mt-9 flex w-full flex-col gap-3">
-          <Button asChild size="lg" className="min-h-12 rounded-full">
-            <Link to="/signup" preload="render">
-              Sign Up
-            </Link>
-          </Button>
-          <Button asChild size="lg" variant="outline" className="min-h-12 rounded-full">
-            <Link to="/login" preload="render">
-              Log In
-            </Link>
-          </Button>
-        </div>
-        <nav
-          aria-label="Legal"
-          className="mt-8 flex items-center gap-4 text-xs text-muted-foreground"
-        >
+    <main
+      className="flex min-h-screen min-h-dvh items-center justify-center"
+      style={{ backgroundColor: "#05010f" }}
+    >
+      <div className="relative w-full max-w-[560px]" style={{ aspectRatio: `${IMG_W} / ${IMG_H}` }}>
+        <img
+          src="/welcome-screen.png"
+          width={IMG_W}
+          height={IMG_H}
+          alt="Welcome to SabZone. Connect, share, and grow together."
+          decoding="async"
+          draggable={false}
+          className="block h-full w-full select-none"
+        />
+        {HOTSPOTS.map((h) => (
           <Link
-            className="rounded-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            to="/terms"
-          >
-            Terms of Service
-          </Link>
-          <Link
-            className="rounded-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            to="/privacy"
-          >
-            Privacy Policy
-          </Link>
-        </nav>
+            key={h.to}
+            to={h.to}
+            preload="render"
+            aria-label={h.label}
+            className={`absolute focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
+              h.round ? "rounded-full" : "rounded-md"
+            }`}
+            style={{
+              left: `${(h.x / IMG_W) * 100}%`,
+              top: `${(h.y / IMG_H) * 100}%`,
+              width: `${(h.w / IMG_W) * 100}%`,
+              height: `${(h.h / IMG_H) * 100}%`,
+            }}
+          />
+        ))}
       </div>
     </main>
   );

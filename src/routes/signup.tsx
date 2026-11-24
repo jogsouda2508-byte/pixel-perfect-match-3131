@@ -33,6 +33,14 @@ export const Route = createFileRoute("/signup")({
         content: "Join SabZone to connect, share and grow your local network.",
       },
     ],
+    links: [
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Ephesis&display=swap",
+      },
+    ],
   }),
   component: SignUpPage,
 });
@@ -151,6 +159,7 @@ function SignUpForm() {
 
   return (
     <AuthShell
+      variant="immersive"
       title="Create account"
       subtitle="Connect • Share • Grow"
       footer={
@@ -163,7 +172,7 @@ function SignUpForm() {
       }
     >
       <InvitedByBanner />
-      <form onSubmit={submit} className="space-y-4" noValidate>
+      <form onSubmit={submit} className="space-y-3.5" noValidate>
         <TextField
           label="Full name"
           autoComplete="name"
@@ -349,6 +358,7 @@ function GoogleCompleteSignup() {
 
   return (
     <AuthShell
+      variant="immersive"
       title="Finish signing up"
       subtitle="You don't have a SabZone account yet. Create one to continue."
       footer={

@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">SabZone</string>
     <string name="title_activity_main">SabZone</string>
-    <string name="package_name">com.yasminSusheel.guccichat</string>
-    <string name="custom_url_scheme">com.yasminSusheel.guccichat</string>
+    <string name="package_name">com.sabzone.app</string>
+    <string name="custom_url_scheme">com.sabzone.app</string>
 </resources>

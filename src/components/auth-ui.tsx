@@ -4,18 +4,87 @@ import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { BrandName, Logo } from "@/components/ediraa";
 import { passwordStrength } from "@/lib/validation";
 
-/** Full-screen centered layout used by every auth screen. */
+const SCRIPT_FONT = '"Ephesis", "Alex Brush", "Dancing Script", cursive';
+
+/**
+ * Full-screen centered layout used by every auth screen.
+ * variant="immersive": edge-to-edge mobile layout (script title, purple aurora, full-width panel).
+ */
 export function AuthShell({
   title,
   subtitle,
   children,
   footer,
+  variant = "card",
 }: {
   title: string;
   subtitle?: string;
   children: ReactNode;
   footer?: ReactNode;
+  variant?: "card" | "immersive";
 }) {
+  if (variant === "immersive") {
+    return (
+      <main className="relative flex min-h-screen min-h-dvh flex-col overflow-x-hidden bg-[#06020f]">
+        {/* Purple aurora behind everything. Decoration only. */}
+        <div
+          className="pointer-events-none absolute inset-0"
+          aria-hidden="true"
+          style={{
+            backgroundImage:
+              "radial-gradient(70% 34% at 50% 0%, rgba(124,58,237,0.55), transparent 72%), radial-gradient(46% 28% at 104% 34%, rgba(168,85,247,0.24), transparent 70%), radial-gradient(40% 26% at -4% 20%, rgba(249,178,51,0.15), transparent 70%)",
+          }}
+        />
+        <Link
+          to="/"
+          aria-label="SabZone home"
+          className="relative mx-auto mt-[max(1.25rem,env(safe-area-inset-top))] flex w-fit items-center gap-2.5"
+        >
+          <Logo
+            size={52}
+            className="[filter:drop-shadow(0_0_12px_rgba(139,92,246,0.6))] lg:h-14 lg:w-14"
+          />
+          <BrandName />
+        </Link>
+
+        <div className="relative mx-auto mt-3 w-full max-w-md px-5 text-center">
+          <h1
+            className={`bg-clip-text px-2 pb-1 font-normal leading-[1.3] text-transparent [filter:drop-shadow(0_2px_14px_rgba(167,139,250,0.45))] ${
+              title.length > 15
+                ? "text-[clamp(2.5rem,12.5vw,3.4rem)]"
+                : "text-[clamp(2.9rem,15vw,4rem)]"
+            }`}
+            style={{
+              fontFamily: SCRIPT_FONT,
+              backgroundImage: "linear-gradient(180deg, #ffffff 30%, #cdbdff 100%)",
+            }}
+          >
+            {title}
+          </h1>
+          {subtitle && (
+            <p className="-mt-1 text-[0.95rem] tracking-[0.1em] text-violet-200/70">{subtitle}</p>
+          )}
+        </div>
+
+        <div
+          className="relative mx-auto mt-5 flex w-full max-w-md flex-1 flex-col rounded-t-[2rem] border-t border-violet-400/25 px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-6"
+          style={{
+            backgroundImage:
+              "linear-gradient(180deg, rgba(139,92,246,0.12), rgba(10,6,24,0) 45%), linear-gradient(180deg, rgba(20,13,44,0.94), rgba(8,4,20,0.99))",
+            boxShadow: "0 -20px 50px -22px rgba(139,92,246,0.55)",
+          }}
+        >
+          {children}
+          {footer && (
+            <div className="mt-auto pt-6 text-center text-[0.95rem] text-muted-foreground">
+              {footer}
+            </div>
+          )}
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="relative flex min-h-screen flex-col items-center overflow-hidden px-5 py-10 sm:justify-center">
       {/* Aurora: two slow, blurred glows behind the card. Decoration only. */}
@@ -46,7 +115,7 @@ export function AuthShell({
 }
 
 export const inputClass =
-  "w-full rounded-2xl border bg-elevated/50 px-4 py-3.5 text-sm outline-none transition placeholder:text-muted-foreground focus:border-primary/70 focus:ring-2 focus:ring-ring/30";
+  "w-full rounded-[10px] border bg-elevated/50 px-4 py-3.5 text-sm outline-none transition placeholder:text-muted-foreground focus:border-primary/70 focus:ring-2 focus:ring-ring/30";
 
 type FieldProps = Omit<ComponentProps<"input">, "className"> & {
   label: string;
@@ -147,7 +216,7 @@ export function PrimaryButton({
     <button
       {...rest}
       disabled={disabled || loading}
-      className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-brand py-3.5 text-[0.95rem] font-bold text-primary-foreground glow transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+      className="flex w-full items-center justify-center gap-2 rounded-[10px] bg-gradient-brand py-3.5 text-[0.95rem] font-bold text-primary-foreground glow transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
     >
       {loading && <Loader2 className="h-4 w-4 animate-spin" />}
       {children}
@@ -165,7 +234,7 @@ export function OutlineButton({
     <button
       {...rest}
       disabled={disabled || loading}
-      className="flex w-full items-center justify-center gap-2 rounded-2xl border border-input bg-card/60 py-3.5 text-[0.95rem] font-semibold text-foreground transition hover:border-primary/50 hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-60"
+      className="flex w-full items-center justify-center gap-2 rounded-[10px] border border-input bg-card/60 py-3.5 text-[0.95rem] font-semibold text-foreground transition hover:border-primary/50 hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-60"
     >
       {loading && <Loader2 className="h-4 w-4 animate-spin" />}
       {children}

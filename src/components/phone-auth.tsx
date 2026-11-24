@@ -41,7 +41,7 @@ export function PhoneAuth() {
   return (
     <form
       onSubmit={send}
-      className="space-y-3 rounded-2xl border border-border bg-elevated/30 p-4"
+      className="space-y-3 rounded-xl border border-border bg-elevated/30 p-4"
       noValidate
     >
       <TextField

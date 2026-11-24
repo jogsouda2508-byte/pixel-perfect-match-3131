@@ -33,8 +33,9 @@ dist-ssr
 
 .env
 
-# android-web
-# android
-# capacitor.config.ts
+android-web
+android
+capacitor.config.ts
+android/app/google-services.json
 
-# PUSH-ANDROID-SETUP.md
+PUSH-ANDROID-SETUP.md

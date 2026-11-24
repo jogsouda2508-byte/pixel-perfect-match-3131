@@ -19,6 +19,14 @@ export const Route = createFileRoute("/login")({
       { title: "Log In — SabZone" },
       { name: "description", content: "Log in to SabZone to see what your network is up to." },
     ],
+    links: [
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Ephesis&display=swap",
+      },
+    ],
   }),
   component: LoginPage,
 });
@@ -69,6 +77,7 @@ function LoginPage() {
 
   return (
     <AuthShell
+      variant="immersive"
       title="Welcome back"
       subtitle="Log in to continue"
       footer={
