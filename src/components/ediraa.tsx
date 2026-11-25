@@ -54,7 +54,7 @@ export function BrandLockup({
   if (artwork) {
     return (
       <span
-        className="inline-flex items-center gap-2 rounded-full border border-border bg-card/80 py-1.5 pl-3 pr-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_10px_30px_-18px_rgba(167,139,250,0.7)]"
+        className="inline-flex items-center gap-2 rounded-full border border-border bg-card/80 py-1.5 pl-3 pr-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_10px_30px_-18px_rgba(251,191,36,0.45)]"
         translate="no"
       >
         <img

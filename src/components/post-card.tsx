@@ -328,7 +328,7 @@ export function PostCard({
                 alt=""
                 loading="lazy"
                 draggable={false}
-                className="mx-auto block h-auto max-h-[80dvh] w-full object-cover"
+                className="block h-auto w-full"
               />
             </button>
             {/* Decorative: the same photo, blurred, fills any side gaps. Same file, so one download. */}
@@ -532,7 +532,7 @@ function FeedVideo({
   label: string;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
-  const [ratio, setRatio] = useState(4 / 5);
+  const [ratio, setRatio] = useState(16 / 9);
   const muted = useFeedMuted();
 
   // Keep the element in step with the shared sound setting.
@@ -613,9 +613,9 @@ function FeedVideo({
         search={{ video: to }}
         aria-label={label}
         className="relative block w-full overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        // Like Instagram: the frame is never narrower than 4:5 or wider than 1.91:1, and the video
-        // fills it edge to edge (cropped a little) instead of showing blurred side bars.
-        style={{ aspectRatio: Math.min(Math.max(ratio, 4 / 5), 1.91), maxHeight: "80dvh" }}
+        // The video always takes the full width; its height follows the video's own shape, so
+        // nothing is cropped and there are no fixed sizes or side bars.
+        style={{ aspectRatio: ratio }}
       >
         {poster && (
           <img
@@ -638,7 +638,7 @@ function FeedVideo({
             const { videoWidth: w, videoHeight: h } = e.currentTarget;
             if (w && h) setRatio(w / h);
           }}
-          className="absolute inset-0 h-full w-full object-cover"
+          className="absolute inset-0 h-full w-full object-contain"
         />
       </Link>
       <button

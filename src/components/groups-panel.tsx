@@ -37,23 +37,21 @@ export function GroupsPanel({ query = "" }: { query?: string }) {
   });
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-5">
       <GroupInvites />
-      <div className="flex items-center gap-2">
-        <div className="flex flex-1 gap-2 overflow-x-auto">
-          <Pill active={!mineOnly} onClick={() => setMineOnly(false)}>
-            All groups
-          </Pill>
-          <Pill active={mineOnly} onClick={() => setMineOnly(true)}>
-            My groups
-          </Pill>
-        </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Pill compact active={!mineOnly} onClick={() => setMineOnly(false)}>
+          All groups
+        </Pill>
+        <Pill compact active={mineOnly} onClick={() => setMineOnly(true)}>
+          My groups
+        </Pill>
         <button
           type="button"
           onClick={() => setCreating(true)}
-          className="flex shrink-0 items-center gap-1.5 rounded-full bg-gradient-brand px-4 py-2 text-sm font-semibold text-primary-foreground"
+          className="flex shrink-0 items-center gap-1 rounded-full bg-gradient-brand px-3.5 py-2 text-[11px] font-semibold text-primary-foreground sm:text-sm"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-3.5 w-3.5" />
           New group
         </button>
       </div>

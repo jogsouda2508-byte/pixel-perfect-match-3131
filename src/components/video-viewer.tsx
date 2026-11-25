@@ -68,7 +68,7 @@ import {
   VIDEO_PAGE_SIZE,
 } from "@/lib/videos";
 import type { VideoFeedRow } from "@/integrations/supabase/types";
-import { userMessage } from "@/lib/security";
+import { safeMediaUrl, userMessage } from "@/lib/security";
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
@@ -582,17 +582,21 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                     params={{ username: post.author_username }}
                     className="flex min-h-11 min-w-0 items-center gap-2 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                   >
-                    <Avatar src={post.author_avatar} name={post.author_name} size={36} />
-                    <span className="truncate text-sm font-semibold">
+                    <ReelAuthorAvatar
+                      src={post.author_avatar}
+                      name={post.author_name || post.author_username}
+                      size={44}
+                    />
+                    <span className="truncate text-base font-bold">
                       {post.author_name || `@${post.author_username}`}
                     </span>
                   </Link>
-                  {!own && (
+                  {!own && !following && (
                     <button
                       type="button"
                       disabled={follow.isPending(post.author_id)}
                       onClick={() => follow.toggle(post.author_id, following)}
-                      className="h-7 rounded-full border border-white/80 px-3 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
+                      className="h-8 rounded-full border border-white/80 px-4 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
                     >
                       {followLabel(following, follow.isRequested(post.author_id))}
                     </button>
@@ -637,33 +641,33 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                       state.liked ? `Unlike, ${state.count} likes` : `Like, ${state.count} likes`
                     }
                     aria-pressed={state.liked}
-                    className="grid h-12 w-12 cursor-pointer place-items-center rounded-full bg-black/35 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
+                    className="grid h-10 w-10 cursor-pointer place-items-center rounded-full bg-black/35 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
                   >
                     <HeartIcon
-                      className={`h-6 w-6 ${state.liked ? "fill-red-500 text-red-500" : ""}`}
+                      className={`h-5 w-5 ${state.liked ? "fill-red-500 text-red-500" : ""}`}
                     />
                   </button>
-                  <span className="text-sm font-semibold">{formatCount(state.count)}</span>
+                  <span className="text-xs font-semibold">{formatCount(state.count)}</span>
                 </div>
                 <div className="flex flex-col items-center gap-1">
                   <button
                     type="button"
                     onClick={() => setCommentsVideo(post)}
                     aria-label={`Comments, ${post.comment_count}`}
-                    className="grid h-12 w-12 cursor-pointer place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    className="grid h-10 w-10 cursor-pointer place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                   >
-                    <CommentIcon className="h-6 w-6" aria-hidden="true" />
+                    <CommentIcon className="h-5 w-5" aria-hidden="true" />
                   </button>
-                  <span className="text-sm font-semibold">{formatCount(post.comment_count)}</span>
+                  <span className="text-xs font-semibold">{formatCount(post.comment_count)}</span>
                 </div>
                 <div className="flex flex-col items-center gap-1">
                   <button
                     type="button"
                     onClick={() => setShareTarget(post)}
                     aria-label="Share video"
-                    className="grid h-12 w-12 cursor-pointer place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    className="grid h-10 w-10 cursor-pointer place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                   >
-                    <ShareIcon className="h-6 w-6" aria-hidden="true" />
+                    <ShareIcon className="h-5 w-5" aria-hidden="true" />
                   </button>
                   <ShareCountLabel postId={post.id} />
                 </div>
@@ -673,10 +677,10 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                   disabled={saved.isPending(post.id)}
                   aria-label={saved.isSaved(post.id) ? "Remove video from saved" : "Save video"}
                   aria-pressed={saved.isSaved(post.id)}
-                  className="grid h-12 w-12 cursor-pointer place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
+                  className="grid h-10 w-10 cursor-pointer place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
                 >
                   <Star
-                    className={`h-6 w-6 ${saved.isSaved(post.id) ? "fill-warning text-warning" : ""}`}
+                    className={`h-5 w-5 ${saved.isSaved(post.id) ? "fill-warning text-warning" : ""}`}
                     aria-hidden="true"
                   />
                 </button>
@@ -685,20 +689,20 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                   onClick={() => void download(post)}
                   disabled={!!downloading[post.id]}
                   aria-label="Download video"
-                  className="grid h-12 w-12 cursor-pointer place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
+                  className="grid h-10 w-10 cursor-pointer place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
                 >
                   {downloading[post.id] ? (
-                    <Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" />
+                    <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
                   ) : (
-                    <Download className="h-6 w-6" aria-hidden="true" />
+                    <Download className="h-5 w-5" aria-hidden="true" />
                   )}
                 </button>
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     aria-label="Video options"
-                    className="grid h-12 w-12 cursor-pointer place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    className="grid h-10 w-10 cursor-pointer place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                   >
-                    <MoreHorizontal className="h-6 w-6" />
+                    <MoreHorizontal className="h-5 w-5" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem
@@ -782,9 +786,32 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
   );
 }
 
+/** Author picture for a reel. With no profile picture it shows a bright, highlighted initial. */
+function ReelAuthorAvatar({
+  src,
+  name,
+  size,
+}: {
+  src?: string | null | undefined;
+  name?: string | undefined;
+  size: number;
+}) {
+  if (safeMediaUrl(src)) return <Avatar src={src} name={name} size={size} />;
+  const initial = (name ?? "").replace(/^@/, "").trim().charAt(0).toUpperCase() || "?";
+  return (
+    <span
+      aria-hidden="true"
+      className="grid shrink-0 place-items-center rounded-full bg-primary font-bold text-primary-foreground shadow-[0_0_0_2px_rgba(255,255,255,0.9),0_2px_10px_rgba(0,0,0,0.45)]"
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.46) }}
+    >
+      {initial}
+    </span>
+  );
+}
+
 function ShareCountLabel({ postId }: { postId: string }) {
   const count = formatCount(useShareCount(postId));
-  return count ? <span className="text-sm font-semibold">{count}</span> : null;
+  return count ? <span className="text-xs font-semibold">{count}</span> : null;
 }
 
 function VideoFeedLoading() {

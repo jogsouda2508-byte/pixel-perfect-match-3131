@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import {
   Bell,
@@ -63,17 +63,7 @@ const EMPTY: Record<FeedTab, string> = {
   business: "No business posts yet.",
 };
 
-// useLayoutEffect on the client (no flash of the old colours); plain useEffect during server render.
-const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
-
 function HomePage() {
-  // The violet theme belongs to Home only: it is switched on while this page is open and
-  // removed when you leave, so Login, Signup, Onboarding and the other pages keep their look.
-  useIsoLayoutEffect(() => {
-    const root = document.documentElement;
-    root.classList.add("theme-violet");
-    return () => root.classList.remove("theme-violet");
-  }, []);
   const { user, profile } = useAuth();
   const me = profile?.avatar_url ?? null;
   const myName = profile?.full_name || profile?.username || "";
@@ -229,8 +219,10 @@ function HomePage() {
           to="/create"
           className="group flex min-h-12 items-center gap-3 rounded-2xl p-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <Avatar src={me} name={myName} size={36} />
-          <span className="flex-1 text-sm text-muted-foreground">What's on your mind?</span>
+          <Avatar src={me} name={myName} size={40} />
+          <span className="flex-1 rounded-full border border-border bg-elevated/60 px-4 py-2.5 text-sm text-muted-foreground transition-colors group-hover:border-primary/40">
+            What's on your mind?
+          </span>
           <span
             aria-hidden="true"
             className="grid h-8 w-8 place-items-center rounded-full bg-gradient-brand text-primary-foreground transition-transform group-hover:scale-105"
