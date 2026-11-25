@@ -62,9 +62,9 @@
 }
 
 /* ======================================================================
-   SabZone design system: "Violet Night"
-   Dark-first. Vivid purple surfaces, warm-white text, one signature gradient
-   (violet -> deep purple). Every component reads these tokens, so changing
+   SabZone design system: "Marigold Night"
+   Dark-first. Deep indigo ink surfaces, warm-white text, one signature gradient
+   (marigold -> ember coral). Every component reads these tokens, so changing
    them here restyles the whole app. The light set below is a secondary theme.
    ====================================================================== */
 :root {
@@ -123,7 +123,64 @@
 
 .dark {
   color-scheme: dark;
-  /* Violet Night: a lifted, vivid purple (not near-black) so the feed feels rich and bright. */
+  --background: oklch(0.145 0.028 285);
+  --foreground: oklch(0.965 0.008 85);
+  --card: oklch(0.19 0.03 285);
+  --card-foreground: oklch(0.965 0.008 85);
+  --popover: oklch(0.205 0.032 285);
+  --popover-foreground: oklch(0.965 0.008 85);
+  --primary: oklch(0.82 0.16 78);
+  --primary-foreground: oklch(0.2 0.04 70);
+  --secondary: oklch(0.235 0.032 285);
+  --secondary-foreground: oklch(0.965 0.008 85);
+  --muted: oklch(0.235 0.032 285);
+  --muted-foreground: oklch(0.72 0.03 285);
+  --accent: oklch(0.255 0.036 285);
+  --accent-foreground: oklch(0.965 0.008 85);
+  --brand-accent: oklch(0.78 0.12 190);
+  --brand-accent-foreground: oklch(0.18 0.03 200);
+  --destructive: oklch(0.68 0.2 22);
+  --destructive-foreground: oklch(0.15 0.03 22);
+  --success: oklch(0.78 0.15 165);
+  --success-foreground: oklch(0.16 0.03 165);
+  --warning: oklch(0.83 0.15 85);
+  --warning-foreground: oklch(0.2 0.04 85);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.82 0.16 78);
+  --chart-1: oklch(0.82 0.16 78);
+  --chart-2: oklch(0.78 0.15 165);
+  --chart-3: oklch(0.72 0.18 28);
+  --chart-4: oklch(0.72 0.17 300);
+  --chart-5: oklch(0.76 0.12 235);
+  --sidebar: oklch(0.165 0.03 285);
+  --sidebar-foreground: oklch(0.965 0.008 85);
+  --sidebar-primary: oklch(0.82 0.16 78);
+  --sidebar-primary-foreground: oklch(0.2 0.04 70);
+  --sidebar-accent: oklch(0.235 0.032 285);
+  --sidebar-accent-foreground: oklch(0.965 0.008 85);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.82 0.16 78);
+  --elevated: oklch(0.235 0.034 285);
+  --surface-2: oklch(0.275 0.04 285);
+  --hairline: oklch(1 0 0 / 6%);
+  --violet: oklch(0.72 0.17 300);
+  --ember: oklch(0.72 0.17 30);
+  --gradient-primary: linear-gradient(135deg, var(--primary), var(--ember));
+  --shadow-glow: 0 10px 34px -12px oklch(0.82 0.16 78 / 50%);
+  --shadow-card: 0 1px 0 oklch(1 0 0 / 5%) inset, 0 18px 40px -24px oklch(0 0 0 / 70%);
+  --page-gradient:
+    radial-gradient(54rem 36rem at 4% -10%, oklch(0.82 0.16 78 / 9%), transparent 62%),
+    radial-gradient(48rem 38rem at 104% 106%, oklch(0.62 0.2 300 / 14%), transparent 62%);
+}
+
+/* Violet Home: applied by the Home page only (html.theme-violet). Everything else keeps the
+   original dark theme above. */
+.dark.theme-violet {
+  color-scheme: dark;
+  --story-ring-a: #c4a8ff;
+  --story-ring-b: #8b5cf6;
+  --story-ring-seen: #7d6bb0;
   --background: oklch(0.27 0.085 297);
   --foreground: oklch(0.975 0.01 300);
   --card: oklch(0.325 0.095 297);
@@ -238,7 +295,7 @@
     text-wrap: balance;
   }
   ::selection {
-    background: oklch(0.7 0.2 298 / 40%);
+    background: oklch(0.82 0.16 78 / 35%);
   }
   :focus-visible {
     outline: 2px solid var(--ring);
@@ -648,13 +705,13 @@ html {
   --wa-doodle: rgba(255, 255, 255, 0.03);
   --wa-header: #15122a;
   --wa-header-fg: #f6f3ee;
-  --wa-out: #4b2f93; /* violet-tinted */
+  --wa-out: #4a3410; /* marigold-tinted ink */
   --wa-in: #1e1a36;
   --wa-text: #f3efe8;
   --wa-meta: #9a95b4;
   --wa-tick: #5cc8ff;
-  --wa-accent: #a78bfa;
-  --wa-accent-fg: #1a0b3d;
+  --wa-accent: #f9b233;
+  --wa-accent-fg: #231704;
   --wa-input: #221e3b;
   --wa-input-fg: #f3efe8;
   --wa-quote: rgba(0, 0, 0, 0.28);
@@ -679,7 +736,7 @@ html {
 /* Dark: a calm ink canvas with a faint dot grain and a warm glow behind the newest messages. */
 .dark .wa-wallpaper {
   background-image:
-    radial-gradient(40rem 22rem at 80% 100%, rgba(167, 139, 250, 0.1), transparent 65%),
+    radial-gradient(40rem 22rem at 80% 100%, rgba(249, 178, 51, 0.07), transparent 65%),
     radial-gradient(circle at 12px 12px, var(--wa-doodle) 2px, transparent 2.5px),
     radial-gradient(circle at 42px 38px, var(--wa-doodle) 1.5px, transparent 2px);
   background-size:
@@ -703,7 +760,7 @@ html {
   --wa-meta: rgba(243, 239, 232, 0.66);
   color: #f6f3ee;
   background-color: rgba(21, 18, 42, 0.78);
-  background-image: linear-gradient(90deg, rgba(167, 139, 250, 0.12), transparent 45%);
+  background-image: linear-gradient(90deg, rgba(249, 178, 51, 0.08), transparent 45%);
   text-shadow: none;
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.07);
 }
@@ -714,7 +771,7 @@ html {
   background: rgba(255, 255, 255, 0.1);
 }
 .wa-header a img {
-  box-shadow: 0 0 0 2px rgba(167, 139, 250, 0.6);
+  box-shadow: 0 0 0 2px rgba(249, 178, 51, 0.55);
 }
 /* Message tails: small curved tail (10x12px, overlaps the bubble by 2px so there is no gap) like WhatsApp, instead of a hard triangle. */
 .wa-tail {
@@ -997,6 +1054,6 @@ html {
 }
 .sz-story-root {
   background:
-    radial-gradient(48rem 30rem at 50% -8%, rgba(167, 139, 250, 0.14), transparent 62%),
+    radial-gradient(48rem 30rem at 50% -8%, rgba(249, 178, 51, 0.1), transparent 62%),
     radial-gradient(40rem 30rem at 50% 112%, rgba(155, 107, 255, 0.12), transparent 62%), #000;
 }

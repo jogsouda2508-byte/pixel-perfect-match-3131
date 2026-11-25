@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import {
   Bell,
@@ -63,7 +63,17 @@ const EMPTY: Record<FeedTab, string> = {
   business: "No business posts yet.",
 };
 
+// useLayoutEffect on the client (no flash of the old colours); plain useEffect during server render.
+const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
 function HomePage() {
+  // The violet theme belongs to Home only: it is switched on while this page is open and
+  // removed when you leave, so Login, Signup, Onboarding and the other pages keep their look.
+  useIsoLayoutEffect(() => {
+    const root = document.documentElement;
+    root.classList.add("theme-violet");
+    return () => root.classList.remove("theme-violet");
+  }, []);
   const { user, profile } = useAuth();
   const me = profile?.avatar_url ?? null;
   const myName = profile?.full_name || profile?.username || "";
@@ -178,7 +188,7 @@ function HomePage() {
           {/* The name lives in the side menu on desktop; keep it on phones, which have no side menu. */}
           <h1>
             <span className="sr-only">SabZone</span>
-            <BrandLockup compact />
+            <BrandLockup compact artwork />
           </h1>
           <div className="flex shrink-0 items-center gap-1.5">
             <BellLink unread={unreadCount} />

@@ -60,7 +60,7 @@ export function AuthShell({
           aria-hidden="true"
           style={{
             backgroundImage:
-              "radial-gradient(70% 34% at 50% 0%, rgba(124,58,237,0.55), transparent 72%), radial-gradient(46% 28% at 104% 34%, rgba(168,85,247,0.24), transparent 70%), radial-gradient(40% 26% at -4% 20%, rgba(192,132,252,0.15), transparent 70%)",
+              "radial-gradient(70% 34% at 50% 0%, rgba(124,58,237,0.55), transparent 72%), radial-gradient(46% 28% at 104% 34%, rgba(168,85,247,0.24), transparent 70%), radial-gradient(40% 26% at -4% 20%, rgba(249,178,51,0.15), transparent 70%)",
           }}
         />
         <AuthLogo top />
