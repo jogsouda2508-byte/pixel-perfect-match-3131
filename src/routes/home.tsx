@@ -214,7 +214,7 @@ function HomePage() {
 
       <Stories onLocalHub={() => setTab("local")} />
 
-      <section className="glass-card p-3 sm:p-4">
+      <section className="glass-card home-round-card p-3 sm:p-4">
         <Link
           to="/create"
           className="group flex min-h-12 items-center gap-3 rounded-2xl p-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

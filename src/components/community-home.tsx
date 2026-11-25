@@ -38,7 +38,7 @@ export function CommunityHomeStrip() {
       to="/community"
       search={{ tab: strip.tab }}
       aria-label={`Community: ${strip.title}. ${strip.sub}`}
-      className="glass-card flex items-center gap-3 p-3 transition hover:border-primary/30 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="glass-card home-round-card flex items-center gap-3 p-3 transition hover:border-primary/30 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <span
         aria-hidden="true"

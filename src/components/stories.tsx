@@ -707,7 +707,7 @@ function StoryViewer({
       className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white/10 ring-1 ring-white/10 backdrop-blur transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
     >
       <Heart
-        className={`sz-pop h-6 w-6 ${stats.likedByMe ? "fill-red-500 text-red-500" : ""}`}
+        className={`sz-spring h-6 w-6 ${stats.likedByMe ? "fill-red-500 text-red-500" : ""}`}
         aria-hidden="true"
       />
     </button>

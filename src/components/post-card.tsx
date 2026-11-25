@@ -7,7 +7,6 @@ import { Avatar } from "@/components/ediraa";
 import { CommentBody, CommentsSheet, replyDraft } from "@/components/comments-sheet";
 import { UserSafetyMenu } from "@/components/user-safety-menu";
 import { ReportButton } from "@/components/report-sheet";
-import { Gallery } from "@/components/gallery";
 import { CommentIcon, HeartIcon, ShareIcon } from "@/components/icons";
 import { EmojiButton } from "@/components/emoji-button";
 import { PollCard } from "@/components/poll-card";
@@ -82,7 +81,6 @@ export function PostCard({
   const isMobile = useIsMobile();
   const [draft, setDraft] = useState("");
   const [shareOpen, setShareOpen] = useState(false);
-  const [galleryOpen, setGalleryOpen] = useState(false);
   const [captionOpen, setCaptionOpen] = useState(false);
 
   // Keep in sync when the feed refetches.
@@ -148,7 +146,7 @@ export function PostCard({
   };
 
   // Photo: double-click / double-tap likes it and pops a big heart on the picture.
-  // A single click still opens the photo, after a short wait to see if a second click follows.
+  // A single tap does nothing: the photo never opens or moves.
   const heartPop = useRef<HTMLSpanElement>(null);
   const lastPhotoClick = useRef(0);
   const openTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -321,7 +319,7 @@ export function PostCard({
               type="button"
               onClick={onPhotoClick}
               aria-label="Open photo"
-              className="relative z-10 block w-full touch-manipulation select-none overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="relative z-10 block w-full cursor-default touch-manipulation select-none overflow-hidden outline-none [-webkit-tap-highlight-color:transparent] [-webkit-touch-callout:none] focus:outline-none focus-visible:outline-none"
             >
               <img
                 src={post.image_url}
@@ -348,18 +346,6 @@ export function PostCard({
               <HeartIcon className="h-24 w-24 fill-red-500 text-red-500 drop-shadow-[0_4px_14px_rgba(0,0,0,0.35)]" />
             </span>
           </div>
-          <Gallery
-            items={[
-              {
-                id: post.id,
-                type: "image",
-                src: post.image_url,
-                caption: post.content,
-              },
-            ]}
-            startIndex={galleryOpen ? 0 : null}
-            onClose={() => setGalleryOpen(false)}
-          />
         </>
       )}
 
@@ -374,7 +360,7 @@ export function PostCard({
             className="flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full px-3 transition-colors hover:bg-elevated hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-pressed:text-foreground"
           >
             <HeartIcon
-              className={`sz-pop h-6 w-6 ${liked ? "fill-red-500 text-red-500 drop-shadow-[0_2px_8px_rgba(239,68,68,0.45)]" : ""}`}
+              className={`sz-spring h-6 w-6 ${liked ? "fill-red-500 text-red-500 drop-shadow-[0_2px_8px_rgba(239,68,68,0.45)]" : ""}`}
             />
             {formatCount(likes) && <span>{formatCount(likes)}</span>}
           </button>
@@ -417,7 +403,7 @@ export function PostCard({
             className={`ml-auto grid min-h-11 min-w-11 place-items-center rounded-full transition-colors hover:bg-elevated hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 ${isSaved ? "text-warning" : ""}`}
           >
             <Star
-              className={`sz-pop h-6 w-6 ${isSaved ? "fill-warning" : ""}`}
+              className={`sz-spring h-6 w-6 ${isSaved ? "fill-warning" : ""}`}
               aria-hidden="true"
             />
           </button>
