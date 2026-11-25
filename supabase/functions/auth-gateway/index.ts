@@ -6,8 +6,12 @@
 // connects them to Supabase.
 //
 // Deploy (NOT done by this patch):
-//   supabase functions deploy auth-gateway
-// The default JWT check can stay ON: the browser sends the public key, which is a valid JWT.
+//   supabase functions deploy auth-gateway --no-verify-jwt
+// JWT verification must be OFF (supabase/config.toml sets this). The app sends its
+// `sb_publishable_...` key, which is NOT a JWT: with verification ON, Supabase refuses the call
+// with 401 BEFORE this code runs, without CORS headers, and the app only shows "Can't reach
+// SabZone". Turning it off loses no security: that key is public anyway, and this function does
+// its own origin check, rate limits and lockouts.
 //
 // Secrets (supabase secrets set ...):
 //   AUTH_HASH_SECRET       a long random string (32+ characters). Keys in the database are

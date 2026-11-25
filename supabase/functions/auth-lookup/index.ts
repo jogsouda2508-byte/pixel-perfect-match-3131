@@ -14,7 +14,8 @@
 //        200 { ok: true }                            (always, whether or not the account exists)
 //        429 { error: "rate_limited" }
 //
-// Deploy WITH jwt verification (the default; the app sends its anon key). Needs no extra secrets:
+// Deploy with --no-verify-jwt (supabase/config.toml sets it): the app's `sb_publishable_...` key is
+// not a JWT, so Supabase would refuse every call before this code runs. Needs no extra secrets:
 // SUPABASE_URL, SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY are provided automatically.
 // Needs migration 20261118000000_security_hardening.sql (auth_throttle_hit).
 

@@ -4,7 +4,19 @@ Username check, sign-up, login all call ONE Edge Function: <your-supabase-url>/f
 The app shows "Can't reach SabZone" only when that request FAILS BEFORE ANY ANSWER COMES BACK.
 It is NOT a SQL problem (I replayed all 50 migrations + the auth tests on Postgres: they pass).
 
-The 3 real causes (do these checks in order):
+!! UPDATE: a 4th cause, and the most likely one for the Android app:
+0) JWT verification is ON for auth-gateway, but your key is "sb_publishable_..." (not a JWT).
+   Supabase answers 401 before the function runs, with no CORS headers, so the app sees a
+   failed request -> "Can't reach SabZone". The Android app's own address (https://localhost)
+   is always allowed, so cause 1 below does NOT apply to the Android app.
+   Fix:  supabase functions deploy auth-gateway --no-verify-jwt
+         (or Dashboard -> Edge Functions -> auth-gateway -> turn "Verify JWT" OFF)
+   supabase/config.toml now keeps this setting on every future deploy.
+   Then rebuild the app (npm run build -> copy to android-web/ -> npx cap sync android): the
+   android-web/ folder in the repo is an OLD build that still says "Check your internet" for
+   every failure.
+
+The 3 other causes (do these checks in order):
 
 1) Website address not allowed  (MOST LIKELY if you open the app in a browser / Lovable preview)
    The function only accepts: the Android app, localhost, and addresses in AUTH_ALLOWED_ORIGINS.

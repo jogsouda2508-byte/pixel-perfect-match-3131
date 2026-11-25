@@ -1,0 +1,37 @@
+SABZONE - "Can't reach SabZone" on Create Account  (auth fix, 4 files)
+======================================================================
+Copy these files into your project root (Replace). Existing app code is NOT changed.
+
+ supabase/config.toml                        NEW  - keeps JWT verification OFF for auth-gateway + auth-lookup
+ supabase/functions/auth-gateway/index.ts    comment only (the old comment was wrong)
+ supabase/functions/auth-lookup/index.ts     comment only
+ FIX-CANT-REACH-SABZONE.txt                  notes updated with the real cause
+
+WHY IT FAILS
+ Your app key is "sb_publishable_..." - that is NOT a JWT. If auth-gateway was deployed with
+ "Verify JWT" ON (the default), Supabase answers 401 before the function runs and without CORS
+ headers. The app then sees a failed request -> "Can't reach SabZone".
+ (Username check, sign-up and login all use that one function, so all three fail the same way.)
+
+WHAT YOU MUST DO (the zip alone does not fix a live project)
+ 1. supabase functions deploy auth-gateway --no-verify-jwt
+    (Dashboard way: Edge Functions -> auth-gateway -> Details -> turn "Verify JWT" OFF)
+    Same for auth-lookup if you deployed it.
+ 2. Check the secret exists:  supabase secrets set AUTH_HASH_SECRET="<32+ random characters>"
+ 3. Make sure supabase/migrations/20261116000000_auth_gateway.sql was run once.
+ 4. Rebuild the Android app - the android-web/ folder in your repo is an OLD build:
+      npm run build   -> copy the output into android-web/   -> npx cap sync android
+    Then uninstall the old app and install the new one.
+
+TEST BEFORE REBUILDING (any terminal; use your project ref + publishable key)
+  curl -i -X POST "https://PROJECT-REF.supabase.co/functions/v1/auth-gateway" \
+    -H "content-type: application/json" -H "apikey: KEY" -H "authorization: Bearer KEY" \
+    -H "origin: https://localhost" -d '{"action":"username_available","username":"yasmin"}'
+   200 {"available":true}  -> function OK (then only the old APK build is the problem)
+   401 Invalid JWT         -> step 1 above
+   404                     -> function not deployed: supabase functions deploy auth-gateway --no-verify-jwt
+   503                     -> AUTH_HASH_SECRET missing, or migration in step 3 not run
+
+AFTER THE REBUILD the message tells the truth: if you still see
+ "Can't reach SabZone's sign-in service right now" the problem is on the server side;
+ "Check your internet" now only shows when the phone is really offline.

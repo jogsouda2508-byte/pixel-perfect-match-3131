@@ -1,0 +1,12 @@
+# Supabase CLI settings for deploying the Edge Functions. Only what is needed here; the dashboard
+# stays the source of truth for everything else.
+project_id = "sabzone"
+
+# The app calls these with its public `sb_publishable_...` key. That key is not a JWT, so with
+# verify_jwt on, Supabase rejects every call with 401 (no CORS headers) and the app only shows
+# "Can't reach SabZone". Both functions protect themselves (origin check, rate limits, lockouts).
+[functions.auth-gateway]
+verify_jwt = false
+
+[functions.auth-lookup]
+verify_jwt = false
