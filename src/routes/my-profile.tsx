@@ -28,7 +28,30 @@ export const Route = createFileRoute("/my-profile")({
 });
 
 const rowClass =
-  "flex w-full items-center gap-3 px-4 py-3.5 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset";
+  "flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition-colors active:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset";
+
+function RowContent({
+  icon: Icon,
+  label,
+  hint,
+}: {
+  icon: LucideIcon;
+  label: string;
+  hint?: string | undefined;
+}) {
+  return (
+    <>
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+        <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-medium">{label}</span>
+        {hint && <span className="block text-xs leading-snug text-muted-foreground">{hint}</span>}
+      </span>
+      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+    </>
+  );
+}
 
 function Row({
   icon: Icon,
@@ -43,12 +66,7 @@ function Row({
 }) {
   return (
     <button type="button" onClick={onClick} className={rowClass}>
-      <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
-      <span className="min-w-0 flex-1">
-        <span className="block">{label}</span>
-        {hint && <span className="block text-xs text-muted-foreground">{hint}</span>}
-      </span>
-      <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <RowContent icon={Icon} label={label} hint={hint} />
     </button>
   );
 }
@@ -66,16 +84,7 @@ function LinkRow({
   to: "/my-activity" | "/business";
   tab?: "comments" | "tags" | "likes";
 }) {
-  const inner = (
-    <>
-      <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
-      <span className="min-w-0 flex-1">
-        <span className="block">{label}</span>
-        {hint && <span className="block text-xs text-muted-foreground">{hint}</span>}
-      </span>
-      <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
-    </>
-  );
+  const inner = <RowContent icon={Icon} label={label} hint={hint} />;
   return to === "/my-activity" ? (
     <Link to="/my-activity" search={{ tab: tab ?? "comments" }} className={rowClass}>
       {inner}
@@ -89,11 +98,13 @@ function LinkRow({
 
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="space-y-1.5">
-      <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+    <section className="space-y-2">
+      <h2 className="px-4 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground sm:px-1 sm:text-xs">
         {title}
       </h2>
-      <div className="glass-card divide-y divide-border">{children}</div>
+      <div className="glass-card divide-y divide-border overflow-hidden max-sm:-mx-4 max-sm:rounded-3xl">
+        {children}
+      </div>
     </section>
   );
 }
@@ -105,10 +116,13 @@ function MyProfilePage() {
   const name = profile?.full_name || profile?.username || "";
 
   return (
-    <PageShell>
-      <PageHeader title="My Profile" />
-      <Link to="/profile" className="glass-card flex items-center gap-3 p-4">
-        <Avatar src={profile?.avatar_url} name={name} size={48} />
+    <PageShell rowGap="space-y-4 sm:space-y-4">
+      <PageHeader title="My Profile" compact />
+      <Link
+        to="/profile"
+        className="glass-card more-profile-card flex items-center gap-3 p-4 transition-colors active:bg-foreground/5"
+      >
+        <Avatar src={profile?.avatar_url} name={name} size={52} />
         <div className="min-w-0 flex-1">
           <p className="truncate font-semibold">{name}</p>
           <p className="truncate text-sm text-muted-foreground">View your profile</p>
