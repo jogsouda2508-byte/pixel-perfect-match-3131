@@ -298,7 +298,7 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
               <div className="relative shrink-0">
                 <ProfileNoteBubble note={profileNote.note} isMe={isMe} />
                 <div
-                  className={`aspect-square h-20 w-20 rounded-full md:h-24 md:w-24 ${hasStory ? "p-[3px]" : ""}`}
+                  className={`aspect-square h-20 w-20 rounded-full md:h-24 md:w-24 ${hasStory ? "p-[2px]" : ""}`}
                   // no ring unless there is a story; then the brand colours (brown once watched)
                   style={
                     hasStory
@@ -318,11 +318,11 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
                       <img
                         src={profile.avatar_url}
                         alt={name}
-                        className={`block aspect-square h-full w-full shrink-0 rounded-full object-cover ${hasStory ? "border-[3px] border-background" : ""}`}
+                        className={`block aspect-square h-full w-full shrink-0 rounded-full object-cover ${hasStory ? "border-[2px] border-background" : ""}`}
                       />
                     </button>
                   ) : (
-                    <div className={`grid aspect-square h-full w-full shrink-0 place-items-center rounded-full bg-elevated text-2xl font-bold ${hasStory ? "border-[3px] border-background" : ""}`}>
+                    <div className={`grid aspect-square h-full w-full shrink-0 place-items-center rounded-full bg-elevated text-2xl font-bold ${hasStory ? "border-[2px] border-background" : ""}`}>
                       {name.slice(0, 1).toUpperCase() || "?"}
                     </div>
                   )}

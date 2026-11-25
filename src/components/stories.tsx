@@ -17,7 +17,7 @@ import {
   VolumeX,
   X,
 } from "lucide-react";
-import { Avatar } from "@/components/ediraa";
+import { Avatar, STORY_RING_CSS } from "@/components/ediraa";
 import { CloseFriendsSheet } from "@/components/close-friends-sheet";
 import { fetchCloseFriendIds } from "@/lib/close-friends";
 import { PollCard, PollSheet } from "@/components/poll-card";
@@ -371,10 +371,13 @@ export function Stories({
         {onLocalHub && (
           <div role="listitem" className="shrink-0 snap-start" style={{ width: COLUMN }}>
             <StoryButton label="Local Hub" ariaLabel="Open the Local feed" onClick={onLocalHub}>
-              <div className="rounded-full bg-gradient-brand p-[2.5px]">
+              <div
+                className="rounded-full p-[1.5px]"
+                style={{ backgroundImage: STORY_RING_CSS }}
+              >
                 <div
                   className="grid place-items-center rounded-full bg-card"
-                  style={{ height: AVATAR - 5, width: AVATAR - 5 }}
+                  style={{ height: AVATAR - 3, width: AVATAR - 3 }}
                 >
                   <MapPin
                     className="text-primary"

@@ -91,10 +91,13 @@ export function BrandLockup({
   );
 }
 
-/** Story ring: the same gold -> ember look as the Local Hub ring (the brand gradient). */
+/** Story ring: one multi-colour gradient used by EVERY ring (same colours as the loading spinner). */
 const STORY_RING_STOPS: [string, string][] = [
-  ["0%", "var(--story-ring-a, #f9b233)"],
-  ["100%", "var(--story-ring-b, #f2705a)"],
+  ["0%", "#22d3ee"],
+  ["25%", "#6366f1"],
+  ["50%", "#d946ef"],
+  ["75%", "#f43f5e"],
+  ["100%", "#fbbf24"],
 ];
 /** A story that has been watched: the ring turns brown. */
 export const STORY_RING_SEEN = "var(--story-ring-seen, #8b5e3c)";
@@ -127,8 +130,8 @@ function SegmentedRing({
   children: ReactNode;
 }) {
   const id = useId();
-  // Same thickness as the Local Hub ring: 2.5px on the Home row, a little less on small avatars.
-  const sw = ((size >= 56 ? 2.5 : 1.75) / size) * 100;
+  // Thin ring for everyone: 1.5px on the Home row, a little less on small avatars.
+  const sw = ((size >= 56 ? 1.5 : 1.25) / size) * 100;
   const r = 50 - sw / 2;
   const circumference = 2 * Math.PI * r;
   // No gaps: the arcs touch, so several stories still look like ONE unbroken ring.
@@ -220,7 +223,7 @@ export function Avatar({
     <img
       src={safeSrc}
       alt=""
-      className="aspect-square h-full w-full shrink-0 rounded-full border-2 border-background object-cover object-center"
+      className="aspect-square h-full w-full shrink-0 rounded-full border-[1.5px] border-background object-cover object-center"
     />
   ) : (
     <div
