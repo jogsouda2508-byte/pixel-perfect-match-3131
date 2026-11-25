@@ -319,7 +319,7 @@ export function PostCard({
               type="button"
               onClick={onPhotoClick}
               aria-label="Open photo"
-              className="relative z-10 block w-full cursor-default touch-manipulation select-none overflow-hidden outline-none [-webkit-tap-highlight-color:transparent] [-webkit-touch-callout:none] focus:outline-none focus-visible:outline-none"
+              className="sz-no-press relative z-10 block w-full cursor-default touch-manipulation select-none overflow-hidden outline-none [-webkit-tap-highlight-color:transparent] [-webkit-touch-callout:none] focus:outline-none focus-visible:outline-none"
             >
               <img
                 src={post.image_url}

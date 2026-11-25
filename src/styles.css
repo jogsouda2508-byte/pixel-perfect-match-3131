@@ -1067,3 +1067,14 @@ html {
     radial-gradient(48rem 30rem at 50% -8%, rgba(249, 178, 51, 0.1), transparent 62%),
     radial-gradient(40rem 30rem at 50% 112%, rgba(155, 107, 255, 0.12), transparent 62%), #000;
 }
+
+/* Feed photo: pressing / double-tapping it must never squash or pop the picture.
+   Beats the global "button:active { transform: scale(0.97) }" press effect. */
+button.sz-no-press,
+button.sz-no-press:active,
+button.sz-no-press:not(:disabled):active {
+  transform: none !important;
+  scale: none !important;
+  transition: none !important;
+  animation: none !important;
+}
