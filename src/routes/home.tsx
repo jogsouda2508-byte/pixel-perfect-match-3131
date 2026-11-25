@@ -173,7 +173,7 @@ function HomePage() {
       }
     >
       {/* Sticky, frosted top bar: brand + quick actions, with the feed switcher underneath. */}
-      <header className="sz-frost sticky top-0 z-30 -mx-4 space-y-2.5 px-4 pb-2.5 pt-[max(0.5rem,env(safe-area-inset-top))] sm:-mx-6 sm:px-6 md:mx-0 md:rounded-2xl md:border md:border-border md:px-3 md:pb-2.5 md:pt-2.5 md:top-3">
+      <header className="sz-frost sticky top-0 z-30 -mx-4 space-y-2.5 px-4 pb-0 pt-[max(0.5rem,env(safe-area-inset-top))] sm:-mx-6 sm:px-6 sm:pb-2.5 md:mx-0 md:rounded-2xl md:border md:border-border md:px-3 md:pb-2.5 md:pt-2.5 md:top-3">
         <div className="flex items-center justify-between gap-3 md:hidden">
           {/* The name lives in the side menu on desktop; keep it on phones, which have no side menu. */}
           <h1>

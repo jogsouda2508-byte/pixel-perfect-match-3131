@@ -520,9 +520,9 @@ html {
    rounded corners and a small gap at the sides instead of running square to the screen edges. */
 @media (max-width: 639.98px) {
   .app-main > .glass-card.home-round-card {
-    margin-inline: 0;
+    margin-inline: -1rem;
     border-radius: 1.5rem;
-    border-inline-width: 1px;
+    border-inline-width: 0;
   }
 }
 
