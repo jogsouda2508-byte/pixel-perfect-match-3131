@@ -18,7 +18,7 @@
 
 import { createClient, type AuthError, type Session } from "npm:@supabase/supabase-js@2";
 import { createGateway, LIMITS, type AuthFailure, type Deps, type SignupPlan } from "./core.ts";
-import { keyHash, parseOrigins } from "./logic.ts";
+import { keyHash, originAllowed, parseOrigins } from "./logic.ts";
 
 const url = Deno.env.get("SUPABASE_URL") ?? "";
 const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
@@ -160,18 +160,38 @@ const deps: Deps = {
 
 const gateway = createGateway(deps);
 
+// Replies sent BEFORE the gateway runs (not configured, body too large) must carry the CORS
+// headers too. Without them the browser/app hides the real answer and the person only sees
+// "Can't reach SabZone", which made a missing secret look like a network problem.
+function earlyHeaders(req: Request): Record<string, string> {
+  const h: Record<string, string> = {
+    "content-type": "application/json",
+    "cache-control": "no-store",
+    vary: "Origin",
+  };
+  const origin = req.headers.get("origin") ?? undefined;
+  if (origin && originAllowed(origin, allowedOrigins)) {
+    h["access-control-allow-origin"] = origin;
+    h["access-control-allow-headers"] = "authorization, apikey, content-type, x-client-info";
+    h["access-control-allow-methods"] = "POST, OPTIONS";
+    h["access-control-max-age"] = "600";
+  }
+  return h;
+}
+
 Deno.serve(async (req) => {
   if (!configured) {
+    if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: earlyHeaders(req) });
     return new Response(JSON.stringify({ error: "unavailable" }), {
       status: 503,
-      headers: { "content-type": "application/json" },
+      headers: earlyHeaders(req),
     });
   }
   // Refuse oversized bodies before reading them.
   if (Number(req.headers.get("content-length") ?? 0) > LIMITS.maxBodyBytes) {
     return new Response(JSON.stringify({ error: "too_large" }), {
       status: 413,
-      headers: { "content-type": "application/json" },
+      headers: earlyHeaders(req),
     });
   }
   const headers: Record<string, string> = {};
