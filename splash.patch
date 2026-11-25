@@ -1,0 +1,300 @@
+diff --git a/capacitor.config.ts b/capacitor.config.ts
+index b8ad160..6264c5e 100644
+--- a/capacitor.config.ts
++++ b/capacitor.config.ts
+@@ -7,7 +7,7 @@ const config: CapacitorConfig = {
+   plugins: {
+     SplashScreen: {
+       launchAutoHide: false,
+-      backgroundColor: '#A78BFA',
++      backgroundColor: '#05010F',
+     },
+   },
+ };
+diff --git a/public/splash-wordmark.png b/public/splash-wordmark.png
+new file mode 100644
+index 0000000..8573c7f
+Binary files /dev/null and b/public/splash-wordmark.png differ
+diff --git a/src/components/brand-splash.tsx b/src/components/brand-splash.tsx
+index 41d7202..36fea1e 100644
+--- a/src/components/brand-splash.tsx
++++ b/src/components/brand-splash.tsx
+@@ -1,51 +1,44 @@
+ import { useEffect } from "react";
+ import { SplashScreen } from "@capacitor/splash-screen";
+-import logoUrl from "@/assets/logo.png";
+-
+-const SPARKS: [number, number][] = [
+-  [12, 18], [80, 12], [20, 70], [85, 62], [50, 8],
+-  [8, 44], [90, 38], [35, 88], [70, 90], [60, 30],
+-];
+ 
+ /**
+- * First screen: purple gradient, glossy 3D logo card and a cursive "SabZone" whose
+- * letters drop in one by one. Pure CSS animation (styles: .sz-* in styles.css).
++ * First screen. Uses the exact same logo file as the Welcome / Login / Signup screens
++ * (public/welcome-logo.png) on the same dark purple background, plus the "SabZone" wordmark
++ * (public/splash-wordmark.png, transparent background).
++ *
++ * Animation: none besides a single "pop" where the logo and the word grow from small to full
++ * size when the screen appears (styles: .sz-* in styles.css). Sizes are capped so nothing
++ * gets too big on phones.
+  */
+ export function BrandSplash() {
+-  // Hide the native purple launch screen only now, so only the animated one is ever seen.
++  // Hide the native launch screen only now, so only this splash is ever seen.
+   useEffect(() => {
+     SplashScreen.hide({ fadeOutDuration: 150 }).catch(() => {});
+   }, []);
+ 
+   return (
+-    <main
+-      className="sz-stage"
+-      aria-label="Loading SabZone"
+-      style={{ ["--m" as string]: `url(${logoUrl})` }}
+-    >
+-      <div className="sz-mesh" aria-hidden="true" />
+-      {SPARKS.map(([x, y], i) => (
+-        <i
+-          key={i}
+-          className="sz-spark"
++    <main className="sz-stage" aria-label="Loading SabZone">
++      <div className="sz-c">
++        <img
++          className="sz-pop sz-logo"
++          src="/welcome-logo.png"
++          width={640}
++          height={547}
++          alt=""
+           aria-hidden="true"
+-          style={{ left: `${x}%`, top: `${y}%`, animationDelay: `${i * 0.35}s` }}
++          decoding="async"
++          draggable={false}
++        />
++        <img
++          className="sz-pop sz-word"
++          src="/splash-wordmark.png"
++          width={756}
++          height={244}
++          alt="SabZone"
++          translate="no"
++          decoding="async"
++          draggable={false}
+         />
+-      ))}
+-      <div className="sz-c">
+-        <div className="sz-card" aria-hidden="true">
+-          <div className="sz-glass">
+-            <div className="sz-logo" />
+-          </div>
+-        </div>
+-        <h1 className="sz-name" translate="no" aria-label="SabZone">
+-          {"SabZone".split("").map((ch, i) => (
+-            <span key={i} aria-hidden="true" style={{ ["--i" as string]: i }}>
+-              {ch}
+-            </span>
+-          ))}
+-        </h1>
+-        <div className="sz-line" aria-hidden="true" />
+       </div>
+     </main>
+   );
+diff --git a/src/styles.css b/src/styles.css
+index 6c25214..bb81a48 100644
+--- a/src/styles.css
++++ b/src/styles.css
+@@ -834,48 +834,18 @@ html {
+   }
+ }
+ 
+-/* ===== SabZone splash (first screen): ink night with a slow marigold / ember / violet glow ===== */
++/* ===== SabZone splash (first screen): same dark purple look as Welcome; logo + word pop up once ===== */
+ .sz-stage {
+   position: relative;
+   min-height: 100vh;
+   min-height: 100dvh;
+   overflow: hidden;
+   color: #fff;
+-  background: #0d0b1a;
+-}
+-.sz-mesh {
+-  position: absolute;
+-  inset: -30%;
+-  background:
+-    radial-gradient(38% 34% at 24% 30%, rgba(249, 178, 51, 0.34), transparent 70%),
+-    radial-gradient(44% 40% at 80% 72%, rgba(150, 92, 255, 0.38), transparent 70%),
+-    radial-gradient(30% 28% at 72% 22%, rgba(242, 112, 90, 0.28), transparent 70%);
+-  animation: sz-mesh 10s ease-in-out infinite alternate;
+-}
+-@keyframes sz-mesh {
+-  to {
+-    transform: rotate(18deg) scale(1.12);
+-  }
+-}
+-.sz-spark {
+-  position: absolute;
+-  width: 5px;
+-  height: 5px;
+-  background: #ffe2a3;
+-  opacity: 0;
+-  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+-  animation: sz-tw 3s ease-in-out infinite;
+-}
+-@keyframes sz-tw {
+-  0%,
+-  100% {
+-    opacity: 0;
+-    transform: scale(0.3) rotate(0);
+-  }
+-  50% {
+-    opacity: 0.9;
+-    transform: scale(1.3) rotate(90deg);
+-  }
++  background-color: #05010f;
++  background-image:
++    radial-gradient(120% 55% at 0% 0%, rgba(124, 58, 237, 0.28) 0%, rgba(124, 58, 237, 0) 60%),
++    radial-gradient(90% 45% at 100% 100%, rgba(147, 51, 234, 0.3) 0%, rgba(147, 51, 234, 0) 65%),
++    radial-gradient(70% 35% at 50% 22%, rgba(109, 40, 217, 0.22) 0%, rgba(109, 40, 217, 0) 70%);
+ }
+ .sz-c {
+   position: absolute;
+@@ -884,116 +854,39 @@ html {
+   flex-direction: column;
+   align-items: center;
+   justify-content: center;
+-  gap: 34px;
+-}
+-.sz-card {
+-  width: 150px;
+-  height: 150px;
+-  border-radius: 40px;
+-  position: relative;
+-  perspective: 700px;
+-  animation: sz-in 900ms cubic-bezier(0.2, 1.2, 0.35, 1) both;
+-}
+-@keyframes sz-in {
+-  from {
+-    opacity: 0;
+-    transform: translateY(40px) scale(0.7);
+-  }
+-  to {
+-    opacity: 1;
+-    transform: none;
+-  }
+-}
+-.sz-glass {
+-  position: absolute;
+-  inset: 0;
+-  border-radius: 40px;
+-  overflow: hidden;
+-  background: linear-gradient(150deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04));
+-  border: 1px solid rgba(255, 255, 255, 0.18);
+-  -webkit-backdrop-filter: blur(14px);
+-  backdrop-filter: blur(14px);
+-  box-shadow:
+-    0 30px 60px -20px rgba(0, 0, 0, 0.7),
+-    0 0 60px -10px rgba(249, 178, 51, 0.35),
+-    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+-}
+-.sz-glass::after {
+-  content: "";
+-  position: absolute;
+-  inset: 0;
+-  background: linear-gradient(
+-    110deg,
+-    transparent 38%,
+-    rgba(255, 255, 255, 0.28) 50%,
+-    transparent 62%
+-  );
+-  background-size: 260% 100%;
+-  animation: sz-sh 3.4s ease-in-out 1.2s infinite;
+-}
+-@keyframes sz-sh {
+-  from {
+-    background-position: 160% 0;
+-  }
+-  to {
+-    background-position: -60% 0;
+-  }
++  gap: 4px;
++  padding: 0 24px;
+ }
+ .sz-logo {
+-  position: absolute;
+-  inset: 30px;
+-  -webkit-mask: var(--m) center/contain no-repeat;
+-  mask: var(--m) center/contain no-repeat;
+-  background: linear-gradient(135deg, #f9b233, #f2705a);
+-}
+-.sz-name {
+-  margin: 0;
+-  font-family: "Bricolage Grotesque", "Plus Jakarta Sans", system-ui, sans-serif;
+-  font-weight: 800;
+-  letter-spacing: -0.03em;
+-  font-size: clamp(46px, 15vw, 64px);
+-  line-height: 1.1;
+-  display: flex;
+-}
+-.sz-name span {
+-  display: inline-block;
++  /* same size rule as the Welcome screen logo, so it never gets too big on phones */
++  width: min(46vw, 22dvh, 200px);
++  height: auto;
++  user-select: none;
++}
++.sz-word {
++  width: min(56vw, 24dvh, 230px);
++  height: auto;
++  user-select: none;
++}
++/* One-time pop: grows from small to full size and fades in. No looping effects. */
++.sz-pop {
+   opacity: 0;
+-  transform: translateY(24px);
+-  background: linear-gradient(180deg, #fff 30%, #ffd98a);
+-  -webkit-background-clip: text;
+-  background-clip: text;
+-  color: transparent;
+-  animation: sz-l 0.6s cubic-bezier(0.2, 1.2, 0.4, 1) forwards;
+-  animation-delay: calc(0.7s + var(--i) * 0.07s);
+-}
+-@keyframes sz-l {
+-  to {
+-    opacity: 1;
+-    transform: none;
+-  }
++  transform: scale(0.4);
++  animation: sz-pop-in 650ms cubic-bezier(0.2, 0.9, 0.3, 1.15) forwards;
+ }
+-.sz-line {
+-  height: 3px;
+-  width: 0;
+-  border-radius: 3px;
+-  margin-top: -22px;
+-  background: linear-gradient(90deg, transparent, #f9b233, #f2705a, transparent);
+-  animation: sz-ln 0.9s ease-out 1.5s forwards;
++.sz-word {
++  animation-delay: 150ms;
+ }
+-@keyframes sz-ln {
++@keyframes sz-pop-in {
+   to {
+-    width: 170px;
++    opacity: 1;
++    transform: scale(1);
+   }
+ }
+ @media (prefers-reduced-motion: reduce) {
+-  .sz-mesh,
+-  .sz-spark,
+-  .sz-glass::after {
+-    animation: none;
+-  }
+-  .sz-card,
+-  .sz-name span {
++  .sz-pop {
+     animation-duration: 1ms;
++    animation-delay: 0ms;
+   }
+ }
+ 
