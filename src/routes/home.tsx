@@ -111,6 +111,7 @@ function HomePage() {
 
   return (
     <PageShell
+      rowGap="space-y-3 sm:space-y-4"
       aside={
         <aside className="sticky top-6 hidden h-fit space-y-4 lg:block" aria-label="Suggestions">
           <section className="glass-card space-y-4 p-4">
@@ -216,7 +217,7 @@ function HomePage() {
       <section className="glass-card p-3 sm:p-4">
         <Link
           to="/create"
-          className="group flex min-h-12 items-center gap-3 rounded-2xl border border-border bg-elevated/50 p-2 pr-2.5 transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="group flex min-h-12 items-center gap-3 rounded-2xl p-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <Avatar src={me} name={myName} size={36} />
           <span className="flex-1 text-sm text-muted-foreground">What's on your mind?</span>
@@ -330,7 +331,7 @@ function BellLink({ unread }: { unread: number }) {
 /** Placeholder cards that mirror a real post while the feed loads. */
 function FeedSkeleton() {
   return (
-    <div className="space-y-1.5 sm:space-y-4" role="status" aria-label="Loading your feed">
+    <div className="space-y-3 sm:space-y-4" role="status" aria-label="Loading your feed">
       {[0, 1].map((i) => (
         <div key={i} className="glass-card overflow-hidden" aria-hidden="true">
           <div className="flex items-center gap-3 p-4">

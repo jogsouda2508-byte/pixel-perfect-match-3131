@@ -205,7 +205,7 @@ function CreatePostPage() {
               aria-pressed={audience === label}
               className={`flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-2xl border px-2 text-center text-xs font-semibold transition-colors sm:text-sm ${
                 audience === label
-                  ? "border-primary/60 bg-primary/12 text-primary shadow-[0_8px_24px_-14px_rgba(249,178,51,0.6)]"
+                  ? "border-primary/60 bg-primary/12 text-primary shadow-[0_8px_24px_-14px_rgba(167,139,250,0.6)]"
                   : "border-border bg-elevated/40 text-muted-foreground hover:border-primary/30 hover:text-foreground"
               }`}
             >

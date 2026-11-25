@@ -99,7 +99,7 @@ export function ReportSheet({
             key={r.value}
             className={`flex cursor-pointer items-start gap-3 rounded-2xl border px-3.5 py-3 transition ${
               reason === r.value
-                ? "border-primary/60 bg-primary/10 shadow-[0_8px_24px_-16px_rgba(249,178,51,0.6)]"
+                ? "border-primary/60 bg-primary/10 shadow-[0_8px_24px_-16px_rgba(167,139,250,0.6)]"
                 : "border-border bg-elevated/30 hover:border-primary/30"
             }`}
           >

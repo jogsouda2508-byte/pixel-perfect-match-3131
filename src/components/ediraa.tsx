@@ -25,7 +25,7 @@ export function Logo({ size = 96, className = "" }: { size?: number; className?:
 }
 
 /**
- * The "SabZone" wordmark: Bricolage Grotesque in the marigold-to-ember brand gradient.
+ * Plain-text "SabZone" name in the violet brand gradient (the header uses BrandLockup instead).
  * Text only: the Logo component above is deliberately not touched.
  */
 export function BrandName({ compact = false }: { compact?: boolean }) {
@@ -40,7 +40,11 @@ export function BrandName({ compact = false }: { compact?: boolean }) {
   );
 }
 
-/** The existing logo next to the name, on a frosted ink tile with a warm edge light. */
+/**
+ * Logo + "SabZone" wordmark side by side in a pill (same artwork as the splash screen).
+ * brand-wordmark.png is the splash wordmark with its baseline levelled, so the text sits on one
+ * straight line; the letter style itself is unchanged.
+ */
 export function BrandLockup({
   compact = false,
   fill = false,
@@ -50,23 +54,39 @@ export function BrandLockup({
 }) {
   return (
     <span
-      className={`${fill ? "flex w-full justify-center" : "inline-flex"} items-center rounded-2xl border border-border bg-card/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_10px_30px_-18px_rgba(249,178,51,0.45)] ${compact ? "gap-2 px-2.5 py-1.5" : "gap-2.5 px-3.5 py-2.5"}`}
+      className={`${fill ? "flex w-full justify-center" : "inline-flex"} items-center rounded-full border border-border bg-card/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_10px_30px_-18px_rgba(167,139,250,0.7)] ${compact ? "gap-2 py-1.5 pl-3 pr-4" : "gap-2.5 py-2 pl-3.5 pr-5"}`}
+      translate="no"
     >
-      <span aria-hidden="true" className="shrink-0">
-        <Logo size={compact ? 24 : 34} />
-      </span>
-      <BrandName compact={compact} />
+      <img
+        src="/brand-mark.png"
+        width={522}
+        height={426}
+        alt="SabZone logo"
+        decoding="async"
+        draggable={false}
+        className={`shrink-0 select-none object-contain ${compact ? "h-7 w-auto" : "h-9 w-auto"}`}
+      />
+      <img
+        src="/brand-wordmark.png"
+        width={750}
+        height={253}
+        alt=""
+        aria-hidden="true"
+        decoding="async"
+        draggable={false}
+        className={`shrink-0 select-none object-contain ${compact ? "h-8 w-auto" : "h-10 w-auto"}`}
+      />
     </span>
   );
 }
 
-/** Story ring: the same gold -> ember look as the Local Hub ring (the brand gradient). */
+/** Story ring: the same violet look as the Local Hub ring (the brand gradient). */
 const STORY_RING_STOPS: [string, string][] = [
-  ["0%", "#f9b233"],
-  ["100%", "#f2705a"],
+  ["0%", "#c4a8ff"],
+  ["100%", "#8b5cf6"],
 ];
 /** A story that has been watched: the ring turns brown. */
-export const STORY_RING_SEEN = "#8b5e3c";
+export const STORY_RING_SEEN = "#7d6bb0";
 /** The lagoon-green ring of a Close Friends story. */
 const CLOSE_RING_STOPS: [string, string][] = [
   ["0%", "#5eead4"],
@@ -142,7 +162,7 @@ function SegmentedRing({
 
 /**
  * Smooth, thin, multi-colour spinner drawn on top of a story ring while a story is loading.
- * A soft comet tail (transparent -> cyan -> violet -> pink -> amber) rotates around the photo.
+ * A soft comet tail (transparent -> cyan -> violet -> pink -> lilac) rotates around the photo.
  * Pure CSS (see .story-ring-loader in styles.css); never takes taps.
  */
 function RingLoader() {
@@ -431,7 +451,7 @@ export function SideNav() {
           activeOptions={{ exact: true }}
           activeProps={{
             className:
-              "flex items-center gap-3 rounded-2xl bg-primary/12 px-3.5 py-2.5 font-semibold text-primary shadow-[inset_0_0_0_1px_oklch(0.82_0.16_78/0.18)]",
+              "flex items-center gap-3 rounded-2xl bg-primary/12 px-3.5 py-2.5 font-semibold text-primary shadow-[inset_0_0_0_1px_oklch(0.74_0.17_295/0.3)]",
           }}
           inactiveProps={{
             className:
@@ -447,7 +467,7 @@ export function SideNav() {
         to="/community"
         activeProps={{
           className:
-            "flex items-center gap-3 rounded-2xl bg-primary/12 px-3.5 py-2.5 font-semibold text-primary shadow-[inset_0_0_0_1px_oklch(0.82_0.16_78/0.18)]",
+            "flex items-center gap-3 rounded-2xl bg-primary/12 px-3.5 py-2.5 font-semibold text-primary shadow-[inset_0_0_0_1px_oklch(0.74_0.17_295/0.3)]",
         }}
         inactiveProps={{
           className:
