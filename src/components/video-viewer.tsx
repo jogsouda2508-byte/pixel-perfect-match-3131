@@ -56,7 +56,7 @@ import { addComment, fetchComments, type CommentView } from "@/lib/social";
 import { timeAgo } from "@/lib/time";
 import { useFollow } from "@/lib/use-follow";
 import { ReelFollowedBy } from "@/components/reel-followed-by";
-import { isFeedMuted, setFeedMuted } from "@/lib/feed-sound";
+import { isFeedAutoMuted, isFeedMuted, setFeedMuted } from "@/lib/feed-sound";
 import { useSaved } from "@/lib/use-saved";
 import { downloadVideo } from "@/lib/video-download";
 import { recordVideoView } from "@/lib/videos";
@@ -91,6 +91,10 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
   const [activeId, setActiveId] = useState(initialVideoId ?? "");
   // Sound is ON by default; only muted when the person turned it off (shared with the feed).
   const [muted, setMuted] = useState(() => isFeedMuted());
+  // True when the browser forced us to start muted (opened Reels directly, no tap yet).
+  // The very first tap anywhere then turns the sound on.
+  const [autoMuted, setAutoMuted] = useState(() => isFeedAutoMuted());
+  const unmutedAt = useRef(0);
   const [playing, setPlaying] = useState(true);
   const [progress, setProgress] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
@@ -207,6 +211,8 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
         // Browser blocked autoplay with sound: retry muted instead of stopping.
         current.muted = true;
         setMuted(true);
+        setAutoMuted(true);
+        setFeedMuted(true, false); // not remembered: it is the browser's block, not the person's choice
         current.play().catch((error: unknown) => {
           console.error("Autoplay failed", error);
           setPlaying(false);
@@ -216,6 +222,25 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
       current.pause();
     }
   }, [activeId, activeVideo, muted, playing, pageVisible]);
+
+  // Opened Reels directly (refresh / link / app start): browsers refuse sound until the person
+  // touches the page. So the first tap, click or key press turns the sound on, right inside
+  // that gesture (iOS Safari only allows it there).
+  useEffect(() => {
+    if (!autoMuted) return;
+    const unlock = () => {
+      videoRefs.current.forEach((video) => {
+        video.muted = false;
+      });
+      unmutedAt.current = Date.now();
+      setMuted(false);
+      setAutoMuted(false);
+      setFeedMuted(false, false);
+    };
+    const events = ["pointerup", "touchend", "click", "keydown"] as const;
+    events.forEach((name) => window.addEventListener(name, unlock, { capture: true, once: true }));
+    return () => events.forEach((name) => window.removeEventListener(name, unlock, true));
+  }, [autoMuted]);
 
   // A video counts as viewed once it has been the active one for a moment.
   const activeVideoId = activeVideo?.id;
@@ -256,6 +281,8 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
   }, [activeIndex, items]);
 
   const toggleMute = () => {
+    // The tap that just auto-unmuted the reel must not flip it straight back to muted.
+    if (Date.now() - unmutedAt.current < 500) return;
     const next = !muted;
     setMuted(next);
     setFeedMuted(next);
@@ -316,6 +343,8 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
   const onVideoTap = (post: VideoFeedRow, active: boolean) => {
     if (!active || holdPaused.current) return;
     const now = Date.now();
+    // The tap that just turned the sound on must not also pause the reel.
+    if (now - unmutedAt.current < 500) return;
     if (lastTap.current.id === post.id && now - lastTap.current.time < 300) {
       lastTap.current = { id: "", time: 0 };
       clearTimeout(tapTimer.current);
@@ -560,15 +589,15 @@ export function VideoViewer({ initialVideoId }: { initialVideoId?: string }) {
                   </div>
                 </div>
               )}
-              {/* The sound button only appears while the reel is stopped (tap or hold). */}
-              {active && !playing && (
-                <header className="absolute inset-x-0 top-0 z-10 flex items-center justify-end p-3 pt-[max(env(safe-area-inset-top),0.75rem)]">
+              {/* The sound button is always on the active reel (top right), playing or paused. */}
+              {active && (
+                <header className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-end p-3 pt-[max(env(safe-area-inset-top),0.75rem)]">
                   <button
                     type="button"
                     onClick={toggleMute}
                     aria-label={muted ? "Unmute video" : "Mute video"}
                     aria-pressed={!muted}
-                    className="grid h-8 w-8 cursor-pointer place-items-center rounded-full bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    className="pointer-events-auto grid h-8 w-8 cursor-pointer place-items-center rounded-full bg-black/35 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                   >
                     {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                   </button>

@@ -14,10 +14,17 @@ function read(): boolean {
 }
 
 let muted = read();
+// True while we are muted ONLY because the browser blocked sound autoplay (nobody tapped mute).
+let autoMuted = false;
 const listeners = new Set<() => void>();
 
 export function isFeedMuted(): boolean {
   return muted;
+}
+
+/** Muted only because the browser blocked autoplay with sound; the first tap should turn it on. */
+export function isFeedAutoMuted(): boolean {
+  return autoMuted;
 }
 
 /**
@@ -28,6 +35,7 @@ export function isFeedMuted(): boolean {
 export function setFeedMuted(next: boolean, remember = true): void {
   if (next === muted && !remember) return;
   muted = next;
+  autoMuted = next && !remember;
   if (remember) {
     try {
       window.localStorage.setItem(KEY, String(next));
