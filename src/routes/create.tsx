@@ -1,10 +1,10 @@
 import { createFileRoute, useBlocker, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Building2, Globe, UserCheck } from "lucide-react";
+import { Building2, Globe, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar } from "@/components/ediraa";
-import { PageShell } from "@/components/page-shell";
+import { PageHeader, PageShell } from "@/components/page-shell";
 import { ComposerLauncher } from "@/components/composer";
 import {
   EMPTY_EXTRAS,
@@ -129,17 +129,7 @@ function CreatePostPage() {
 
   return (
     <PageShell>
-      <header className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => navigate({ to: "/home" })}
-          aria-label="Back"
-          className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card/70 transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <ArrowLeft className="h-5 w-5" aria-hidden="true" />
-        </button>
-        <h1 className="text-2xl font-extrabold">Create Post</h1>
-      </header>
+      <PageHeader title="Create Post" onBack={() => navigate({ to: "/home" })} />
       <section className="glass-card space-y-4 p-4 sm:p-5">
         <div className="flex items-center gap-3">
           <Avatar src={profile?.avatar_url} name={myName} size={44} />

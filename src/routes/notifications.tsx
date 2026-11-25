@@ -2,27 +2,12 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import {
-  ArrowLeft,
-  Heart,
-  Loader2,
-  MessageSquare,
-  Send,
-  Tag,
-  UserCheck,
-  UserPlus,
-} from "lucide-react";
+import { Heart, Loader2, MessageSquare, Send, Tag, UserCheck, UserPlus } from "lucide-react";
 import { Avatar, BottomNav, Pill, SideNav } from "@/components/ediraa";
+import { PageHeader } from "@/components/page-shell";
 import { useAuth } from "@/lib/auth";
-import {
-  fetchNotifications,
-  markNotificationsSeen,
-  respondFollowRequest,
-} from "@/lib/social";
-import {
-  NOTIFICATION_TABS,
-  notificationMatchesTab,
-} from "@/lib/notification-tabs";
+import { fetchNotifications, markNotificationsSeen, respondFollowRequest } from "@/lib/social";
+import { NOTIFICATION_TABS, notificationMatchesTab } from "@/lib/notification-tabs";
 import { timeAgo } from "@/lib/time";
 import { useFollow } from "@/lib/use-follow";
 import type { NotificationRow } from "@/integrations/supabase/types";
@@ -33,14 +18,12 @@ export const Route = createFileRoute("/notifications")({
       { title: "Notifications — SabZone" },
       {
         name: "description",
-        content:
-          "Likes, comments and new followers from your SabZone network.",
+        content: "Likes, comments and new followers from your SabZone network.",
       },
       { property: "og:title", content: "Notifications — SabZone" },
       {
         property: "og:description",
-        content:
-          "Likes, comments and new followers from your SabZone network.",
+        content: "Likes, comments and new followers from your SabZone network.",
       },
     ],
   }),
@@ -50,22 +33,16 @@ export const Route = createFileRoute("/notifications")({
 const tabs = NOTIFICATION_TABS;
 
 const kindIcon = {
-  like: (
-    <Heart className="h-3.5 w-3.5 fill-[#ff0000] text-[#ff0000]" />
-  ),
+  like: <Heart className="h-3.5 w-3.5 fill-[#ff0000] text-[#ff0000]" />,
   comment: (
     <MessageSquare className="h-3.5 w-3.5 fill-primary-foreground text-primary-foreground" />
   ),
   follow: <UserPlus className="h-3.5 w-3.5 text-primary-foreground" />,
   share: <Send className="h-3.5 w-3.5 text-primary-foreground" />,
   tag: <Tag className="h-3.5 w-3.5 text-primary-foreground" />,
-  story_like: (
-    <Heart className="h-3.5 w-3.5 fill-[#ff0000] text-[#ff0000]" />
-  ),
+  story_like: <Heart className="h-3.5 w-3.5 fill-[#ff0000] text-[#ff0000]" />,
   follow_request: <UserPlus className="h-3.5 w-3.5 text-primary-foreground" />,
-  follow_accepted: (
-    <UserCheck className="h-3.5 w-3.5 text-primary-foreground" />
-  ),
+  follow_accepted: <UserCheck className="h-3.5 w-3.5 text-primary-foreground" />,
 } as const;
 const kindColor = {
   like: "bg-white",
@@ -86,9 +63,7 @@ function describe(n: NotificationRow) {
   if (n.kind === "tag") return "tagged you in a post";
   if (n.kind === "comment") return `commented: ${n.snippet ?? ""}`;
   if (n.kind === "share")
-    return n.snippet === "video"
-      ? "shared a video with you"
-      : "shared a post with you";
+    return n.snippet === "video" ? "shared a video with you" : "shared a post with you";
   return "started following you";
 }
 
@@ -113,44 +88,28 @@ function NotificationsPage() {
       .catch(() => {});
   }, [meId, qc]);
 
-  const visible = (list.data ?? []).filter((n) =>
-    notificationMatchesTab(n.kind, tab),
-  );
+  const visible = (list.data ?? []).filter((n) => notificationMatchesTab(n.kind, tab));
 
   // Answering a follow request: shown as "Accepted"/"Declined" until the list refreshes.
-  const [answered, setAnswered] = useState<
-    Record<string, "accepted" | "declined">
-  >({});
+  const [answered, setAnswered] = useState<Record<string, "accepted" | "declined">>({});
   const respond = useMutation({
     mutationFn: ({ id, accept }: { id: string; accept: boolean }) =>
       respondFollowRequest(id, accept),
     onSuccess: (result, { id }) => {
       setAnswered((current) => ({ ...current, [id]: result }));
-      toast.success(
-        result === "accepted" ? "Request accepted" : "Request declined",
-      );
+      toast.success(result === "accepted" ? "Request accepted" : "Request declined");
       void qc.invalidateQueries({ queryKey: ["notifications"] });
       void qc.invalidateQueries({ queryKey: ["follow-counts"] });
       void qc.invalidateQueries({ queryKey: ["unread"] });
     },
-    onError: () =>
-      toast.error("Couldn't answer the request. Please try again."),
+    onError: () => toast.error("Couldn't answer the request. Please try again."),
   });
 
   return (
     <div className="mx-auto max-w-[1480px] app-page px-4 sm:px-6 pb-24 pt-0 sm:pt-5 sm:pb-28 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]">
       <SideNav />
       <main className="app-main min-w-0 space-y-1.5 sm:space-y-4">
-        <header className="flex items-center gap-3">
-          <button
-            onClick={() => navigate({ to: "/home" })}
-            aria-label="Back"
-            className="grid h-9 w-9 place-items-center rounded-full hover:bg-card md:hidden"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-          <h1 className="text-2xl font-bold">Notifications</h1>
-        </header>
+        <PageHeader title="Notifications" back="/home" smartBack />
         <div className="scrollbar-hidden flex gap-2 overflow-x-auto pb-1">
           {tabs.map((t) => (
             <Pill key={t} active={tab === t} onClick={() => setTab(t)}>
@@ -165,14 +124,10 @@ function NotificationsPage() {
             </div>
           )}
           {list.isError && (
-            <p className="p-4 text-sm text-destructive">
-              Couldn't load notifications.
-            </p>
+            <p className="p-4 text-sm text-destructive">Couldn't load notifications.</p>
           )}
           {list.isSuccess && visible.length === 0 && (
-            <p className="p-4 text-sm text-muted-foreground">
-              No notifications here yet.
-            </p>
+            <p className="p-4 text-sm text-muted-foreground">No notifications here yet.</p>
           )}
           {visible.map((n) => {
             const following = follow.isFollowing(n.actor_id, n.i_follow_actor);
@@ -186,11 +141,7 @@ function NotificationsPage() {
                   params={{ username: n.actor_username }}
                   className="relative shrink-0"
                 >
-                  <Avatar
-                    src={n.actor_avatar}
-                    name={n.actor_name || n.actor_username}
-                    size={44}
-                  />
+                  <Avatar src={n.actor_avatar} name={n.actor_name || n.actor_username} size={44} />
                   <span
                     className={`absolute -bottom-0.5 -right-0.5 grid h-5 w-5 place-items-center rounded-full border-2 border-background ${kindColor[n.kind]}`}
                   >
@@ -206,9 +157,7 @@ function NotificationsPage() {
                     >
                       {n.actor_name || n.actor_username}
                     </Link>{" "}
-                    {(n.kind === "like" ||
-                      n.kind === "comment" ||
-                      n.kind === "tag") &&
+                    {(n.kind === "like" || n.kind === "comment" || n.kind === "tag") &&
                     n.post_id ? (
                       <Link
                         to="/post/$id"
@@ -219,28 +168,21 @@ function NotificationsPage() {
                         {describe(n)}
                       </Link>
                     ) : (
-                      <span className="text-muted-foreground">
-                        {describe(n)}
-                      </span>
+                      <span className="text-muted-foreground">{describe(n)}</span>
                     )}
                   </p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {timeAgo(n.created_at)}
-                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{timeAgo(n.created_at)}</p>
                 </div>
-                {(n.kind === "like" ||
-                  n.kind === "comment" ||
-                  n.kind === "tag") &&
-                  n.post_id && (
-                    <Link
-                      to="/post/$id"
-                      params={{ id: n.post_id }}
-                      search={n.kind === "comment" ? { comments: true } : {}}
-                      className="shrink-0 rounded-full border border-border px-4 py-1.5 text-xs font-semibold hover:bg-muted"
-                    >
-                      {n.kind === "comment" ? "View comment" : "View post"}
-                    </Link>
-                  )}
+                {(n.kind === "like" || n.kind === "comment" || n.kind === "tag") && n.post_id && (
+                  <Link
+                    to="/post/$id"
+                    params={{ id: n.post_id }}
+                    search={n.kind === "comment" ? { comments: true } : {}}
+                    className="shrink-0 rounded-full border border-border px-4 py-1.5 text-xs font-semibold hover:bg-muted"
+                  >
+                    {n.kind === "comment" ? "View comment" : "View post"}
+                  </Link>
+                )}
                 {n.kind === "share" && n.conversation_id && (
                   <Link
                     to="/chat/$id"
@@ -253,17 +195,13 @@ function NotificationsPage() {
                 {n.kind === "follow_request" &&
                   (answered[n.actor_id] ? (
                     <span className="shrink-0 text-xs font-semibold text-muted-foreground">
-                      {answered[n.actor_id] === "accepted"
-                        ? "Accepted"
-                        : "Declined"}
+                      {answered[n.actor_id] === "accepted" ? "Accepted" : "Declined"}
                     </span>
                   ) : (
                     <div className="flex shrink-0 items-center gap-2">
                       <button
                         type="button"
-                        onClick={() =>
-                          respond.mutate({ id: n.actor_id, accept: true })
-                        }
+                        onClick={() => respond.mutate({ id: n.actor_id, accept: true })}
                         disabled={respond.isPending}
                         className="min-h-9 rounded-full bg-gradient-brand px-4 py-1.5 text-xs font-semibold text-primary-foreground transition disabled:opacity-60"
                       >
@@ -271,9 +209,7 @@ function NotificationsPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() =>
-                          respond.mutate({ id: n.actor_id, accept: false })
-                        }
+                        onClick={() => respond.mutate({ id: n.actor_id, accept: false })}
                         disabled={respond.isPending}
                         className="min-h-9 rounded-full border border-border px-4 py-1.5 text-xs font-semibold transition hover:bg-muted disabled:opacity-60"
                       >

@@ -2,8 +2,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowDown, ArrowLeft, ArrowUp, Loader2, Plus, Trash2 } from "lucide-react";
-import { PageShell } from "@/components/page-shell";
+import { ArrowDown, ArrowUp, Loader2, Plus, Trash2 } from "lucide-react";
+import { PageHeader, PageShell } from "@/components/page-shell";
 import { useAuth } from "@/lib/auth";
 import {
   BUSINESS_CATEGORIES,
@@ -110,7 +110,10 @@ function Switch({
   id: string;
 }) {
   return (
-    <label htmlFor={id} className="flex min-h-11 cursor-pointer items-center gap-3 text-[13px] sm:text-sm">
+    <label
+      htmlFor={id}
+      className="flex min-h-11 cursor-pointer items-center gap-3 text-[13px] sm:text-sm"
+    >
       <input
         id={id}
         type="checkbox"
@@ -198,10 +201,6 @@ function BusinessEditPage() {
       return { ...f, services: next };
     });
 
-  const onBack = (e: React.MouseEvent) => {
-    if (dirty && !window.confirm("Discard your changes?")) e.preventDefault();
-  };
-
   const submit = () => {
     if (!form || !errors) return;
     setShowErrors(true);
@@ -242,17 +241,13 @@ function BusinessEditPage() {
 
   return (
     <PageShell showBottomNav={false} rowGap="space-y-3 sm:space-y-4">
-      <header className="flex items-center gap-2 sm:gap-3">
-        <Link
-          to="/business"
-          onClick={onBack}
-          aria-label="Back"
-          className="grid h-11 w-11 place-items-center rounded-full hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
-        <h1 className="text-xl font-bold sm:text-2xl">Edit business info</h1>
-      </header>
+      <PageHeader
+        title="Edit business info"
+        onBack={() => {
+          if (dirty && !window.confirm("Discard your changes?")) return;
+          void navigate({ to: "/business" });
+        }}
+      />
 
       {!form || !errors ? (
         <div className="grid place-items-center py-16" role="status" aria-label="Loading">
@@ -344,7 +339,9 @@ function BusinessEditPage() {
                   {form.hours.map((h) => (
                     <li key={h.dow} className="space-y-2.5 py-3.5 sm:py-3">
                       <div className="flex items-center justify-between gap-3">
-                        <span className="text-[13px] font-semibold sm:text-sm">{DAY_NAMES[h.dow]}</span>
+                        <span className="text-[13px] font-semibold sm:text-sm">
+                          {DAY_NAMES[h.dow]}
+                        </span>
                         <div className="flex items-center gap-4">
                           {!h.closed && (
                             <label className="flex min-h-9 items-center gap-1.5 text-xs">
@@ -420,7 +417,9 @@ function BusinessEditPage() {
           <section id="prices" className="glass-card scroll-mt-20 space-y-4 p-4 sm:space-y-3">
             <div>
               <h2 className="text-[15px] font-bold sm:text-base">Price list</h2>
-              <p className="text-[11px] text-muted-foreground sm:text-xs">Prices are in rupees (₹)</p>
+              <p className="text-[11px] text-muted-foreground sm:text-xs">
+                Prices are in rupees (₹)
+              </p>
             </div>
             {form.services.length === 0 && (
               <p className="text-[13px] text-muted-foreground sm:text-sm">

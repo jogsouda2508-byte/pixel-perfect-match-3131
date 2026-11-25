@@ -99,7 +99,7 @@ function CommunityPage() {
     <PageShell>
       {/* Phones: a small 8px gap at the left and right (the page itself has 16px, so pull in by 8px). */}
       <div className="-mx-2 space-y-1.5 sm:mx-0 sm:space-y-4">
-        <PageHeader title="Community" back="/home" smartBack compact />
+        <PageHeader title="Community" back="/home" smartBack />
         {/* Wrapped so the phone rule that stretches direct-child cards edge to edge does not apply: it pushed this card off-centre. */}
         <div>
           <LocalityBar

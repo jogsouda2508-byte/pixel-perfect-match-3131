@@ -2,19 +2,11 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import {
-  ArrowLeft,
-  Loader2,
-  LogOut,
-  MessageCircle,
-  Trash2,
-  UserMinus,
-  UserPlus,
-} from "lucide-react";
+import { Loader2, LogOut, MessageCircle, Trash2, UserMinus, UserPlus } from "lucide-react";
 import { Avatar } from "@/components/ediraa";
 import { GroupAvatar, PrivacyBadge, memberLabel } from "@/components/group-ui";
 import { MemberPicker, type PickedPerson } from "@/components/member-picker";
-import { PageShell } from "@/components/page-shell";
+import { PageHeader, PageShell } from "@/components/page-shell";
 import {
   Dialog,
   DialogContent,
@@ -123,13 +115,7 @@ function GroupPage() {
   return (
     <PageShell showBottomNav={false}>
       <div className="space-y-4">
-        <Link
-          to="/groups"
-          aria-label="Back to groups"
-          className="grid h-11 w-11 place-items-center rounded-full hover:bg-muted"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
+        <PageHeader title="Group" back="/groups" smartBack />
 
         {group.isLoading && (
           <div className="grid place-items-center p-10">

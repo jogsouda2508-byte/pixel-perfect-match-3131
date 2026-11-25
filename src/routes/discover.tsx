@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, Search } from "lucide-react";
 import { BottomNav, Pill, SideNav, UserRow } from "@/components/ediraa";
+import { PageHeader } from "@/components/page-shell";
 import { BusinessDirectory } from "@/components/business-directory";
 import { GroupsPanel } from "@/components/groups-panel";
 import { PostCard } from "@/components/post-card";
@@ -50,8 +51,7 @@ function DiscoverPage() {
   const showPeople = filter === "All" || filter === "People";
   const people = useQuery({
     queryKey: ["people", "discover", q, filter, meId],
-    queryFn: () =>
-      fetchPeople({ query: q, limit: 20 }),
+    queryFn: () => fetchPeople({ query: q, limit: 20 }),
     enabled: !!meId && showPeople,
   });
 
@@ -73,7 +73,7 @@ function DiscoverPage() {
     <div className="mx-auto max-w-[1480px] app-page px-4 sm:px-6 pb-24 pt-0 sm:pt-5 sm:pb-28 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[220px_minmax(0,680px)_300px] lg:justify-center 2xl:grid-cols-[240px_minmax(0,800px)_340px]">
       <SideNav />
       <main className="app-main min-w-0 space-y-3.5 sm:space-y-4 lg:col-span-2 lg:max-w-[820px] 2xl:max-w-[900px]">
-        <h1 className="text-lg font-bold sm:text-2xl">Discover</h1>
+        <PageHeader title="Discover" back="/home" smartBack />
         <label className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
           <Search className="h-4 w-4 shrink-0 text-muted-foreground sm:h-5 sm:w-5" />
           <input
@@ -85,12 +85,7 @@ function DiscoverPage() {
         </label>
         <div className="scrollbar-hidden flex gap-2 overflow-x-auto pb-1">
           {filters.map((f) => (
-            <Pill
-              key={f}
-              large
-              active={filter === f}
-              onClick={() => setFilter(f)}
-            >
+            <Pill key={f} large active={filter === f} onClick={() => setFilter(f)}>
               {f}
             </Pill>
           ))}
@@ -112,9 +107,7 @@ function DiscoverPage() {
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               )}
               {people.isError && (
-                <p className="text-xs text-destructive sm:text-sm">
-                  Couldn't load people.
-                </p>
+                <p className="text-xs text-destructive sm:text-sm">Couldn't load people.</p>
               )}
               {people.isSuccess && people.data.length === 0 && (
                 <p className="text-xs text-muted-foreground sm:text-sm">
@@ -136,12 +129,7 @@ function DiscoverPage() {
                   following={follow.isFollowing(p.id, p.is_following)}
                   requested={follow.isRequested(p.id)}
                   pending={follow.isPending(p.id)}
-                  onToggle={() =>
-                    follow.toggle(
-                      p.id,
-                      follow.isFollowing(p.id, p.is_following),
-                    )
-                  }
+                  onToggle={() => follow.toggle(p.id, follow.isFollowing(p.id, p.is_following))}
                 />
               ))}
             </div>
@@ -151,9 +139,7 @@ function DiscoverPage() {
         {showPosts && (
           <section className="space-y-4">
             <h2 className="px-1 text-sm font-semibold sm:text-lg">Posts</h2>
-            {posts.isLoading && (
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            )}
+            {posts.isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
             {posts.isSuccess && posts.data.length === 0 && (
               <p className="px-1 text-xs text-muted-foreground sm:text-sm">
                 No posts match your search.

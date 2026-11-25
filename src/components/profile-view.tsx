@@ -1,8 +1,10 @@
 import { Link, useNavigate } from "@tanstack/react-router";
+import { PAGE_HEADER_BTN } from "@/components/page-shell";
 import { useCallback, useRef, useState } from "react";
 import { CirclePhotoViewer } from "@/components/circle-photo-viewer";
 import { useQuery } from "@tanstack/react-query";
 import {
+  ArrowLeft,
   Ban,
   Building2,
   CalendarDays,
@@ -21,13 +23,7 @@ import {
   Video,
 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  BottomNav,
-  SideNav,
-  STORY_RING_CSS,
-  STORY_RING_SEEN,
-  UserRow,
-} from "@/components/ediraa";
+import { BottomNav, SideNav, STORY_RING_CSS, STORY_RING_SEEN, UserRow } from "@/components/ediraa";
 import { ComposerLauncher } from "@/components/composer";
 import { ReelsIcon, ShareIcon } from "@/components/icons";
 import { Gallery, type GalleryItem } from "@/components/gallery";
@@ -266,21 +262,37 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
           <div className="px-4 pb-3 pt-4">
             {/* Top bar: @username (with a lock when private) and the settings menu. */}
             <div className="-mx-4 -mt-4 flex min-h-[60px] items-center justify-between gap-3 bg-[linear-gradient(135deg,#f1e6ff_0%,#e6ecff_100%)] px-4 py-2 dark:bg-none dark:bg-elevated">
-              <h1 className="flex min-w-0 items-center gap-1.5 text-lg font-bold">
-                {profile.is_private && (
-                  <Lock
-                    className="h-4 w-4 shrink-0 text-muted-foreground"
-                    aria-label="Private account"
-                  />
+              <div className="flex min-w-0 items-center gap-3">
+                {!isMe && (
+                  <button
+                    type="button"
+                    aria-label="Back"
+                    onClick={() =>
+                      window.history.length > 1
+                        ? window.history.back()
+                        : void navigate({ to: "/home" })
+                    }
+                    className={PAGE_HEADER_BTN}
+                  >
+                    <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+                  </button>
                 )}
-                <span className="truncate">{profile.username}</span>
-                {profile.account_type === "business" && (
-                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-elevated px-2 py-0.5 text-xs font-medium text-primary">
-                    <Building2 className="h-3 w-3" />
-                    Business
-                  </span>
-                )}
-              </h1>
+                <h1 className="flex min-w-0 items-center gap-1.5 text-lg font-bold">
+                  {profile.is_private && (
+                    <Lock
+                      className="h-4 w-4 shrink-0 text-muted-foreground"
+                      aria-label="Private account"
+                    />
+                  )}
+                  <span className="truncate">{profile.username}</span>
+                  {profile.account_type === "business" && (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-elevated px-2 py-0.5 text-xs font-medium text-primary">
+                      <Building2 className="h-3 w-3" />
+                      Business
+                    </span>
+                  )}
+                </h1>
+              </div>
               {isMe && (
                 <Link
                   to="/more"
@@ -322,7 +334,9 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
                       />
                     </button>
                   ) : (
-                    <div className={`grid aspect-square h-full w-full shrink-0 place-items-center rounded-full bg-elevated text-2xl font-bold ${hasStory ? "border-[2px] border-background" : ""}`}>
+                    <div
+                      className={`grid aspect-square h-full w-full shrink-0 place-items-center rounded-full bg-elevated text-2xl font-bold ${hasStory ? "border-[2px] border-background" : ""}`}
+                    >
                       {name.slice(0, 1).toUpperCase() || "?"}
                     </div>
                   )}

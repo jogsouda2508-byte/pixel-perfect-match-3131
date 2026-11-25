@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Loader2 } from "lucide-react";
-import { PageShell } from "@/components/page-shell";
+import { Loader2 } from "lucide-react";
+import { PageHeader, PageShell } from "@/components/page-shell";
 import { PostCard } from "@/components/post-card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
@@ -35,17 +35,7 @@ function PostPage() {
 
   return (
     <PageShell>
-      <header className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={goBack}
-          aria-label="Back"
-          className="grid h-11 w-11 place-items-center rounded-full hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-        <h1 className="text-2xl font-bold">Post</h1>
-      </header>
+      <PageHeader title="Post" onBack={goBack} />
 
       {post.isLoading && (
         <div className="grid place-items-center p-10">

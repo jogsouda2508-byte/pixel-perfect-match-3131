@@ -1,4 +1,4 @@
-import { Link, useCanGoBack, useNavigate, useRouter } from "@tanstack/react-router";
+import { useCanGoBack, useNavigate, useRouter } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import type { ReactNode } from "react";
 import { BottomNav, SideNav } from "@/components/ediraa";
@@ -29,43 +29,50 @@ export function PageShell({
   );
 }
 
+/**
+ * THE one page header. Every page uses this, so the back arrow and the title always sit in
+ * exactly the same place, with the same height, gap and size.
+ *   - fixed 44px row (arrow button is 44x44, same on every page)
+ *   - same arrow icon (ArrowLeft, 20px) inside a bordered round button
+ *   - same title size on every page
+ */
+export const PAGE_HEADER_BTN =
+  "grid h-11 w-11 shrink-0 place-items-center rounded-full border border-border bg-card/70 transition-colors hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+export const PAGE_HEADER_TITLE = "min-w-0 truncate text-xl font-bold leading-none sm:text-2xl";
+
 export function PageHeader({
   title,
   back = "/more",
   smartBack = false,
-  compact = false,
+  onBack,
+  right,
 }: {
-  title: string;
-  back?: "/more" | "/home" | "/profile";
+  title: ReactNode;
+  back?: string;
   /** Go back to wherever the person came from (e.g. Home or More); `back` is only the fallback. */
   smartBack?: boolean;
-  /** Smaller title on phones. */
+  /** Custom back handler (overrides `back` / `smartBack`). */
+  onBack?: () => void;
+  /** Optional element on the far right of the header row. */
+  right?: ReactNode;
+  /** @deprecated kept so old callers still compile; all titles now share one size. */
   compact?: boolean;
 }) {
   const router = useRouter();
   const canGoBack = useCanGoBack();
   const navigate = useNavigate();
-  const cls =
-    "grid h-10 w-10 place-items-center rounded-full border border-border bg-card/70 transition-colors hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  const handleBack = () => {
+    if (onBack) return onBack();
+    if (smartBack && canGoBack) return router.history.back();
+    navigate({ to: back as "/more" });
+  };
   return (
-    <header className="flex items-center gap-3">
-      {smartBack ? (
-        <button
-          type="button"
-          aria-label="Back"
-          onClick={() => (canGoBack ? router.history.back() : navigate({ to: back }))}
-          className={cls}
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-      ) : (
-        <Link to={back} aria-label="Back" className={cls}>
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
-      )}
-      <h1 className={compact ? "text-xl font-bold sm:text-2xl" : "text-2xl font-bold sm:text-3xl"}>
-        {title}
-      </h1>
+    <header className="flex h-11 w-full items-center gap-3">
+      <button type="button" aria-label="Back" onClick={handleBack} className={PAGE_HEADER_BTN}>
+        <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+      </button>
+      <h1 className={PAGE_HEADER_TITLE}>{title}</h1>
+      {right ? <div className="ml-auto flex shrink-0 items-center gap-2">{right}</div> : null}
     </header>
   );
 }

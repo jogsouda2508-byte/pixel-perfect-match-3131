@@ -1,5 +1,12 @@
 import { SUPPORT_EMAIL } from "@/lib/legal";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  useCanGoBack,
+  useNavigate,
+  useRouter,
+} from "@tanstack/react-router";
+import { PageHeader } from "@/components/page-shell";
 import { DeleteAccountButton } from "@/components/delete-account";
 import { useAuth } from "@/lib/auth";
 
@@ -19,9 +26,17 @@ export const Route = createFileRoute("/delete-account")({
 /** Public page. Use its web address as the "account deletion link" in Google Play Console. */
 function DeleteAccountPage() {
   const { user } = useAuth();
+  const router = useRouter();
+  const canGoBack = useCanGoBack();
+  const navigate = useNavigate();
   return (
-    <main className="mx-auto max-w-xl space-y-5 px-5 py-10">
-      <h1 className="text-2xl font-bold">Delete your account</h1>
+    <main className="mx-auto max-w-xl space-y-5 px-4 pb-10 pt-3 sm:px-6 sm:pt-5">
+      <PageHeader
+        title="Delete your account"
+        onBack={() =>
+          canGoBack ? router.history.back() : navigate({ to: "/welcome", replace: true })
+        }
+      />
       <p className="text-sm text-muted-foreground">
         You can delete your account whenever you like. It takes about a minute.
       </p>
@@ -31,7 +46,10 @@ function DeleteAccountPage() {
         <ol className="list-decimal space-y-1 pl-5 text-sm">
           <li>Open More, then Settings &amp; Privacy.</li>
           <li>Scroll to Delete account and tap Delete my account.</li>
-          <li>Type DELETE and enter your password to confirm. If you signed in with Google, you will be asked to confirm with Google first.</li>
+          <li>
+            Type DELETE and enter your password to confirm. If you signed in with Google, you will
+            be asked to confirm with Google first.
+          </li>
         </ol>
       </section>
 
@@ -40,7 +58,9 @@ function DeleteAccountPage() {
         <p className="text-sm">
           Your profile, posts, stories, comments, followers, messages you sent, market listings,
           bookings and offers, blocks and Close Friends list, notification settings, and the photos,
-          videos and voice notes you uploaded. This happens right away and cannot be undone. If you created a group that other people are in, it passes to another member so they keep it; a group with nobody else in it is deleted.
+          videos and voice notes you uploaded. This happens right away and cannot be undone. If you
+          created a group that other people are in, it passes to another member so they keep it; a
+          group with nobody else in it is deleted.
         </p>
       </section>
 
