@@ -28,8 +28,9 @@ export const Route = createFileRoute("/business-edit")({
   component: BusinessEditPage,
 });
 
-const inputCls =
-  "w-full rounded-xl border border-border bg-card px-3 py-3 text-base outline-none focus:ring-2 focus:ring-ring aria-[invalid=true]:border-destructive";
+const inputBase =
+  "w-full rounded-xl border border-border bg-card px-3 py-2.5 outline-none focus:ring-2 focus:ring-ring aria-[invalid=true]:border-destructive sm:py-3";
+const inputCls = `${inputBase} text-sm sm:text-base`;
 
 function Field({
   id,
@@ -46,16 +47,16 @@ function Field({
 }) {
   return (
     <div>
-      <label htmlFor={id} className="mb-1.5 block text-sm font-semibold">
+      <label htmlFor={id} className="mb-1.5 block text-[13px] font-semibold sm:text-sm">
         {label}
       </label>
       {children}
       {error ? (
-        <p id={`${id}-err`} role="alert" className="mt-1 text-sm text-destructive">
+        <p id={`${id}-err`} role="alert" className="mt-1 text-xs text-destructive sm:text-sm">
           {error}
         </p>
       ) : hint ? (
-        <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
+        <p className="mt-1 text-[11px] text-muted-foreground sm:text-xs">{hint}</p>
       ) : null}
     </div>
   );
@@ -78,7 +79,7 @@ function PhoneInput({
     <div
       className={`flex items-center overflow-hidden rounded-xl border bg-card focus-within:ring-2 focus-within:ring-ring ${error ? "border-destructive" : "border-border"}`}
     >
-      <span className="select-none border-r border-border px-3 py-3 text-base text-muted-foreground">
+      <span className="select-none border-r border-border px-3 py-2.5 text-sm text-muted-foreground sm:py-3 sm:text-base">
         +91
       </span>
       <input
@@ -91,7 +92,7 @@ function PhoneInput({
         placeholder={placeholder ?? "98765 43210"}
         aria-invalid={!!error}
         aria-describedby={error ? `${id}-err` : undefined}
-        className="min-w-0 flex-1 bg-transparent px-3 py-3 text-base outline-none"
+        className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm outline-none sm:py-3 sm:text-base"
       />
     </div>
   );
@@ -109,7 +110,7 @@ function Switch({
   id: string;
 }) {
   return (
-    <label htmlFor={id} className="flex min-h-11 cursor-pointer items-center gap-3 text-sm">
+    <label htmlFor={id} className="flex min-h-11 cursor-pointer items-center gap-3 text-[13px] sm:text-sm">
       <input
         id={id}
         type="checkbox"
@@ -240,8 +241,8 @@ function BusinessEditPage() {
   }
 
   return (
-    <PageShell showBottomNav={false}>
-      <header className="flex items-center gap-3">
+    <PageShell showBottomNav={false} rowGap="space-y-3 sm:space-y-4">
+      <header className="flex items-center gap-2 sm:gap-3">
         <Link
           to="/business"
           onClick={onBack}
@@ -250,7 +251,7 @@ function BusinessEditPage() {
         >
           <ArrowLeft className="h-5 w-5" />
         </Link>
-        <h1 className="text-2xl font-bold">Edit business info</h1>
+        <h1 className="text-xl font-bold sm:text-2xl">Edit business info</h1>
       </header>
 
       {!form || !errors ? (
@@ -258,9 +259,9 @@ function BusinessEditPage() {
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <div className="space-y-4 pb-28">
-          <section id="category" className="glass-card scroll-mt-20 space-y-4 p-4">
-            <h2 className="font-bold">Contact</h2>
+        <>
+          <section id="category" className="glass-card scroll-mt-20 space-y-5 p-4 sm:space-y-4">
+            <h2 className="text-[15px] font-bold sm:text-base">Contact</h2>
             <Field id="biz-category" label="Category" error={err("category")}>
               <select
                 id="biz-category"
@@ -329,8 +330,8 @@ function BusinessEditPage() {
             </Field>
           </section>
 
-          <section id="hours" className="glass-card scroll-mt-20 space-y-2 p-4">
-            <h2 className="font-bold">Opening hours</h2>
+          <section id="hours" className="glass-card scroll-mt-20 space-y-3 p-4 sm:space-y-2">
+            <h2 className="text-[15px] font-bold sm:text-base">Opening hours</h2>
             <Switch
               id="biz-hours-on"
               checked={form.hoursEnabled}
@@ -341,9 +342,9 @@ function BusinessEditPage() {
               <>
                 <ul className="divide-y divide-border">
                   {form.hours.map((h) => (
-                    <li key={h.dow} className="space-y-2 py-3">
+                    <li key={h.dow} className="space-y-2.5 py-3.5 sm:py-3">
                       <div className="flex items-center justify-between gap-3">
-                        <span className="text-sm font-semibold">{DAY_NAMES[h.dow]}</span>
+                        <span className="text-[13px] font-semibold sm:text-sm">{DAY_NAMES[h.dow]}</span>
                         <div className="flex items-center gap-4">
                           {!h.closed && (
                             <label className="flex min-h-9 items-center gap-1.5 text-xs">
@@ -399,16 +400,16 @@ function BusinessEditPage() {
                     set({ hours: form.hours.map((h) => ({ ...mon, dow: h.dow })) });
                     toast.success("Monday's hours copied to every day");
                   }}
-                  className="min-h-11 text-sm font-semibold text-primary"
+                  className="min-h-11 text-[13px] font-semibold text-primary sm:text-sm"
                 >
                   Copy Monday to all days
                 </button>
                 {err("hours") && (
-                  <p role="alert" className="text-sm text-destructive">
+                  <p role="alert" className="text-xs text-destructive sm:text-sm">
                     {err("hours")}
                   </p>
                 )}
-                <p className="text-xs text-muted-foreground">
+                <p className="text-[11px] text-muted-foreground sm:text-xs">
                   Times are in Indian time. A closing time earlier than the opening time (for
                   example 6 PM to 2 AM) means you close after midnight.
                 </p>
@@ -416,17 +417,17 @@ function BusinessEditPage() {
             )}
           </section>
 
-          <section id="prices" className="glass-card scroll-mt-20 space-y-3 p-4">
+          <section id="prices" className="glass-card scroll-mt-20 space-y-4 p-4 sm:space-y-3">
             <div>
-              <h2 className="font-bold">Price list</h2>
-              <p className="text-xs text-muted-foreground">Prices are in rupees (₹)</p>
+              <h2 className="text-[15px] font-bold sm:text-base">Price list</h2>
+              <p className="text-[11px] text-muted-foreground sm:text-xs">Prices are in rupees (₹)</p>
             </div>
             {form.services.length === 0 && (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-[13px] text-muted-foreground sm:text-sm">
                 No items yet. Add what you sell, like "Haircut ₹200".
               </p>
             )}
-            <ul className="space-y-3">
+            <ul className="space-y-4 sm:space-y-3">
               {form.services.map((s, i) => {
                 const e = showErrors ? errors.services?.[s.key] : undefined;
                 return (
@@ -446,7 +447,7 @@ function BusinessEditPage() {
                           className={inputCls}
                         />
                         {e?.name && (
-                          <p role="alert" className="mt-1 text-xs text-destructive">
+                          <p role="alert" className="mt-1 text-[11px] text-destructive sm:text-xs">
                             {e.name}
                           </p>
                         )}
@@ -458,7 +459,7 @@ function BusinessEditPage() {
                         <div
                           className={`flex items-center overflow-hidden rounded-xl border bg-card focus-within:ring-2 focus-within:ring-ring ${e?.price ? "border-destructive" : "border-border"}`}
                         >
-                          <span className="pl-3 text-base text-muted-foreground">₹</span>
+                          <span className="pl-3 text-sm text-muted-foreground sm:text-base">₹</span>
                           <input
                             id={`svc-price-${s.key}`}
                             inputMode="decimal"
@@ -468,11 +469,11 @@ function BusinessEditPage() {
                             }
                             placeholder="0"
                             aria-invalid={!!e?.price}
-                            className="min-w-0 flex-1 bg-transparent px-2 py-3 text-base outline-none"
+                            className="min-w-0 flex-1 bg-transparent px-2 py-2.5 text-sm outline-none sm:py-3 sm:text-base"
                           />
                         </div>
                         {e?.price && (
-                          <p role="alert" className="mt-1 text-xs text-destructive">
+                          <p role="alert" className="mt-1 text-[11px] text-destructive sm:text-xs">
                             {e.price}
                           </p>
                         )}
@@ -487,10 +488,10 @@ function BusinessEditPage() {
                       maxLength={120}
                       onChange={(ev) => setService(s.key, { description: ev.target.value })}
                       placeholder="Short note (optional)"
-                      className={`${inputCls} text-sm`}
+                      className={`${inputBase} text-sm`}
                     />
                     <div className="flex items-center justify-between">
-                      <label className="flex min-h-10 items-center gap-2 text-sm">
+                      <label className="flex min-h-10 items-center gap-2 text-[13px] sm:text-sm">
                         <input
                           type="checkbox"
                           checked={s.priceFrom}
@@ -538,7 +539,7 @@ function BusinessEditPage() {
               type="button"
               disabled={form.services.length >= 50}
               onClick={() => set({ services: [...form.services, newServiceDraft()] })}
-              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-primary text-sm font-semibold text-primary disabled:opacity-50"
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-primary text-[13px] font-semibold text-primary disabled:opacity-50 sm:text-sm"
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
               Add item
@@ -558,7 +559,8 @@ function BusinessEditPage() {
               </button>
             </div>
           </div>
-        </div>
+          <div className="h-20" aria-hidden="true" />
+        </>
       )}
     </PageShell>
   );
