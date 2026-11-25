@@ -51,7 +51,7 @@ const tabs = NOTIFICATION_TABS;
 
 const kindIcon = {
   like: (
-    <Heart className="h-3.5 w-3.5 fill-primary-foreground text-primary-foreground" />
+    <Heart className="h-3.5 w-3.5 fill-[#ff0000] text-[#ff0000]" />
   ),
   comment: (
     <MessageSquare className="h-3.5 w-3.5 fill-primary-foreground text-primary-foreground" />
@@ -60,7 +60,7 @@ const kindIcon = {
   share: <Send className="h-3.5 w-3.5 text-primary-foreground" />,
   tag: <Tag className="h-3.5 w-3.5 text-primary-foreground" />,
   story_like: (
-    <Heart className="h-3.5 w-3.5 fill-primary-foreground text-primary-foreground" />
+    <Heart className="h-3.5 w-3.5 fill-[#ff0000] text-[#ff0000]" />
   ),
   follow_request: <UserPlus className="h-3.5 w-3.5 text-primary-foreground" />,
   follow_accepted: (
@@ -68,12 +68,12 @@ const kindIcon = {
   ),
 } as const;
 const kindColor = {
-  like: "bg-destructive",
+  like: "bg-white",
   comment: "bg-primary",
   follow: "bg-success",
   share: "bg-primary",
   tag: "bg-primary",
-  story_like: "bg-destructive",
+  story_like: "bg-white",
   follow_request: "bg-primary",
   follow_accepted: "bg-success",
 } as const;

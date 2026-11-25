@@ -15,7 +15,18 @@ export function StoryPhoto({ src, gifs }: { src: string; gifs?: StoryGif[] | und
   const measure = useCallback(() => {
     const im = imgRef.current;
     if (!im) return;
-    setBox({ l: im.offsetLeft, t: im.offsetTop, w: im.offsetWidth, h: im.offsetHeight });
+    // the picture itself (object-contain) inside the full-width element
+    const nw = im.naturalWidth || im.offsetWidth;
+    const nh = im.naturalHeight || im.offsetHeight;
+    const k = Math.min(im.offsetWidth / nw, im.offsetHeight / nh) || 1;
+    const w = nw * k;
+    const h = nh * k;
+    setBox({
+      l: im.offsetLeft + (im.offsetWidth - w) / 2,
+      t: im.offsetTop + (im.offsetHeight - h) / 2,
+      w,
+      h,
+    });
   }, []);
 
   useEffect(() => {
@@ -37,7 +48,7 @@ export function StoryPhoto({ src, gifs }: { src: string; gifs?: StoryGif[] | und
         alt=""
         draggable={false}
         onLoad={hasGifs ? measure : undefined}
-        className="max-h-full max-w-full object-contain"
+        className="block h-auto w-full max-w-none"
       />
       {hasGifs && box && box.w > 0 && (
         <div

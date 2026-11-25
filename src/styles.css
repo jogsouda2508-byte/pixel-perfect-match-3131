@@ -1048,7 +1048,7 @@ html {
 
 /* Story viewer: the timeline fill is the brand gradient. */
 .sz-story-bar {
-  background-image: var(--gradient-primary);
+  background-image: linear-gradient(90deg, #f9b233, #ff7a59 45%, #9b6bff);
 }
 .sz-story-scrim-top {
   background: linear-gradient(to bottom, rgba(0, 0, 0, 0.65), transparent);
@@ -1078,3 +1078,4 @@ button.sz-no-press:not(:disabled):active {
   transition: none !important;
   animation: none !important;
 }
+

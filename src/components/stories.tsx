@@ -508,7 +508,8 @@ function StoryViewer({
   sheetOpenRef.current = pollSheetOpen;
   // Pauses while the report / block menu is open (see UserSafetyMenu below).
   const [safetyOpen, setSafetyOpen] = useState(false);
-  const paused = viewersOpen || held || replying || pollSheetOpen || safetyOpen;
+  const [confirmDel, setConfirmDel] = useState(false);
+  const paused = viewersOpen || held || replying || pollSheetOpen || safetyOpen || confirmDel;
   // The song of a photo story: the speaker button in the header mutes it for this viewing.
   const [musicMuted, setMusicMuted] = useState(false);
   // The browser may refuse to start sound on its own: then the speaker button starts it.
@@ -773,9 +774,49 @@ function StoryViewer({
       role="dialog"
       aria-label={`${group.name}'s story`}
     >
+      {confirmDel && (
+        <div
+          className="fixed inset-0 z-[130] grid place-items-center bg-black/70 px-6 backdrop-blur-sm"
+          onClick={() => setConfirmDel(false)}
+        >
+          <div
+            role="alertdialog"
+            aria-label="Delete story"
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-xs rounded-2xl border border-white/10 bg-[#14141f] p-5 text-center shadow-2xl"
+          >
+            <p className="text-base font-semibold">
+              {partOfMany ? "Delete this video story?" : "Delete this story?"}
+            </p>
+            <p className="mt-1.5 text-sm text-white/65">
+              It will be removed for good and can't be brought back.
+            </p>
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDel(false)}
+                className="min-h-11 flex-1 rounded-xl bg-white/10 text-sm font-semibold hover:bg-white/15"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={del.isPending}
+                onClick={() => {
+                  setConfirmDel(false);
+                  del.mutate(item);
+                }}
+                className="min-h-11 flex-1 rounded-xl bg-red-500 text-sm font-semibold text-white hover:bg-red-600 disabled:opacity-60"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex gap-1 px-3 pt-3" aria-hidden="true">
         {group.items.map((s, idx) => (
-          <div key={s.id} className="h-1 flex-1 overflow-hidden rounded-full bg-white/20">
+          <div key={s.id} className="h-[2px] flex-1 overflow-hidden rounded-full bg-white/20">
             <div
               className="sz-story-bar h-full rounded-full"
               style={{
@@ -877,7 +918,7 @@ function StoryViewer({
         )}
         {isMine && (
           <button
-            onClick={() => del.mutate(item)}
+            onClick={() => setConfirmDel(true)}
             disabled={del.isPending}
             aria-label={partOfMany ? "Delete this video story (all parts)" : "Delete story"}
             className="rounded-full p-2.5 transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
@@ -894,7 +935,7 @@ function StoryViewer({
         </button>
       </div>
       <div
-        className="relative flex min-h-0 flex-1 items-center justify-center select-none [-webkit-touch-callout:none]"
+        className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden select-none [-webkit-touch-callout:none]"
         // no browser zoom on double tap, so a double tap can mean "like"; sideways movement is
         // left to us (pan-y only), so a swipe between people is not taken over by the browser
         style={{ touchAction: "pan-y" }}
@@ -1192,7 +1233,7 @@ function StoryVideo({
       <video
         ref={ref}
         src={`${item.video_url}#t=${start}`}
-        className="story-video max-h-full max-w-full object-contain"
+        className="story-video block h-auto w-full max-w-none"
         autoPlay
         playsInline
         onLoadStart={() => setLoading(true)}
