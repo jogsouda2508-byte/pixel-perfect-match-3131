@@ -445,8 +445,12 @@ export function createGateway(d: Deps) {
       "x-content-type-options": "nosniff",
     };
     if (origin) {
-      if (!originAllowed(origin, d.config.allowedOrigins))
+      if (!originAllowed(origin, d.config.allowedOrigins)) {
+        // The browser cannot read this 403 (no CORS header, on purpose), so the app just shows
+        // "Can't reach SabZone". Log the origin here so the function logs say what to allow.
+        d.log("forbidden_origin", { origin: origin.slice(0, 120) });
         return reply(403, { error: "forbidden_origin" }, cors);
+      }
       cors["access-control-allow-origin"] = origin;
       cors["access-control-allow-headers"] = "authorization, apikey, content-type, x-client-info";
       cors["access-control-allow-methods"] = "POST, OPTIONS";

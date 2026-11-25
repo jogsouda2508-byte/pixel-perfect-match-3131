@@ -40,7 +40,22 @@ export async function callGateway(
     }
     return { ok: res.ok, status: res.status, data };
   } catch {
-    return { ok: false, status: 0, data: { error: "network" } };
+    // The request never got an answer the browser was allowed to read. That is NOT always the
+    // person's internet: a function that is not deployed, or a website address missing from the
+    // server's AUTH_ALLOWED_ORIGINS, fails in exactly the same way. Say so in the console so the
+    // real cause can be found (the screen only shows a friendly message).
+    const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+    if (typeof console !== "undefined") {
+      console.warn(
+        offline
+          ? "[auth-gateway] request failed: this device is offline."
+          : "[auth-gateway] request failed while online. Check that the auth-gateway function is " +
+              "deployed and that this site's address is in AUTH_ALLOWED_ORIGINS " +
+              "(supabase secrets set AUTH_ALLOWED_ORIGINS=...). Origin: " +
+              (typeof location !== "undefined" ? location.origin : "unknown"),
+      );
+    }
+    return { ok: false, status: 0, data: { error: "network", offline } };
   }
 }
 
@@ -56,7 +71,14 @@ export function waitText(seconds: number): string {
 
 /** Friendly text for the answers every action can give (rate limit, offline, server trouble). */
 export function gatewayProblem(r: GatewayReply, fallback: string): string {
-  if (r.status === 0) return "Can't reach SabZone. Check your internet and try again.";
+  if (r.status === 0) {
+    // Only blame the internet when the device really is offline. Online, the problem is on our
+    // side (service not reachable / not set up), so do not tell the person to fix their network.
+    if (r.data["offline"] === true) return "Can't reach SabZone. Check your internet and try again.";
+    if (r.data["error"] === "not_configured")
+      return "Can't reach SabZone: this version of the app isn't set up correctly. Please update the app.";
+    return "Can't reach SabZone's sign-in service right now. Please try again in a moment.";
+  }
   if (r.status === 429) {
     const wait = typeof r.data["retry_after"] === "number" ? r.data["retry_after"] : 60;
     return `Too many attempts. Please try again in ${waitText(wait)}.`;

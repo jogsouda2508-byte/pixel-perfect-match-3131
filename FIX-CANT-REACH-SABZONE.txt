@@ -1,0 +1,38 @@
+WHY "Can't reach SabZone" SHOWS (and the username check says "Couldn't check right now")
+=========================================================================================
+Username check, sign-up, login all call ONE Edge Function: <your-supabase-url>/functions/v1/auth-gateway
+The app shows "Can't reach SabZone" only when that request FAILS BEFORE ANY ANSWER COMES BACK.
+It is NOT a SQL problem (I replayed all 50 migrations + the auth tests on Postgres: they pass).
+
+The 3 real causes (do these checks in order):
+
+1) Website address not allowed  (MOST LIKELY if you open the app in a browser / Lovable preview)
+   The function only accepts: the Android app, localhost, and addresses in AUTH_ALLOWED_ORIGINS.
+   Any other site gets a 403 that the browser hides, so the app shows "Can't reach".
+   Fix:  supabase secrets set AUTH_ALLOWED_ORIGINS="https://YOUR-SITE-1,https://YOUR-SITE-2"
+         (exact address from the browser bar, no trailing slash, no path)
+   Then check the function logs: after this patch they print  forbidden_origin  with the address.
+
+2) auth-gateway function not deployed
+   Fix:  supabase functions deploy auth-gateway
+   Also run supabase/migrations/20261116000000_auth_gateway.sql once, and set the secret
+   AUTH_HASH_SECRET (32+ random characters).
+
+3) The build has no Supabase address/key
+   VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY must exist when the app is BUILT.
+
+Quick test from any terminal (replace the 3 values; use your anon/publishable key):
+  curl -i -X POST "https://PROJECT-REF.supabase.co/functions/v1/auth-gateway" \
+    -H "content-type: application/json" -H "apikey: ANON_KEY" -H "authorization: Bearer ANON_KEY" \
+    -H "origin: https://YOUR-SITE" -d '{"action":"username_available","username":"yasmin"}'
+  200 {"available":true/false}  -> function fine
+  403 forbidden_origin          -> cause 1
+  404                           -> cause 2 (not deployed)
+  503                           -> AUTH_HASH_SECRET missing or migration not run
+
+WHAT THIS PATCH CHANGES (2 files, nothing else):
+  src/lib/auth-gateway.ts
+     - the message no longer tells people "check your internet" when they are online
+     - the browser console now says the real likely cause
+  supabase/functions/auth-gateway/core.ts
+     - logs the blocked address when an origin is refused (security rules unchanged)
