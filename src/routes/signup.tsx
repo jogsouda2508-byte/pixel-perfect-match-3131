@@ -21,7 +21,6 @@ import {
   PrimaryButton,
   TextField,
 } from "@/components/auth-ui";
-import { PhoneAuth } from "@/components/phone-auth";
 import { InvitedByBanner } from "@/components/referral-parts";
 
 export const Route = createFileRoute("/signup")({
@@ -275,7 +274,6 @@ function SignUpForm() {
           {!googleLoading && <GoogleIcon />}
           Continue with Google
         </OutlineButton>
-        <PhoneAuth />
       </div>
     </AuthShell>
   );
