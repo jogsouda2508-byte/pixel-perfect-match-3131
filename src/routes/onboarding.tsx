@@ -12,7 +12,7 @@ import { AuthShell, PrimaryButton, inputClass } from "@/components/auth-ui";
 import { userMessage } from "@/lib/security";
 
 export const Route = createFileRoute("/onboarding")({
-  head: () => ({ meta: [{ title: "Set up your profile — Ediraa" }] }),
+  head: () => ({ meta: [{ title: "Set up your profile — SabZone" }] }),
   component: OnboardingPage,
 });
 
@@ -218,12 +218,12 @@ function OnboardingPage() {
   const shownAvatar = preview ?? avatarUrl;
 
   return (
-    <AuthShell title={STEPS[step]!} subtitle={`Step ${step + 1} of 3`}>
+    <AuthShell variant="immersive" title={STEPS[step]!} subtitle={`Step ${step + 1} of 3`}>
       {cropping && (
         <AvatarCropper file={cropping} onCancel={() => setCropping(null)} onDone={useCropped} />
       )}
       <div
-        className="mb-5 h-1.5 overflow-hidden rounded-full bg-elevated"
+        className="mb-5 h-1.5 overflow-hidden rounded-full bg-violet-400/15"
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={3}
@@ -245,7 +245,7 @@ function OnboardingPage() {
               aria-label="Upload profile photo"
             >
               <Avatar src={shownAvatar} name={profile?.full_name ?? ""} size={96} />
-              <span className="absolute bottom-0 right-0 grid h-8 w-8 place-items-center rounded-full bg-primary text-primary-foreground">
+              <span className="absolute bottom-0 right-0 grid h-8 w-8 place-items-center rounded-full bg-violet-500 text-white ring-2 ring-[#0a0618]">
                 <Camera className="h-4 w-4" />
               </span>
             </button>
@@ -305,7 +305,7 @@ function OnboardingPage() {
                     value: false,
                     icon: Globe,
                     title: "Public account",
-                    text: "Anyone on Ediraa can see your posts and follow you right away.",
+                    text: "Anyone on SabZone can see your posts and follow you right away.",
                   },
                   {
                     value: true,
@@ -323,27 +323,27 @@ function OnboardingPage() {
                     role="radio"
                     aria-checked={on}
                     onClick={() => setIsPrivate(value)}
-                    className={`flex items-start gap-3 rounded-2xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${on ? "border-primary bg-primary/10" : "border-border bg-card/60 hover:border-primary/40"}`}
+                    className={`flex items-start gap-2.5 rounded-xl border p-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/60 ${on ? "border-violet-400/70 bg-violet-500/15 shadow-[0_0_18px_-6px_rgba(139,92,246,0.6)]" : "border-violet-400/20 bg-white/[0.03] hover:border-violet-400/40"}`}
                   >
                     <span
                       aria-hidden="true"
-                      className={`mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full ${on ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"}`}
+                      className={`grid h-7 w-7 shrink-0 place-items-center rounded-full ${on ? "bg-violet-500 text-white" : "bg-violet-500/15 text-violet-300"}`}
                     >
-                      <Icon className="h-4 w-4" />
+                      <Icon className="h-3.5 w-3.5" />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-semibold">{title}</span>
-                      <span className="block text-xs text-muted-foreground">{text}</span>
+                      <span className="block text-[0.82rem] font-semibold leading-tight">{title}</span>
+                      <span className="mt-0.5 block text-[0.7rem] leading-snug text-violet-100/60">{text}</span>
                     </span>
                     <span
                       aria-hidden="true"
-                      className={`mt-1 h-4 w-4 shrink-0 rounded-full border-2 ${on ? "border-primary bg-primary" : "border-muted-foreground"}`}
+                      className={`mt-0.5 h-3.5 w-3.5 shrink-0 rounded-full border-2 ${on ? "border-violet-400 bg-violet-400" : "border-violet-300/40"}`}
                     />
                   </button>
                 );
               })}
             </div>
-            <p className="mt-1.5 text-xs text-muted-foreground">
+            <p className="mt-1.5 text-[0.7rem] text-violet-100/50">
               You can change this any time in Settings &amp; Privacy.
             </p>
           </fieldset>
@@ -352,7 +352,7 @@ function OnboardingPage() {
 
       {step === 1 && (
         <div>
-          <p className="mb-3 text-sm text-muted-foreground">
+          <p className="mb-3 text-sm text-violet-100/65">
             Pick a few topics to personalise your feed.
           </p>
           <div className="flex flex-wrap gap-2">
@@ -364,7 +364,7 @@ function OnboardingPage() {
                   type="button"
                   aria-pressed={on}
                   onClick={() => toggleInterest(i)}
-                  className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition ${on ? "bg-gradient-brand text-primary-foreground glow" : "border border-border bg-card"}`}
+                  className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition ${on ? "bg-gradient-to-r from-violet-500 to-purple-500 text-white shadow-[0_0_16px_-4px_rgba(139,92,246,0.8)]" : "border border-violet-400/25 bg-white/[0.04] text-violet-50"}`}
                 >
                   {on && <Check className="h-3.5 w-3.5" />}
                   {i}
@@ -379,10 +379,10 @@ function OnboardingPage() {
         <div>
           {people === null ? (
             <div className="grid place-items-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <Loader2 className="h-6 w-6 animate-spin text-violet-400" />
             </div>
           ) : people.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
+            <p className="py-6 text-center text-sm text-violet-100/65">
               No one else has joined yet. You're one of the first! 🎉
             </p>
           ) : (
@@ -395,7 +395,7 @@ function OnboardingPage() {
                     <Avatar src={p.avatar_url} name={p.full_name || p.username} size={40} />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold">{p.full_name || p.username}</p>
-                      <p className="truncate text-xs text-muted-foreground">
+                      <p className="truncate text-xs text-violet-100/55">
                         @{p.username}
                         {p.is_private ? " · Private" : ""}
                       </p>
@@ -404,7 +404,7 @@ function OnboardingPage() {
                       type="button"
                       disabled={pending.has(p.id)}
                       onClick={() => toggleFollow(p.id)}
-                      className={`shrink-0 rounded-lg px-3 py-1 text-xs font-medium transition disabled:opacity-60 ${on ? "bg-gradient-brand text-primary-foreground" : asked ? "bg-elevated text-muted-foreground" : "border border-primary text-primary"}`}
+                      className={`shrink-0 rounded-lg px-3 py-1 text-xs font-medium transition disabled:opacity-60 ${on ? "bg-gradient-to-r from-violet-500 to-purple-500 text-white" : asked ? "bg-white/10 text-violet-100/60" : "border border-violet-400 text-violet-300"}`}
                     >
                       {on ? "Following" : asked ? "Requested" : "Follow"}
                     </button>
@@ -416,12 +416,12 @@ function OnboardingPage() {
         </div>
       )}
 
-      <div className="mt-6 flex items-center gap-3">
+      <div className="mt-auto flex items-center gap-3 pt-6">
         <button
           type="button"
           onClick={skip}
           disabled={busy}
-          className="rounded-full px-5 py-3.5 text-sm font-semibold text-muted-foreground hover:text-foreground disabled:opacity-60"
+          className="rounded-full px-5 py-3.5 text-sm font-semibold text-violet-200/70 hover:text-white disabled:opacity-60"
         >
           Skip
         </button>
