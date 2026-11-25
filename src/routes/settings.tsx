@@ -1,5 +1,4 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { authRedirect, NATIVE_RESET_REDIRECT } from "@/lib/auth-redirect";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -40,7 +39,7 @@ const field =
 function SettingsPage() {
   const { profile } = useAuth();
   return (
-    <PageShell>
+    <PageShell rowGap="space-y-3 sm:space-y-4">
       <PageHeader title="Settings & Privacy" />
       {profile && (
         <>
@@ -371,13 +370,10 @@ function BlockedMutedCard() {
 }
 
 function PasswordCard() {
-  const { user } = useAuth();
   const [pw, setPw] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [linkSent, setLinkSent] = useState(false);
   const strength = passwordStrength(pw);
 
   const submit = async (e: FormEvent) => {
@@ -393,25 +389,12 @@ function PasswordCard() {
       const m = (err.message ?? "").toLowerCase();
       // Supabase can demand a fresh login / email confirmation before changing the password.
       if (m.includes("reauthenticat") || m.includes("recent"))
-        return setError("For security, please use “Email me a reset link” below.");
+        return setError("For security, please log out, log in again and try once more.");
       return setError(friendlyAuthError(err));
     }
     setPw("");
     setConfirm("");
     toast.success("Password updated");
-  };
-
-  const emailLink = async () => {
-    if (!user?.email) return setError("No email is linked to this account.");
-    setSending(true);
-    setError(undefined);
-    const { error: err } = await supabase.auth.resetPasswordForEmail(user.email, {
-      redirectTo: authRedirect("/reset-password", NATIVE_RESET_REDIRECT),
-    });
-    setSending(false);
-    if (err) return setError(friendlyAuthError(err));
-    setLinkSent(true);
-    toast.success(`Reset link sent to ${user.email}`);
   };
 
   return (
@@ -448,20 +431,6 @@ function PasswordCard() {
       >
         {busy && <Loader2 className="h-4 w-4 animate-spin" />}Update password
       </button>
-      <div className="border-t border-border pt-3 text-center">
-        <button
-          type="button"
-          onClick={emailLink}
-          disabled={sending || linkSent}
-          className="text-sm font-medium text-primary disabled:opacity-60"
-        >
-          {sending
-            ? "Sending…"
-            : linkSent
-              ? "Link sent — check your inbox"
-              : "Email me a reset link instead"}
-        </button>
-      </div>
     </form>
   );
 }
