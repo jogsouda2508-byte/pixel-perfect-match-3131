@@ -1,8 +1,7 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Play, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { Pill } from "@/components/ediraa";
 import { PageHeader, PageShell } from "@/components/page-shell";
 import { useAuth } from "@/lib/auth";
 import type { PostRow } from "@/integrations/supabase/types";
@@ -168,23 +167,13 @@ function PostsTab({ kind, meId }: { kind: "tags" | "likes"; meId: string }) {
 
 function MyActivityPage() {
   const { tab } = Route.useSearch();
-  const navigate = useNavigate();
   const { user } = useAuth();
   const meId = user?.id ?? "";
+  const title = TABS.find((t) => t.key === tab)?.label ?? "Comments";
+  // Only the section that was tapped on My Profile is shown.
   return (
     <PageShell>
-      <PageHeader title="Your activity" smartBack />
-      <div role="tablist" aria-label="Activity" className="flex gap-2">
-        {TABS.map((t) => (
-          <Pill
-            key={t.key}
-            active={tab === t.key}
-            onClick={() => void navigate({ to: "/my-activity", search: { tab: t.key }, replace: true })}
-          >
-            {t.label}
-          </Pill>
-        ))}
-      </div>
+      <PageHeader title={title} smartBack />
       {tab === "comments" ? <MyComments meId={meId} /> : <PostsTab kind={tab} meId={meId} />}
     </PageShell>
   );

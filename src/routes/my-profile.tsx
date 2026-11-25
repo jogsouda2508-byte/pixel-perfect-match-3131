@@ -194,6 +194,7 @@ function MyProfilePage() {
         <SafetyListsSheet
           open
           initial={safety}
+          single
           onOpenChange={(open) => {
             if (!open) setSafety(null);
           }}

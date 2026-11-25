@@ -15,10 +15,13 @@ export function SafetyListsSheet({
   open,
   onOpenChange,
   initial = "blocked",
+  single = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initial?: Kind;
+  /** Show only the `initial` list, without the Blocked/Muted switcher. */
+  single?: boolean;
 }) {
   const { user } = useAuth();
   const refresh = useRefreshAfterSafetyChange();
@@ -47,8 +50,14 @@ export function SafetyListsSheet({
     <BottomSheet
       open={open}
       onOpenChange={onOpenChange}
-      title="Blocked and muted"
-      description="Blocked people can't see your posts or stories or message you. Muted people are only hidden from your feed."
+      title={single ? (kind === "blocked" ? "Blocked" : "Muted") : "Blocked and muted"}
+      description={
+        single
+          ? kind === "blocked"
+            ? "Blocked people can't see your posts or stories or message you."
+            : "Muted people are only hidden from your feed."
+          : "Blocked people can't see your posts or stories or message you. Muted people are only hidden from your feed."
+      }
       z={60}
       compact
       footer={
@@ -62,24 +71,26 @@ export function SafetyListsSheet({
       }
     >
       <div className="space-y-3 pb-2">
-        <div role="tablist" className="grid grid-cols-2 gap-1 rounded-full bg-secondary/70 p-1">
-          {(["blocked", "muted"] as const).map((k) => (
-            <button
-              key={k}
-              type="button"
-              role="tab"
-              aria-selected={kind === k}
-              onClick={() => setKind(k)}
-              className={`min-h-9 rounded-full text-sm font-semibold capitalize transition ${
-                kind === k
-                  ? "bg-card text-foreground shadow-[0_6px_16px_-8px_rgba(0,0,0,0.8)] ring-1 ring-primary/30"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {k}
-            </button>
-          ))}
-        </div>
+        {!single && (
+          <div role="tablist" className="grid grid-cols-2 gap-1 rounded-full bg-secondary/70 p-1">
+            {(["blocked", "muted"] as const).map((k) => (
+              <button
+                key={k}
+                type="button"
+                role="tab"
+                aria-selected={kind === k}
+                onClick={() => setKind(k)}
+                className={`min-h-9 rounded-full text-sm font-semibold capitalize transition ${
+                  kind === k
+                    ? "bg-card text-foreground shadow-[0_6px_16px_-8px_rgba(0,0,0,0.8)] ring-1 ring-primary/30"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {k}
+              </button>
+            ))}
+          </div>
+        )}
 
         {list.isLoading ? (
           <div className="space-y-2" aria-hidden="true">
