@@ -1,4 +1,12 @@
-import { act, createEvent, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  createEvent,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -445,9 +453,7 @@ describe("viewing a video story", () => {
   });
 
   it("plays one long story from 0 to its end (a 26 s clip is not split)", async () => {
-    h.groups = [
-      group("b", "bob", [{ ...seg("s1", 0, 0, 26), segment_count: 1 }]),
-    ];
+    h.groups = [group("b", "bob", [{ ...seg("s1", 0, 0, 26), segment_count: 1 }])];
     wrap(<Stories />);
     fireEvent.click(await screen.findByRole("button", { name: /View bob Name's story/ }));
 
@@ -586,8 +592,9 @@ describe("swiping between people", () => {
     Object.defineProperty(ev, "clientY", { value: y });
     fireEvent(el, ev);
   };
+  // The turn between people is animated (a cube), so the new person shows after the turn ends.
   const swipe = (from: number, to: number, endY = 100) => {
-    const area = screen.getByRole("dialog").querySelector("img.object-contain") as HTMLElement;
+    const area = screen.getByRole("dialog").querySelector("[data-story-swipe]") as HTMLElement;
     pointer("pointerDown", area, from, 100);
     pointer("pointerUp", area, to, endY);
   };
@@ -601,12 +608,44 @@ describe("swiping between people", () => {
     expect(profileOf("alice")).toBeInTheDocument();
 
     swipe(250, 100); // finger moves left
-    expect(profileOf("bob")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Open bob Name's profile" }),
+    ).toBeInTheDocument();
     expect(profileOf("alice")).toBeNull();
 
     swipe(100, 250); // finger moves right
-    expect(profileOf("alice")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Open alice Name's profile" }),
+    ).toBeInTheDocument();
     expect(profileOf("bob")).toBeNull();
+  });
+
+  it("turns like a cube while the finger drags, and springs back when let go early", async () => {
+    h.groups = [group("a", "alice", [img("1")]), group("b", "bob", [img("2")])];
+    wrap(<Stories />);
+    fireEvent.click(await screen.findByRole("button", { name: /View alice Name's story/ }));
+    const area = screen.getByRole("dialog").querySelector("[data-story-swipe]") as HTMLElement;
+    const ev = (type: "pointerDown" | "pointerMove" | "pointerUp", x: number) => {
+      const e = createEvent[type](area, { button: 0 });
+      Object.defineProperty(e, "clientX", { value: x });
+      Object.defineProperty(e, "clientY", { value: 100 });
+      fireEvent(area, e);
+    };
+    // viewer -> its face -> the cube
+    const cubeEl = () => screen.getByRole("dialog").parentElement?.parentElement as HTMLElement;
+    const cube = () => (cubeEl().style.transform ? cubeEl() : null);
+    expect(cube()).toBeNull(); // nothing 3D while idle
+    ev("pointerDown", 300);
+    ev("pointerMove", 250);
+    ev("pointerMove", 200); // 100px to the left: the cube has turned a little
+    expect(cube()?.style.transform).toMatch(/rotateY\(-/);
+    expect(screen.getAllByText("bob Name").length).toBeGreaterThan(0); // bob's face is on the side
+    // let go after a slow, short drag: back to alice, nothing 3D left behind
+    await new Promise((r) => setTimeout(r, 450));
+    ev("pointerUp", 290);
+    await new Promise((r) => setTimeout(r, 400));
+    expect(cube()).toBeNull();
+    expect(profileOf("alice")).toBeInTheDocument();
   });
 
   it("follows the order of the row, starting with my own story", async () => {
@@ -615,7 +654,9 @@ describe("swiping between people", () => {
     fireEvent.click(await screen.findByRole("button", { name: "View your story" }));
     expect(profileOf("me")).toBeInTheDocument();
     swipe(250, 100);
-    expect(profileOf("alice")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Open alice Name's profile" }),
+    ).toBeInTheDocument();
   });
 
   it("stays on the story when there is nobody further in that direction", async () => {
@@ -625,7 +666,9 @@ describe("swiping between people", () => {
     swipe(100, 250); // right on the first person
     expect(profileOf("alice")).toBeInTheDocument();
     swipe(250, 100); // left: bob (the last one)
+    await screen.findByRole("button", { name: "Open bob Name's profile" });
     swipe(250, 100); // left again: nobody after bob
+    await new Promise((r) => setTimeout(r, 400));
     expect(profileOf("bob")).toBeInTheDocument();
   });
 
@@ -635,14 +678,14 @@ describe("swiping between people", () => {
     fireEvent.click(await screen.findByRole("button", { name: /View alice Name's story/ }));
     swipe(200, 170); // only 30px
     swipe(200, 100, 400); // sideways 100px but 300px down
+    await new Promise((r) => setTimeout(r, 400));
     expect(profileOf("alice")).toBeInTheDocument();
   });
 });
 
 describe("loading a video story", () => {
   // The loader lives on the story ring (avatar at the top of the open story), not on the video.
-  const ring = () =>
-    screen.getByRole("dialog").querySelector('[data-testid="story-ring-loader"]');
+  const ring = () => screen.getByRole("dialog").querySelector('[data-testid="story-ring-loader"]');
   const open = async () => {
     h.groups = [group("b", "bob", [seg("s1", 0, 0, 15), seg("s2", 1, 15, 22.5)])];
     wrap(<Stories />);
@@ -693,8 +736,8 @@ describe("loading a video story", () => {
   it("hides the browser's own play button on story videos", async () => {
     const video = await open();
     expect(video).toHaveClass("story-video");
-    expect(
-      readFileSync(resolve(__dirname, "../styles.css"), "utf8"),
-    ).toMatch(/\.story-video::-webkit-media-controls-start-playback-button/);
+    expect(readFileSync(resolve(__dirname, "../styles.css"), "utf8")).toMatch(
+      /\.story-video::-webkit-media-controls-start-playback-button/,
+    );
   });
 });

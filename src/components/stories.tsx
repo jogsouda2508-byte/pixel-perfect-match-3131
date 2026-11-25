@@ -1,6 +1,7 @@
 import { UserSafetyMenu } from "@/components/user-safety-menu";
 import { useRouter } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -431,19 +432,294 @@ export function Stories({
         <CloseFriendsSheet open onOpenChange={setFriendsSheet} meId={meId} z={120} />
       )}
       {viewing && (
-        <StoryViewer
-          key={viewing.authorId}
-          group={viewing}
-          meId={meId}
-          onSwipePerson={swipeToPerson}
-          onClose={() => setViewing(null)}
-          onAdd={() => {
-            setViewing(null);
-            pick();
-          }}
-        />
+        <StoryCubeHost
+          prev={viewIdx > 0 ? (viewList[viewIdx - 1] ?? null) : null}
+          next={viewIdx >= 0 ? (viewList[viewIdx + 1] ?? null) : null}
+          onSlide={swipeToPerson}
+        >
+          {(slide) => (
+            <StoryViewer
+              key={viewing.authorId}
+              group={viewing}
+              meId={meId}
+              onSwipePerson={slide}
+              onClose={() => setViewing(null)}
+              onAdd={() => {
+                setViewing(null);
+                pick();
+              }}
+            />
+          )}
+        </StoryCubeHost>
       )}
     </>
+  );
+}
+
+/**
+ * Swiping sideways between people (like WhatsApp status / Instagram stories): the story follows
+ * your finger as a turning cube, and the next / previous person's story shows on the side face.
+ *
+ * It only wraps the viewer: the viewer itself (timers, music, likes, views) is untouched. The side
+ * faces are light, still previews that are mounted only while a swipe is happening. Idle, there is
+ * no transform at all, so the story behaves exactly as before.
+ */
+const CUBE_MS = 280;
+
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+function StoryCubeHost({
+  prev,
+  next,
+  onSlide,
+  children,
+}: {
+  prev: StoryGroup | null;
+  next: StoryGroup | null;
+  /** called once the cube has turned: 1 = next person, -1 = previous person */
+  onSlide: (dir: 1 | -1) => void;
+  children: (slide: (dir: 1 | -1) => boolean) => React.ReactNode;
+}) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const cubeRef = useRef<HTMLDivElement>(null);
+  // true only while a swipe / turn is happening: then the side faces and the 3D look exist
+  const [active, setActive] = useState(false);
+  const busyRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const gestureRef = useRef<{
+    id: number;
+    x: number;
+    y: number;
+    t: number;
+    locked: boolean;
+    cancelled: boolean;
+    dx: number;
+  } | null>(null);
+  const prevRef = useRef(prev);
+  const nextRef = useRef(next);
+  const onSlideRef = useRef(onSlide);
+  prevRef.current = prev;
+  nextRef.current = next;
+  onSlideRef.current = onSlide;
+
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+
+  // Warm up the first picture of the neighbours so the side face is not empty while swiping.
+  useEffect(() => {
+    for (const g of [prev, next]) {
+      const first = g?.items[0];
+      if (first?.image_url && first.media_type !== "video") new Image().src = first.image_url;
+    }
+  }, [prev, next]);
+
+  const widthOf = () => hostRef.current?.clientWidth || window.innerWidth || 1;
+
+  // Turn the cube by `dx` pixels of finger movement (negative = towards the next person).
+  const apply = (dx: number, animate: boolean) => {
+    const cube = cubeRef.current;
+    const host = hostRef.current;
+    if (!cube || !host) return;
+    const w = widthOf();
+    const clamped = Math.max(-w, Math.min(w, dx));
+    host.style.perspective = `${Math.max(w * 2, 900)}px`;
+    cube.style.transition = animate
+      ? `transform ${CUBE_MS}ms cubic-bezier(0.22, 0.8, 0.3, 1)`
+      : "none";
+    cube.style.transform = `translateZ(${-w / 2}px) rotateY(${(clamped / w) * 90}deg)`;
+  };
+  const clearStyles = () => {
+    const cube = cubeRef.current;
+    const host = hostRef.current;
+    if (cube) {
+      cube.style.transform = "";
+      cube.style.transition = "";
+    }
+    if (host) host.style.perspective = "";
+  };
+
+  const finish = (dir: 1 | -1 | 0) => {
+    clearTimeout(timerRef.current);
+    flushSync(() => {
+      setActive(false);
+      if (dir !== 0) onSlideRef.current(dir);
+    });
+    clearStyles();
+    busyRef.current = false;
+  };
+
+  // Finish a turn: dir 1 / -1 = go to that person, 0 = spring back. `from` = where the finger left it.
+  const settle = (dir: 1 | -1 | 0, from?: number) => {
+    busyRef.current = true;
+    if (prefersReducedMotion()) {
+      finish(dir);
+      return;
+    }
+    flushSync(() => setActive(true));
+    const cube = cubeRef.current;
+    if (from === undefined && cube) {
+      apply(0, false);
+      void cube.offsetWidth; // start the animation from the resting position
+    }
+    apply(dir === 0 ? 0 : -dir * widthOf(), true);
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => finish(dir), CUBE_MS + 30);
+  };
+
+  // Used by taps on the edges of a story (back on the first / forward on the last one).
+  const slide = (dir: 1 | -1): boolean => {
+    const neighbour = dir === 1 ? nextRef.current : prevRef.current;
+    if (!neighbour) return false;
+    if (!busyRef.current) settle(dir);
+    return true;
+  };
+
+  const onDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (busyRef.current || gestureRef.current) return;
+    if (e.button > 0) return;
+    const el = e.target as HTMLElement;
+    if (!el.closest("[data-story-swipe]") || el.closest("button, input, textarea, [data-no-swipe]"))
+      return;
+    gestureRef.current = {
+      id: e.pointerId,
+      x: e.clientX,
+      y: e.clientY,
+      t: performance.now(),
+      locked: false,
+      cancelled: false,
+      dx: 0,
+    };
+  };
+
+  const onMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const g = gestureRef.current;
+    if (!g || g.id !== e.pointerId || g.cancelled) return;
+    const dx = e.clientX - g.x;
+    const dy = e.clientY - g.y;
+    if (!g.locked) {
+      if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) {
+        g.cancelled = true; // up / down: not a swipe between people
+        return;
+      }
+      if (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+      g.locked = true;
+      if (prefersReducedMotion()) return;
+      flushSync(() => setActive(true));
+    }
+    g.dx = dx;
+    if (prefersReducedMotion()) return;
+    // nobody on that side: the story only gives a little, like a rubber band
+    const neighbour = dx < 0 ? nextRef.current : prevRef.current;
+    apply(neighbour ? dx : dx * 0.2, false);
+  };
+
+  const onUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const g = gestureRef.current;
+    if (!g || g.id !== e.pointerId) return;
+    gestureRef.current = null;
+    if (g.cancelled) return;
+    const dx = e.clientX - g.x;
+    const dy = e.clientY - g.y;
+    const dt = Math.max(1, performance.now() - g.t);
+    const dir: 1 | -1 = dx < 0 ? 1 : -1;
+    const neighbour = dir === 1 ? nextRef.current : prevRef.current;
+    const sideways = Math.abs(dx) >= 50 && Math.abs(dx) > Math.abs(dy) * 1.5;
+    // far enough (a quarter of the screen) or a quick flick
+    const far = Math.abs(dx) >= widthOf() * 0.25 || Math.abs(dx) / dt >= 0.4;
+    const from = g.locked && !prefersReducedMotion() ? g.dx : undefined;
+    if (sideways && far && neighbour) settle(dir, from);
+    else if (g.locked && !prefersReducedMotion()) settle(0, g.dx);
+  };
+
+  const onCancel = (e: React.PointerEvent<HTMLDivElement>) => {
+    const g = gestureRef.current;
+    if (!g || g.id !== e.pointerId) return;
+    gestureRef.current = null;
+    if (g.locked && !g.cancelled && !prefersReducedMotion()) settle(0, g.dx);
+  };
+
+  const faceBase: React.CSSProperties = {
+    backfaceVisibility: "hidden",
+    WebkitBackfaceVisibility: "hidden",
+  };
+
+  return (
+    <div
+      ref={hostRef}
+      className="fixed inset-0 z-[100] overflow-hidden bg-black"
+      onPointerDownCapture={onDown}
+      onPointerMoveCapture={onMove}
+      onPointerUpCapture={onUp}
+      onPointerCancelCapture={onCancel}
+    >
+      <div
+        ref={cubeRef}
+        className="absolute inset-0"
+        style={active ? { transformStyle: "preserve-3d", willChange: "transform" } : undefined}
+      >
+        {active && prev && (
+          <div
+            className="absolute inset-0"
+            style={{
+              ...faceBase,
+              transform: `rotateY(-90deg) translateZ(${widthOf() / 2}px)`,
+            }}
+          >
+            <StoryPeek group={prev} />
+          </div>
+        )}
+        <div
+          className="absolute inset-0"
+          style={active ? { ...faceBase, transform: `translateZ(${widthOf() / 2}px)` } : undefined}
+        >
+          {children(slide)}
+        </div>
+        {active && next && (
+          <div
+            className="absolute inset-0"
+            style={{
+              ...faceBase,
+              transform: `rotateY(90deg) translateZ(${widthOf() / 2}px)`,
+            }}
+          >
+            <StoryPeek group={next} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** A still look at someone's first story, shown on the side of the cube while swiping. */
+function StoryPeek({ group }: { group: StoryGroup }) {
+  const first = group.items[0];
+  const photo = first && !(first.media_type === "video" && !!first.video_url) ? first : null;
+  return (
+    <div
+      aria-hidden="true"
+      className="sz-story-root pointer-events-none absolute inset-0 flex flex-col text-white"
+    >
+      <div className="flex gap-1 px-3 pt-3">
+        {group.items.map((s) => (
+          <div key={s.id} className="h-[2px] flex-1 rounded-full bg-white/20" />
+        ))}
+      </div>
+      <div className="sz-story-scrim-top flex items-center gap-3 p-4">
+        <Avatar src={group.avatar} name={group.name} size={36} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-display text-sm font-bold">{group.name}</p>
+          {first && <p className="text-xs text-white/70">{timeAgo(first.created_at)}</p>}
+        </div>
+      </div>
+      <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden">
+        {photo && <StoryPhoto src={photo.image_url ?? ""} gifs={photo.gifs} />}
+      </div>
+      <div className="h-[76px] shrink-0" />
+    </div>
   );
 }
 
@@ -939,6 +1215,7 @@ function StoryViewer({
         // no browser zoom on double tap, so a double tap can mean "like"; sideways movement is
         // left to us (pan-y only), so a swipe between people is not taken over by the browser
         style={{ touchAction: "pan-y" }}
+        data-story-swipe=""
         onClick={onStoryTap}
         onPointerDown={(e) => {
           // left mouse button or touch; the previous / next buttons keep working as taps
@@ -955,10 +1232,7 @@ function StoryViewer({
           const dx = e.clientX - start.x;
           const dy = e.clientY - start.y;
           if (Math.abs(dx) > 10 || Math.abs(dy) > 10) draggedRef.current = true;
-          // a clear, mostly sideways swipe: left = next person, right = previous person
-          if (onSwipePerson && Math.abs(dx) >= 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
-            onSwipePerson(dx < 0 ? 1 : -1);
-          }
+          // The sideways swipe between people (cube turn) is handled by StoryCubeHost.
         }}
         onPointerCancel={() => {
           swipeStartRef.current = null;
@@ -993,6 +1267,7 @@ function StoryViewer({
           // taps on the poll are for voting, never for pausing or double-tap liking
           <div
             className="absolute inset-x-3 bottom-3 z-[6] mx-auto w-[min(100%,17rem)]"
+            data-no-swipe=""
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
