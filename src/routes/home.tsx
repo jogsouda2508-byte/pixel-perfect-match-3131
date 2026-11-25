@@ -181,7 +181,7 @@ function HomePage() {
             <BrandLockup compact artwork />
           </h1>
           <div className="flex shrink-0 items-center gap-1.5">
-            <BellLink unread={unreadCount} />
+            <BellLink unread={unreadCount} plain />
           </div>
         </div>
         {/* The For You / Following / Local / Business switcher is gone from Home (search has the
@@ -312,12 +312,12 @@ function HomePage() {
   );
 }
 
-function BellLink({ unread }: { unread: number }) {
+function BellLink({ unread, plain = false }: { unread: number; plain?: boolean }) {
   return (
     <Link
       to="/notifications"
       aria-label={`Notifications${unread > 0 ? `, ${unread} unread` : ""}`}
-      className="relative grid h-11 w-11 place-items-center rounded-full border border-border bg-card/70 transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className={`relative grid h-11 w-11 place-items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${plain ? "" : "border border-border bg-card/70 hover:border-primary/40"}`}
     >
       <Bell className="h-5 w-5" />
       {unread > 0 && (

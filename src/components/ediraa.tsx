@@ -54,7 +54,7 @@ export function BrandLockup({
   if (artwork) {
     return (
       <span
-        className="inline-flex items-center gap-2 rounded-full border border-border bg-card/80 py-1.5 pl-3 pr-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_10px_30px_-18px_rgba(251,191,36,0.45)]"
+        className="inline-flex items-center gap-[0.394rem] rounded-full border border-border bg-card/80 py-[0.131rem] pl-[0.525rem] pr-[0.656rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_10px_30px_-18px_rgba(251,191,36,0.45)]"
         translate="no"
       >
         <img
@@ -64,7 +64,7 @@ export function BrandLockup({
           alt="SabZone logo"
           decoding="async"
           draggable={false}
-          className="h-7 w-auto shrink-0 select-none object-contain"
+          className="h-[1.3125rem] w-auto shrink-0 select-none object-contain"
         />
         <img
           src="/brand-wordmark.png"
@@ -74,7 +74,7 @@ export function BrandLockup({
           aria-hidden="true"
           decoding="async"
           draggable={false}
-          className="h-8 w-auto shrink-0 select-none object-contain"
+          className="h-[1.575rem] w-auto shrink-0 select-none object-contain"
         />
       </span>
     );
