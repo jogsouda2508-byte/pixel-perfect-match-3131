@@ -157,7 +157,7 @@ function sendVideo(
         xhr.setRequestHeader("apikey", publishableKey);
         xhr.setRequestHeader("Authorization", `Bearer ${data.session.access_token}`);
         xhr.setRequestHeader("Content-Type", clean.kind.mime);
-        xhr.setRequestHeader("Cache-Control", "31536000");
+        xhr.setRequestHeader("Cache-Control", "max-age=31536000");
         xhr.upload.onprogress = (event) => {
           if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
         };
