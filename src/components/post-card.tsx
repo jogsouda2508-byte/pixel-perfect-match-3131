@@ -33,6 +33,7 @@ import {
   type CommentView,
 } from "@/lib/social";
 import { timeAgo } from "@/lib/time";
+import { ThumbImage } from "@/components/thumb-image";
 import { useSaved } from "@/lib/use-saved";
 import { deleteVideoPost, recordVideoView } from "@/lib/videos";
 import type { FeedRow } from "@/integrations/supabase/types";
@@ -321,20 +322,18 @@ export function PostCard({
               aria-label="Open photo"
               className="sz-no-press relative z-10 block w-full cursor-default touch-manipulation select-none overflow-hidden outline-none [-webkit-tap-highlight-color:transparent] [-webkit-touch-callout:none] focus:outline-none focus-visible:outline-none"
             >
-              <img
+              <ThumbImage
                 src={post.image_url}
-                alt=""
-                loading="lazy"
+                variant="feed"
                 draggable={false}
                 className="block h-auto w-full"
               />
             </button>
             {/* Decorative: the same photo, blurred, fills any side gaps. Same file, so one download. */}
-            <img
+            <ThumbImage
               src={post.image_url}
-              alt=""
+              variant="feed"
               aria-hidden="true"
-              loading="lazy"
               draggable={false}
               className="sz-media-glow pointer-events-none absolute inset-0 z-0 h-full w-full object-cover"
             />

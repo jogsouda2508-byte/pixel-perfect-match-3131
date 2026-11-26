@@ -1,5 +1,11 @@
 /**
- * Egress saver, step 2: a small thumbnail saved next to every new photo post.
+ * Egress saver, steps 2 and 3: lighter copies saved next to every new photo post.
+ *
+ *   <id>.jpg    the photo itself (up to 1600 px)
+ *   <id>_t.jpg  thumbnail, ~480 px short side: profile grids
+ *   <id>_m.jpg  feed copy, 1200 px longest side: feed, discover, saved and the post page
+ *
+ * Original description of the thumbnail (step 2):
  *
  * Profile grids show photos as tiles about 130 px wide, but they used to download the whole
  * photo (hundreds of KB) for each tile. Now a post photo <id>.jpg gets a tiny sibling
@@ -26,17 +32,37 @@ export const THUMB_SKIP_BELOW = 80 * 1024;
 const POST_JPG =
   /^(https?:\/\/[^/?#]+\/storage\/v1\/object\/public\/media\/[^/?#]+\/posts\/[^/?#.]+)\.jpg(\?[^#]*)?$/i;
 
-/** The thumbnail's address for a post photo address, or null when this photo can't have one. */
-export function thumbnailUrl(imageUrl: string | null | undefined): string | null {
+type Variant = "t" | "m";
+
+function variantUrl(imageUrl: string | null | undefined, variant: Variant): string | null {
   if (!imageUrl) return null;
   const m = POST_JPG.exec(imageUrl);
-  return m ? `${m[1]}_t.jpg${m[2] ?? ""}` : null;
+  return m ? `${m[1]}_${variant}.jpg${m[2] ?? ""}` : null;
+}
+
+function variantPath(photoPath: string, variant: Variant): string | null {
+  const m = /^(.+)\.jpg$/i.exec(photoPath);
+  return m ? `${m[1]}_${variant}.jpg` : null;
+}
+
+/** The thumbnail's address for a post photo address, or null when this photo can't have one. */
+export function thumbnailUrl(imageUrl: string | null | undefined): string | null {
+  return variantUrl(imageUrl, "t");
+}
+
+/** The feed copy's address for a post photo address, or null when this photo can't have one. */
+export function feedImageUrl(imageUrl: string | null | undefined): string | null {
+  return variantUrl(imageUrl, "m");
 }
 
 /** The storage path of the thumbnail for a photo's storage path (<uid>/posts/<id>.jpg). */
 export function thumbnailPath(photoPath: string): string | null {
-  const m = /^(.+)\.jpg$/i.exec(photoPath);
-  return m ? `${m[1]}_t.jpg` : null;
+  return variantPath(photoPath, "t");
+}
+
+/** The storage path of the feed copy for a photo's storage path. */
+export function feedImagePath(photoPath: string): string | null {
+  return variantPath(photoPath, "m");
 }
 
 /** The size to draw: short side THUMB_SHORT_SIDE, longest side at most THUMB_MAX_SIDE, never larger. */
@@ -52,10 +78,32 @@ export function thumbSize(width: number, height: number): { width: number; heigh
   };
 }
 
-/** A small JPEG copy of a JPEG photo, or null when none is needed or anything goes wrong. */
-export async function makeThumbnail(photo: File): Promise<Blob | null> {
+/** The feed copy: longest side at most FEED_MAX_SIDE (sharp on a phone card), never larger. */
+export const FEED_MAX_SIDE = 1200;
+export const FEED_QUALITY = 0.8;
+/** A photo this small is light enough for the feed as it is: don't make a copy. */
+export const FEED_SKIP_BELOW = 150 * 1024;
+/** The feed copy must be at least 10 % smaller than the photo, or it isn't worth keeping. */
+const FEED_MAX_RATIO = 0.9;
+
+export function feedSize(width: number, height: number): { width: number; height: number } {
+  const scale = Math.min(1, FEED_MAX_SIDE / Math.max(width, height));
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
+  };
+}
+
+/** A smaller JPEG copy of a JPEG photo, or null when none is needed or anything goes wrong. */
+async function renderJpeg(
+  photo: File,
+  pick: (w: number, h: number) => { width: number; height: number },
+  quality: number,
+  skipBelow: number,
+  maxRatio: number,
+): Promise<Blob | null> {
   try {
-    if (photo.type !== "image/jpeg" || photo.size <= THUMB_SKIP_BELOW) return null;
+    if (photo.type !== "image/jpeg" || photo.size <= skipBelow) return null;
     if (typeof createImageBitmap !== "function") return null;
     // make sure it really is a JPEG before decoding it
     const head = await readBytes(photo, 0, 3);
@@ -63,7 +111,7 @@ export async function makeThumbnail(photo: File): Promise<Blob | null> {
 
     const bitmap = await createImageBitmap(photo, { imageOrientation: "from-image" });
     try {
-      const { width, height } = thumbSize(bitmap.width, bitmap.height);
+      const { width, height } = pick(bitmap.width, bitmap.height);
       const canvas = document.createElement("canvas");
       canvas.width = width;
       canvas.height = height;
@@ -72,9 +120,9 @@ export async function makeThumbnail(photo: File): Promise<Blob | null> {
       ctx.imageSmoothingQuality = "high";
       ctx.drawImage(bitmap, 0, 0, width, height);
       const blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(resolve, "image/jpeg", THUMB_QUALITY),
+        canvas.toBlob(resolve, "image/jpeg", quality),
       );
-      if (!blob || blob.type !== "image/jpeg" || blob.size >= photo.size) return null;
+      if (!blob || blob.type !== "image/jpeg" || blob.size >= photo.size * maxRatio) return null;
       return blob;
     } finally {
       bitmap.close();
@@ -82,4 +130,14 @@ export async function makeThumbnail(photo: File): Promise<Blob | null> {
   } catch {
     return null;
   }
+}
+
+/** A small JPEG thumbnail of a JPEG photo, or null when none is needed or anything goes wrong. */
+export function makeThumbnail(photo: File): Promise<Blob | null> {
+  return renderJpeg(photo, thumbSize, THUMB_QUALITY, THUMB_SKIP_BELOW, 1);
+}
+
+/** A feed-sized JPEG copy of a JPEG photo, or null when none is needed or anything goes wrong. */
+export function makeFeedImage(photo: File): Promise<Blob | null> {
+  return renderJpeg(photo, feedSize, FEED_QUALITY, FEED_SKIP_BELOW, FEED_MAX_RATIO);
 }

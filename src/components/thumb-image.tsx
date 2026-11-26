@@ -1,31 +1,40 @@
-import { useState } from "react";
-import { thumbnailUrl } from "@/lib/image-thumb";
+import { useState, type ImgHTMLAttributes } from "react";
+import { feedImageUrl, thumbnailUrl } from "@/lib/image-thumb";
+
+/** Light copies that turned out not to exist (old posts): not asked for again in this session. */
+const missing = new Set<string>();
 
 /**
- * A photo in a small tile (profile grid): loads the light thumbnail when the post has one and
- * quietly falls back to the full photo when it doesn't (posts made before thumbnails existed).
+ * A post photo that loads a lighter copy when the post has one and quietly falls back to the
+ * full photo when it doesn't (posts made before the copies existed, or a copy that failed).
+ *   variant="thumb": profile grid tiles (small, the default)
+ *   variant="feed":  the feed and post page (sharp at card width, a fraction of the bytes)
  */
 export function ThumbImage({
   src,
+  variant = "thumb",
   alt = "",
-  className,
+  loading = "lazy",
+  ...rest
 }: {
   src: string;
-  alt?: string;
-  className?: string;
-}) {
-  const thumb = thumbnailUrl(src);
-  // remember WHICH photo had no thumbnail, so a new src gets a fresh try
-  const [missingFor, setMissingFor] = useState<string | null>(null);
-  const useThumb = thumb !== null && missingFor !== src;
+  variant?: "thumb" | "feed";
+} & Omit<ImgHTMLAttributes<HTMLImageElement>, "src" | "alt" | "onError">) {
+  const light = variant === "feed" ? feedImageUrl(src) : thumbnailUrl(src);
+  // re-render when a copy turns out to be missing
+  const [, bump] = useState(0);
+  const useLight = light !== null && !missing.has(light);
   return (
     <img
-      src={useThumb ? thumb : src}
+      {...rest}
+      src={useLight ? light : src}
       alt={alt}
-      loading="lazy"
-      className={className}
+      loading={loading}
       onError={() => {
-        if (useThumb) setMissingFor(src);
+        if (useLight) {
+          missing.add(light);
+          bump((n) => n + 1);
+        }
       }}
     />
   );
