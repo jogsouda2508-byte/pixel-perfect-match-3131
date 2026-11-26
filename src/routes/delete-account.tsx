@@ -1,4 +1,4 @@
-import { SUPPORT_EMAIL } from "@/lib/legal";
+import { APP_NAME, COMPANY_NAME, SUPPORT_EMAIL } from "@/lib/legal";
 import {
   createFileRoute,
   Link,
@@ -13,10 +13,10 @@ import { useAuth } from "@/lib/auth";
 export const Route = createFileRoute("/delete-account")({
   head: () => ({
     meta: [
-      { title: "Delete your account" },
+      { title: `Delete your ${APP_NAME} account` },
       {
         name: "description",
-        content: "How to delete your account and what happens to your data.",
+        content: `How to delete your ${APP_NAME} account and what happens to your data.`,
       },
     ],
   }),
@@ -32,25 +32,40 @@ function DeleteAccountPage() {
   return (
     <main className="mx-auto max-w-xl space-y-5 px-4 pb-10 pt-3 sm:px-6 sm:pt-5">
       <PageHeader
-        title="Delete your account"
+        title={`Delete your ${APP_NAME} account`}
         onBack={() =>
           canGoBack ? router.history.back() : navigate({ to: "/welcome", replace: true })
         }
       />
       <p className="text-sm text-muted-foreground">
-        You can delete your account whenever you like. It takes about a minute.
+        {APP_NAME} is run by {COMPANY_NAME}. You can delete your account whenever you like. It
+        takes about a minute.
       </p>
 
       <section className="space-y-2">
         <h2 className="font-semibold">In the app</h2>
         <ol className="list-decimal space-y-1 pl-5 text-sm">
-          <li>Open More, then Settings &amp; Privacy.</li>
-          <li>Scroll to Delete account and tap Delete my account.</li>
+          <li>Open More.</li>
+          <li>Scroll to the bottom, below Log Out, and tap Delete my account.</li>
           <li>
             Type DELETE and enter your password to confirm. If you signed in with Google, you will
             be asked to confirm with Google first.
           </li>
         </ol>
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="font-semibold">Delete some data without deleting your account</h2>
+        <p className="text-sm">
+          You can also remove individual posts, stories, comments and messages inside the app.
+          Your account stays active.
+        </p>
+        <ul className="list-disc space-y-1 pl-5 text-sm">
+          <li>Posts and videos: tap the menu (three dots) on your post, then Delete post.</li>
+          <li>Stories: open your story, tap the bin icon, then confirm Delete.</li>
+          <li>Comments: tap the bin icon next to your comment.</li>
+          <li>Messages: press and hold your message, tap Delete, then confirm.</li>
+        </ul>
       </section>
 
       <section className="space-y-2">

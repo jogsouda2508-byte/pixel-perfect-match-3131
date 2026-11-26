@@ -108,8 +108,8 @@ function PrivacyPage() {
             <>
               <p>
                 You can edit your profile, make your account private, block or mute people, turn
-                notifications off, and delete your account in the app (More, then Settings, then
-                Delete account) or through the Delete account page on our website.
+                notifications off, and delete your account in the app (More, then Delete my
+                account) or through the Delete account page on our website.
               </p>
               <p>
                 You can also ask to see, correct or remove your information by writing to us. We
