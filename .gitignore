@@ -32,9 +32,8 @@ dist-ssr
 *.sw?
 
 .env
-
-android-web
 android
+android-web
 capacitor.config.ts
 android/app/google-services.json
 
