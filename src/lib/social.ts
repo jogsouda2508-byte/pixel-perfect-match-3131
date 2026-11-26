@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchMutedIds } from "@/lib/safety";
 import { randomId } from "@/lib/uuid";
+import { compressImageFile } from "@/lib/image-compress";
 import { sanitizeImageFile } from "@/lib/image-sanitize";
 import { supabase } from "@/integrations/supabase/client";
 import { removeStoryVideoFile } from "@/lib/story-video";
@@ -69,7 +70,8 @@ async function uploadImage(
 ): Promise<string> {
   const problem = validateImage(file);
   if (problem) throw new Error(problem);
-  const clean = await sanitizeImageFile(file, MAX_IMAGE_BYTES);
+  // smaller file = less download for everyone who opens it (falls back to the original on any problem)
+  const clean = await sanitizeImageFile(await compressImageFile(file), MAX_IMAGE_BYTES);
   const ext = clean.type === "image/jpeg" ? "jpg" : clean.type.split("/")[1];
   const path = `${userId}/${folder}/${randomId()}.${ext}`;
   const { error } = await supabase.storage.from("media").upload(path, clean, {
