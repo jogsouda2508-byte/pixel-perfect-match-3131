@@ -13,6 +13,7 @@ import {
   fetchTaggedPosts,
 } from "@/lib/social";
 import { timeAgo } from "@/lib/time";
+import { ThumbImage } from "@/components/thumb-image";
 
 type Tab = "comments" | "tags" | "likes";
 const TABS: { key: Tab; label: string }[] = [
@@ -71,7 +72,7 @@ function PostGrid({ posts }: { posts: PostRow[] }) {
             className="relative block aspect-square w-full overflow-hidden bg-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {cover ? (
-              <img src={cover} alt="" loading="lazy" className="h-full w-full object-cover" />
+              <ThumbImage src={cover} className="h-full w-full object-cover" />
             ) : (
               <p className="line-clamp-5 break-words p-3 text-xs font-medium leading-snug">
                 {p.content}

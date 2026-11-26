@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchMutedIds } from "@/lib/safety";
 import { randomId } from "@/lib/uuid";
 import { compressImageFile } from "@/lib/image-compress";
+import { makeThumbnail, thumbnailPath } from "@/lib/image-thumb";
 import { sanitizeImageFile } from "@/lib/image-sanitize";
 import { supabase } from "@/integrations/supabase/client";
 import { removeStoryVideoFile } from "@/lib/story-video";
@@ -79,6 +80,22 @@ async function uploadImage(
     cacheControl: "31536000",
   });
   if (error) fail("Image upload", error);
+  // A small copy for profile grids. Best effort: if it fails the post still works and the grid
+  // simply loads the full photo.
+  if (folder === "posts") {
+    try {
+      const thumbPath = thumbnailPath(path);
+      const thumb = thumbPath ? await makeThumbnail(clean) : null;
+      if (thumb && thumbPath) {
+        await supabase.storage.from("media").upload(thumbPath, thumb, {
+          contentType: "image/jpeg",
+          cacheControl: "31536000",
+        });
+      }
+    } catch {
+      /* the thumbnail is optional */
+    }
+  }
   return supabase.storage.from("media").getPublicUrl(path).data.publicUrl;
 }
 

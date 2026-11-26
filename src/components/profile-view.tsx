@@ -61,6 +61,7 @@ import { blockedMessage, fetchBlockState, unblockUser } from "@/lib/safety";
 import { fetchUserVideos, fetchVideoViewCounts } from "@/lib/videos";
 import type { Profile } from "@/integrations/supabase/types";
 import { userMessage } from "@/lib/security";
+import { ThumbImage } from "@/components/thumb-image";
 
 const tabs = ["Posts", "Reels", "Tagged"] as const;
 const tabIcons = { Posts: Grid3x3, Reels: ReelsIcon, Tagged: SquareUser } as const;
@@ -643,10 +644,9 @@ export function ProfileView({ profile, isMe }: { profile: Profile; isMe: boolean
                     aria-label={`Open photo${p.content ? `: ${p.content.slice(0, 60)}` : ""}`}
                     className="block aspect-square w-full overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    <img
+                    <ThumbImage
                       src={p.image_url}
                       alt={p.content.slice(0, 80)}
-                      loading="lazy"
                       className="h-full w-full object-cover"
                     />
                   </Link>
