@@ -880,7 +880,8 @@ export async function uploadAvatar(userId: string, file: File): Promise<string> 
   const path = `${userId}/avatar.${ext}`; // folder name must equal the user's id (storage policy)
   const { error } = await supabase.storage
     .from("avatars")
-    .upload(path, clean, { upsert: true, contentType: clean.type });
+    // 1 year, like every other upload: the returned URL ends in ?v=<time>, so a new photo is a new URL
+    .upload(path, clean, { upsert: true, contentType: clean.type, cacheControl: "31536000" });
   if (error) fail("Photo upload", error);
   // Earlier photos were stored as avatar.png / .webp / .gif, uncropped, and stayed public after a
   // change. Remove those leftovers (best effort: a failure here must never fail the upload).
