@@ -51,7 +51,7 @@ describe("LegalPage", () => {
     expect(screen.getByText(/Last updated/)).toBeTruthy();
     const mail = screen.getByRole("link", { name: SUPPORT_EMAIL });
     expect(mail.getAttribute("href")).toBe(`mailto:${SUPPORT_EMAIL}`);
-    for (const path of ["/terms", "/privacy", "/guidelines", "/delete-account"]) {
+    for (const path of ["/terms", "/privacy", "/guidelines", "/child-safety", "/delete-account"]) {
       expect(document.querySelector(`a[href="${path}"]`)).not.toBeNull();
     }
   });

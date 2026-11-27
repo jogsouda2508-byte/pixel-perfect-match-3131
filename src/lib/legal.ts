@@ -7,3 +7,7 @@ export const SUPPORT_EMAIL = "jarakandetechnology@gmail.com";
 export const LEGAL_UPDATED = "18 November 2026";
 /** Youngest age allowed to sign up. Keep it in line with the Play Console audience answer. */
 export const MIN_AGE = 13;
+/** Shown on the Child Safety Standards page. Update it whenever that page changes. */
+export const CHILD_SAFETY_UPDATED = "27 November 2026";
+/** Who handles child safety reports and questions from Google, authorities and the public. */
+export const CHILD_SAFETY_EMAIL = SUPPORT_EMAIL;

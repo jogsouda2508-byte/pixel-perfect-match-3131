@@ -13,24 +13,27 @@ function useLegalBack() {
   return () => (canGoBack ? router.history.back() : navigate({ to: "/welcome", replace: true }));
 }
 
-/** One plain, readable page for Privacy, Terms and Community Guidelines. No sign-in needed. */
+/** One plain, readable page for Privacy, Terms, Community Guidelines and Child Safety. No sign-in needed. */
 export function LegalPage({
   title,
   intro,
   sections,
   showUpdated = true,
+  updated = LEGAL_UPDATED,
 }: {
   title: string;
   intro: string;
   sections: LegalSection[];
   showUpdated?: boolean;
+  /** Date shown under the title. Defaults to the Terms / Privacy date. */
+  updated?: string;
 }) {
   const goBack = useLegalBack();
   return (
     <main className="mx-auto max-w-2xl px-4 pb-10 pt-3 sm:px-6 sm:pt-5">
       <PageHeader title={title} onBack={goBack} />
       {showUpdated && (
-        <p className="mt-1 text-xs text-muted-foreground">Last updated {LEGAL_UPDATED}</p>
+        <p className="mt-1 text-xs text-muted-foreground">Last updated {updated}</p>
       )}
       <p className="mt-4 text-sm leading-relaxed">{intro}</p>
       <div className="mt-6 space-y-6">
@@ -62,6 +65,9 @@ export function LegalPage({
           </Link>
           <Link className="hover:underline" to="/guidelines" replace>
             Community Guidelines
+          </Link>
+          <Link className="hover:underline" to="/child-safety" replace>
+            Child Safety
           </Link>
           <Link className="hover:underline" to="/delete-account" replace>
             Delete account

@@ -186,18 +186,24 @@ export type ReportReason =
   | "harassment"
   | "hate"
   | "nudity"
+  | "child_safety"
   | "violence"
   | "scam"
   | "false_info"
   | "self_harm"
   | "other";
 
-// The `value`s must match the reports.reason check in 20261111000000_block_mute_report.sql.
+// The `value`s must match the reports.reason check in 20261127000000_child_safety_report_reason.sql.
 export const REPORT_REASONS: { value: ReportReason; label: string; hint: string }[] = [
   { value: "spam", label: "Spam", hint: "Repeated, irrelevant or fake promotion" },
   { value: "harassment", label: "Bullying or harassment", hint: "Targeting or threatening someone" },
   { value: "hate", label: "Hate speech", hint: "Attacks people for who they are" },
   { value: "nudity", label: "Nudity or sexual content", hint: "Not suitable for everyone" },
+  {
+    value: "child_safety",
+    label: "Child safety concern",
+    hint: "A child is being sexualised, targeted or put at risk",
+  },
   { value: "violence", label: "Violence or dangerous acts", hint: "Hurting people or animals" },
   { value: "scam", label: "Scam or fraud", hint: "Trying to cheat people out of money" },
   { value: "false_info", label: "False information", hint: "Misleading or made up" },

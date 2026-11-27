@@ -140,6 +140,7 @@ describe("route guard: screens that need a signed-in, onboarded user", () => {
     "/privacy",
     "/terms",
     "/guidelines",
+    "/child-safety",
     "/delete-account",
     "/reset-password",
     "/verify",

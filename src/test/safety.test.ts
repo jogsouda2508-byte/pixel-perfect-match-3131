@@ -16,6 +16,12 @@ const sql = readFileSync(
   "utf8",
 );
 
+// The reports.reason check was widened later, so read the newest migration that sets it.
+const reasonSql = readFileSync(
+  resolve(__dirname, "../../supabase/migrations/20261127000000_child_safety_report_reason.sql"),
+  "utf8",
+);
+
 describe("dropMuted", () => {
   const rows = [
     { id: 1, author_id: "a" },
@@ -69,7 +75,7 @@ describe("reportErrorMessage", () => {
 
 describe("report reasons match the database", () => {
   it("every reason in the app is allowed by the SQL check, and the other way round", () => {
-    const check = sql.match(/reason\s+text not null check \(reason in\s*\(([^)]*)\)/);
+    const check = reasonSql.match(/check \(reason in\s*\(([^)]*)\)/);
     expect(check).not.toBeNull();
     const inSql = [...check![1]!.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort();
     expect(REPORT_REASONS.map((r) => r.value).sort()).toEqual(inSql);

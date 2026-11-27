@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as BusinessRouteImport } from './routes/business'
 import { Route as BusinessEditRouteImport } from './routes/business-edit'
+import { Route as ChildSafetyRouteImport } from './routes/child-safety'
 import { Route as CommunityRouteImport } from './routes/community'
 import { Route as CreateRouteImport } from './routes/create'
 import { Route as DeleteAccountRouteImport } from './routes/delete-account'
@@ -57,6 +58,11 @@ const BusinessRoute = BusinessRouteImport.update({
 const BusinessEditRoute = BusinessEditRouteImport.update({
   id: '/business-edit',
   path: '/business-edit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChildSafetyRoute = ChildSafetyRouteImport.update({
+  id: '/child-safety',
+  path: '/child-safety',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CommunityRoute = CommunityRouteImport.update({
@@ -219,6 +225,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/business': typeof BusinessRoute
   '/business-edit': typeof BusinessEditRoute
+  '/child-safety': typeof ChildSafetyRoute
   '/community': typeof CommunityRoute
   '/create': typeof CreateRoute
   '/delete-account': typeof DeleteAccountRoute
@@ -255,6 +262,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/business': typeof BusinessRoute
   '/business-edit': typeof BusinessEditRoute
+  '/child-safety': typeof ChildSafetyRoute
   '/community': typeof CommunityRoute
   '/create': typeof CreateRoute
   '/delete-account': typeof DeleteAccountRoute
@@ -292,6 +300,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/business': typeof BusinessRoute
   '/business-edit': typeof BusinessEditRoute
+  '/child-safety': typeof ChildSafetyRoute
   '/community': typeof CommunityRoute
   '/create': typeof CreateRoute
   '/delete-account': typeof DeleteAccountRoute
@@ -330,6 +339,7 @@ export interface FileRouteTypes {
     | '/'
     | '/business'
     | '/business-edit'
+    | '/child-safety'
     | '/community'
     | '/create'
     | '/delete-account'
@@ -366,6 +376,7 @@ export interface FileRouteTypes {
     | '/'
     | '/business'
     | '/business-edit'
+    | '/child-safety'
     | '/community'
     | '/create'
     | '/delete-account'
@@ -402,6 +413,7 @@ export interface FileRouteTypes {
     | '/'
     | '/business'
     | '/business-edit'
+    | '/child-safety'
     | '/community'
     | '/create'
     | '/delete-account'
@@ -439,6 +451,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BusinessRoute: typeof BusinessRoute
   BusinessEditRoute: typeof BusinessEditRoute
+  ChildSafetyRoute: typeof ChildSafetyRoute
   CommunityRoute: typeof CommunityRoute
   CreateRoute: typeof CreateRoute
   DeleteAccountRoute: typeof DeleteAccountRoute
@@ -493,6 +506,13 @@ declare module '@tanstack/react-router' {
       path: '/business-edit'
       fullPath: '/business-edit'
       preLoaderRoute: typeof BusinessEditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/child-safety': {
+      id: '/child-safety'
+      path: '/child-safety'
+      fullPath: '/child-safety'
+      preLoaderRoute: typeof ChildSafetyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/community': {
@@ -719,6 +739,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BusinessRoute: BusinessRoute,
   BusinessEditRoute: BusinessEditRoute,
+  ChildSafetyRoute: ChildSafetyRoute,
   CommunityRoute: CommunityRoute,
   CreateRoute: CreateRoute,
   DeleteAccountRoute: DeleteAccountRoute,

@@ -90,6 +90,9 @@ function HelpPage() {
         <Link className="hover:underline" to="/guidelines">
           Community Guidelines
         </Link>
+        <Link className="hover:underline" to="/child-safety">
+          Child Safety
+        </Link>
         <Link className="hover:underline" to="/delete-account">
           Delete account
         </Link>
